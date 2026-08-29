@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Admin — Central de Jogos</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="/estilo.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚙️</text></svg>">
+<style>
+  .barra-progresso {
+    height: 10px;
+    border-radius: 999px;
+    background: var(--fundo-2);
+    overflow: hidden;
+    margin-top: 12px;
+  }
+
+  .barra-progresso div {
+    height: 100%;
+    width: 0;
+    background: var(--destaque);
+    transition: width .15s ease;
+  }
+
+  dialog {
+    border: 2px solid var(--borda);
+    border-radius: var(--raio);
+    background: var(--papel);
+    color: var(--tinta);
+    padding: clamp(18px, 3vw, 28px);
+    max-width: 520px;
+    width: calc(100% - 32px);
+  }
+
+  dialog::backdrop { background: rgba(20, 16, 30, .55); }
+
+  .campo input[type="color"] {
+    width: 100%;
+    height: 47px;
+    padding: 3px;
+    border: 2px solid var(--borda);
+    border-radius: 14px;
+    background: var(--papel);
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<div class="envolve">
+
+  <header class="topo">
+    <a class="marca" href="/">
+      <span class="logo" aria-hidden="true">⚙️</span>
+      <span>Admin</span>
+    </a>
+    <span class="espaco"></span>
+    <a class="botao claro" href="/">🎮 Ver catálogo</a>
+    <button class="botao claro" id="btn-sair" hidden>Sair</button>
+  </header>
+
+  <main>
+    <p id="aviso" class="aviso" role="status"></p>
+
+    <!-- ---------------------------------------------------------- login -->
+    <section class="painel" id="painel-login" hidden>
+      <h2>Entrar</h2>
+      <p class="dica">Só quem tem a senha pode publicar ou apagar jogos.</p>
+      <form id="form-login">
+        <div class="campo">
+          <label for="senha">Senha do admin</label>
+          <input id="senha" name="senha" type="password" autocomplete="current-password" required>
+        </div>
+        <button class="botao" type="submit">Entrar</button>
+      </form>
+    </section>
+
+    <!-- --------------------------------------------------------- upload -->
+    <section class="painel" id="painel-upload" hidden>
+      <h2>Publicar um jogo</h2>
+      <p class="dica">
+        Envie um <strong>.zip</strong> com os arquivos do jogo. Precisa ter um
+        <code>index.html</code> na raiz (ou dentro de uma única pasta dentro do zip).
+      </p>
+
+      <form id="form-upload">
+        <div class="campo">
+          <label for="arquivo">Arquivo .zip do jogo</label>
+          <input id="arquivo" name="arquivo" type="file" accept=".zip,application/zip" required>
+        </div>
+
+        <div class="linha">
+          <div class="campo">
+            <label for="nome">Nome do jogo</label>
+            <input id="nome" name="nome" type="text" maxlength="60" placeholder="Ex.: Galinha Feliz">
+          </div>
+          <div class="campo">
+            <label for="pasta">Pasta (endereço)</label>
+            <input id="pasta" name="pasta" type="text" maxlength="60" placeholder="galinha-feliz">
+            <p class="dica" id="dica-pasta">Vira <code>/jogos/…</code></p>
+          </div>
+        </div>
+
+        <div class="linha">
+          <div class="campo">
+            <label for="emoji">Emoji</label>
+            <input id="emoji" name="emoji" type="text" maxlength="4" placeholder="🐔">
+          </div>
+          <div class="campo">
+            <label for="cor">Cor do cartão</label>
+            <input id="cor" name="cor" type="color" value="#ff8fb8">
+          </div>
+          <div class="campo">
+            <label for="idade">Idade</label>
+            <input id="idade" name="idade" type="text" maxlength="12" placeholder="3+">
+          </div>
+        </div>
+
+        <div class="campo">
+          <label for="descricao">Descrição</label>
+          <textarea id="descricao" name="descricao" maxlength="400"
+                    placeholder="Uma frase para a criança saber do que se trata."></textarea>
+        </div>
+
+        <div class="campo">
+          <label for="tags">Etiquetas (separadas por vírgula)</label>
+          <input id="tags" name="tags" type="text" placeholder="arcade, 2 jogadores">
+        </div>
+
+        <div class="campo">
+          <label style="display:flex;align-items:center;gap:10px;font-weight:700">
+            <input id="substituir" name="substituir" type="checkbox" style="width:20px;height:20px">
+            Substituir se a pasta já existir
+          </label>
+        </div>
+
+        <button class="botao" type="submit" id="btn-enviar">⬆️ Publicar jogo</button>
+        <div class="barra-progresso" id="progresso" hidden><div></div></div>
+      </form>
+    </section>
+
+    <!-- ---------------------------------------------------------- lista -->
+    <section class="painel" id="painel-lista" hidden>
+      <h2>Jogos instalados <span class="selo" id="contagem">0</span></h2>
+      <p class="dica">Também vale copiar a pasta do jogo direto para <code>jogos/</code> — ela aparece aqui sozinha.</p>
+      <ul class="lista" id="lista"></ul>
+      <div class="vazio" id="lista-vazia" hidden>
+        <span class="emoji">📦</span>
+        <p>Nenhum jogo instalado ainda.</p>
+      </div>
+    </section>
+  </main>
+
+  <p class="rodape">Central de Jogos — painel do administrador</p>
+</div>
+
+<!-- ------------------------------------------------------------- edição -->
+<dialog id="modal-editar">
+  <form id="form-editar" method="dialog">
+    <h2 style="margin-top:0">Editar jogo</h2>
+    <p class="dica" id="editar-slug"></p>
+
+    <div class="campo">
+      <label for="e-nome">Nome</label>
+      <input id="e-nome" type="text" maxlength="60" required>
+    </div>
+
+    <div class="linha">
+      <div class="campo">
+        <label for="e-emoji">Emoji</label>
+        <input id="e-emoji" type="text" maxlength="4">
+      </div>
+      <div class="campo">
+        <label for="e-cor">Cor</label>
+        <input id="e-cor" type="color">
+      </div>
+      <div class="campo">
+        <label for="e-idade">Idade</label>
+        <input id="e-idade" type="text" maxlength="12" placeholder="3+">
+      </div>
+    </div>
+
+    <div class="campo">
+      <label for="e-descricao">Descrição</label>
+      <textarea id="e-descricao" maxlength="400"></textarea>
+    </div>
+
+    <div class="campo">
+      <label for="e-tags">Etiquetas</label>
+      <input id="e-tags" type="text" placeholder="arcade, 2 jogadores">
+    </div>
+
+    <div class="campo">
+      <label style="display:flex;align-items:center;gap:10px;font-weight:700">
+        <input id="e-visivel" type="checkbox" style="width:20px;height:20px">
+        Aparecer no catálogo
+      </label>
+    </div>
+
+    <div class="linha" style="justify-content:flex-end">
+      <button class="botao claro" type="button" id="btn-cancelar" style="flex:0">Cancelar</button>
+      <button class="botao" type="submit" style="flex:0">Salvar</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="/admin.js"></script>
+</body>
+</html>

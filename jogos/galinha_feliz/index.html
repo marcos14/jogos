@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Galinha Feliz</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐔</text></svg>">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ------------------------------------------------------------------ HUD -->
+  <header id="hud" class="hidden">
+    <div class="hud-box name-box">
+      <span class="hud-label">Jogador</span>
+      <strong id="hud-name">—</strong>
+    </div>
+    <div class="hud-box">
+      <span class="hud-label">Pontos</span>
+      <strong id="hud-score">0</strong>
+    </div>
+    <div class="hud-box">
+      <span class="hud-label">Fase</span>
+      <strong id="hud-level">1</strong>
+    </div>
+    <div class="hud-box grow">
+      <span class="hud-label">Ovos <em id="hud-eggs">0 / 100</em></span>
+      <div class="bar"><div id="bar-eggs" class="bar-fill eggs"></div></div>
+    </div>
+    <div class="hud-box grow">
+      <span class="hud-label">Tempo <em id="hud-time">0s</em></span>
+      <div class="bar"><div id="bar-time" class="bar-fill time"></div></div>
+    </div>
+    <div class="hud-box combo" id="hud-combo-box">
+      <span class="hud-label">Combo</span>
+      <strong id="hud-combo">x1</strong>
+    </div>
+    <div class="hud-buttons">
+      <button id="btn-sound" class="icon-btn" title="Som (M)">🔊</button>
+      <button id="btn-pause" class="icon-btn" title="Pausar (P)">⏸</button>
+    </div>
+  </header>
+
+  <!-- --------------------------------------------------------------- Palco -->
+  <div id="stage">
+    <canvas id="game" width="960" height="600"></canvas>
+
+    <!-- Tela inicial -->
+    <section id="screen-start" class="screen">
+      <div class="panel">
+        <h1 class="title"><span class="hen">🐔</span> Galinha <span class="pink">Feliz</span></h1>
+        <p class="subtitle">O jogo favorito da Peppa Pig</p>
+
+        <form id="form-start" autocomplete="off">
+          <label for="input-name">Qual é o seu nome?</label>
+          <input id="input-name" type="text" maxlength="14" placeholder="Digite seu nome" required>
+          <button id="btn-play" type="submit" class="big-btn">Jogar!</button>
+        </form>
+
+        <details class="how">
+          <summary>Como jogar</summary>
+          <ul>
+            <li>Mova a galinha com o <b>mouse</b>, o <b>dedo</b> ou as <b>setas / WASD</b>.</li>
+            <li>A cada poucos segundos ela bota um ovo <b>no quadradinho onde estiver</b>.</li>
+            <li>Só vale ovo em quadradinho <b>vazio</b> — corra para lugares diferentes!</li>
+            <li>Os ovos <b>chocam e viram pintinhos</b>, liberando o lugar de novo.</li>
+            <li><b>100 ovos</b> = próxima fase (mais rápida). Cuidado com a raposa!</li>
+          </ul>
+        </details>
+
+        <div class="ranking">
+          <h2>🏆 Melhores galinhas</h2>
+          <ol id="ranking-list"><li class="empty">Ninguém jogou ainda…</li></ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- Aviso de fase / pausa -->
+    <section id="screen-overlay" class="screen hidden">
+      <div class="panel small">
+        <h2 id="overlay-title">Fase 2</h2>
+        <p id="overlay-text">Mais rápido agora!</p>
+        <button id="btn-resume" class="big-btn hidden">Continuar</button>
+        <button id="btn-quit" class="ghost-btn hidden">Sair do jogo</button>
+      </div>
+    </section>
+
+    <!-- Fim de jogo -->
+    <section id="screen-over" class="screen hidden">
+      <div class="panel">
+        <h2 class="title small">Fim de jogo!</h2>
+        <p id="over-line" class="subtitle">Boa, Peppa!</p>
+        <div class="stats">
+          <div><span>Pontos</span><strong id="over-score">0</strong></div>
+          <div><span>Fase</span><strong id="over-level">1</strong></div>
+          <div><span>Ovos</span><strong id="over-eggs">0</strong></div>
+        </div>
+        <div class="ranking">
+          <h2>🏆 Melhores galinhas</h2>
+          <ol id="ranking-list-2"></ol>
+        </div>
+        <button id="btn-again" class="big-btn">Jogar de novo</button>
+        <button id="btn-menu" class="ghost-btn">Trocar de jogador</button>
+      </div>
+    </section>
+  </div>
+
+  <footer id="tip">Dica: fique de olho no anel dourado — quando ele completa, sai ovo!</footer>
+</div>
+
+<script src="game.js" charset="utf-8"></script>
+</body>
+</html>

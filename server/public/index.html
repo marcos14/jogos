@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Central de Jogos</title>
+<meta name="description" content="Catálogo de jogos da família.">
+<link rel="stylesheet" href="/estilo.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎮</text></svg>">
+</head>
+<body>
+
+<div class="envolve">
+
+  <header class="topo">
+    <a class="marca" href="/">
+      <span class="logo" aria-hidden="true">🎮</span>
+      <span id="titulo">Central de Jogos</span>
+    </a>
+
+    <span class="espaco"></span>
+
+    <div class="busca">
+      <label class="pular" for="busca">Procurar jogo</label>
+      <input id="busca" type="search" placeholder="Procurar jogo…" autocomplete="off">
+    </div>
+
+    <a class="botao claro" href="/admin">⚙️ Admin</a>
+  </header>
+
+  <main>
+    <p id="aviso" class="aviso ruim" role="status"></p>
+
+    <ul class="grade" id="grade"></ul>
+
+    <div class="vazio" id="vazio" hidden>
+      <span class="emoji">🕹️</span>
+      <p id="vazio-texto">Nenhum jogo por aqui ainda.</p>
+      <p><a class="botao" href="/admin">Publicar o primeiro jogo</a></p>
+    </div>
+  </main>
+
+  <p class="rodape">
+    Feito em casa 💜 — coloque um jogo novo pelo <a href="/admin">painel do admin</a>
+    ou solte a pasta dentro de <code>jogos/</code>.
+  </p>
+
+</div>
+
+<script src="/catalogo.js"></script>
+</body>
+</html>

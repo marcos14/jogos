@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Jogando…</title>
+<link rel="stylesheet" href="/estilo.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎮</text></svg>">
+<style>
+  html, body { height: 100%; overflow: hidden; }
+
+  #palco {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    background: #12101a;
+  }
+
+  #barra {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+    background: var(--papel);
+    border-bottom: 2px solid var(--borda);
+    flex: none;
+  }
+
+  #barra .nome {
+    font-weight: 900;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  #barra .nome span:last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #barra .espaco { flex: 1; }
+  #barra .botao { padding: 9px 16px; font-size: .9rem; }
+
+  #quadro {
+    flex: 1;
+    width: 100%;
+    border: 0;
+    display: block;
+    background: #12101a;
+  }
+
+  /* Em tela cheia a barra vira uma pílula discreta no canto. */
+  #palco:fullscreen #barra {
+    position: fixed;
+    top: 8px;
+    left: 8px;
+    z-index: 10;
+    padding: 4px;
+    gap: 4px;
+    border: none;
+    border-radius: 999px;
+    background: rgba(20, 16, 30, .55);
+    opacity: .35;
+    transition: opacity .2s ease;
+  }
+
+  #palco:fullscreen #barra:hover,
+  #palco:fullscreen #barra:focus-within { opacity: 1; }
+  #palco:fullscreen #barra .nome,
+  #palco:fullscreen #barra .espaco { display: none; }
+</style>
+</head>
+<body>
+
+<div id="palco">
+  <div id="barra">
+    <a class="botao claro" href="/" title="Voltar ao catálogo">← <span class="rotulo">Voltar</span></a>
+    <span class="nome"><span id="emoji" aria-hidden="true">🎮</span><span id="nome">Carregando…</span></span>
+    <span class="espaco"></span>
+    <button class="botao claro" id="btn-tela" title="Tela cheia">⛶ <span class="rotulo">Tela cheia</span></button>
+  </div>
+
+  <iframe id="quadro" title="Jogo" allow="fullscreen; autoplay; gamepad; accelerometer; gyroscope"
+          allowfullscreen></iframe>
+</div>
+
+<script>
+(() => {
+  const palco = document.getElementById('palco');
+  const quadro = document.getElementById('quadro');
+  const btnTela = document.getElementById('btn-tela');
+  const slug = decodeURIComponent(location.pathname.split('/').filter(Boolean)[1] || '');
+
+  fetch(`/api/jogos/${encodeURIComponent(slug)}`)
+    .then((r) => (r.ok ? r.json() : Promise.reject(new Error('não encontrado'))))
+    .then(({ jogo }) => {
+      document.title = `${jogo.nome} — Central de Jogos`;
+      document.getElementById('nome').textContent = jogo.nome;
+      document.getElementById('emoji').textContent = jogo.emoji;
+      quadro.title = jogo.nome;
+      quadro.src = jogo.entrada;
+    })
+    .catch(() => { location.replace('/'); });
+
+  // Sem o foco no iframe o teclado não chega ao jogo.
+  quadro.addEventListener('load', () => quadro.focus());
+
+  btnTela.addEventListener('click', async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await palco.requestFullscreen();
+      quadro.focus();
+    } catch { /* navegador recusou: segue na tela normal */ }
+  });
+})();
+</script>
+</body>
+</html>

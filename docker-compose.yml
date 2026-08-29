@@ -1,0 +1,29 @@
+services:
+  central-de-jogos:
+    build: ./server
+    container_name: central-de-jogos
+    restart: unless-stopped
+
+    ports:
+      # host:container — mude só o número da esquerda se a porta estiver ocupada
+      - "${PORTA_HOST:-8099}:3000"
+
+    volumes:
+      # É AQUI que os jogos moram. Copiar uma pasta para ./jogos já publica o jogo.
+      - ./jogos:/app/jogos
+
+    environment:
+      TITULO: "${TITULO:-Central de Jogos}"
+      ADMIN_SENHA: "${ADMIN_SENHA:?defina ADMIN_SENHA no arquivo .env}"
+      SESSAO_SEGREDO: "${SESSAO_SEGREDO:-}"
+      SESSAO_HORAS: "${SESSAO_HORAS:-12}"
+      MAX_ZIP_MB: "${MAX_ZIP_MB:-200}"
+      MAX_DESCOMPACTADO_MB: "${MAX_DESCOMPACTADO_MB:-600}"
+      PORTA_PUBLICA: "${PORTA_HOST:-8099}"
+      PASTA_JOGOS: /app/jogos
+      PASTA_TEMP: /app/tmp
+      TZ: "${TZ:-America/Sao_Paulo}"
+
+    tmpfs:
+      # Os .zip recebidos ficam só na memória e somem sozinhos
+      - /app/tmp:size=512m

@@ -1,0 +1,2 @@
+Cada pasta aqui dentro vira um jogo no catalogo.
+A pasta precisa ter um index.html e, opcionalmente, um jogo.json com os dados do catalogo.
