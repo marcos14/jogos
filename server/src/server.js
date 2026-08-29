@@ -14,6 +14,7 @@ import {
   exigirLogin, estaLogado, senhaConfere, darSessao, tirarSessao,
   podeTentar, registrarFalha, limparTentativas,
 } from './auth.js';
+import { montarRotas as montarPlataforma, montarWebSocket } from './plataforma/index.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -54,6 +55,9 @@ app.get('/api/jogos/:slug', async (req, res) => {
   if (!jogo || !jogo.visivel) return res.status(404).json({ erro: 'Jogo não encontrado.' });
   res.json({ jogo });
 });
+
+// ------------------------------------------- Plataforma (salas, SDK, etc.)
+montarPlataforma(app);
 
 // ---------------------------------------------------------- Sessão do admin
 app.get('/api/sessao', (req, res) => res.json({ logado: estaLogado(req) }));
@@ -227,7 +231,7 @@ app.use((erro, _req, res, _next) => {
 
 const SENHAS_FRACAS = ['trocar-esta-senha', 'troque-esta-senha', 'senha', '123456', 'admin'];
 
-app.listen(config.porta, '0.0.0.0', () => {
+const servidor = app.listen(config.porta, '0.0.0.0', () => {
   const porta = config.portaPublica || config.porta;
   console.log(`
   ${config.titulo}
@@ -235,8 +239,12 @@ app.listen(config.porta, '0.0.0.0', () => {
   Catálogo : http://localhost:${porta}/
   Admin    : http://localhost:${porta}/admin
   Jogos em : ${config.pastaJogos}
+  Salas    : ws://localhost:${porta}/plataforma/ws
   `);
   if (SENHAS_FRACAS.includes(config.senhaAdmin.toLowerCase())) {
     console.warn('  ATENÇÃO: ADMIN_SENHA ainda é a senha de exemplo. Troque no arquivo .env!\n');
   }
 });
+
+// O canal das salas mora no mesmo servidor HTTP (mesma porta, mesma origem).
+montarWebSocket(servidor);

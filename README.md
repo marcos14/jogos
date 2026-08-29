@@ -7,9 +7,11 @@ novos enviando um `.zip`.
 ```
 docker-compose.yml   sobe tudo com um comando
 .env                 senha do admin e configurações (você cria a partir do .env.example)
+PLATAFORMA.md        o padrão que os jogos seguem (multijogador, ranking, privacidade)
 jogos/               é aqui que os jogos moram — uma pasta por jogo
   galinha_feliz/     o jogo que já existia, agora no padrão
 server/              o servidor (Node + Express) e as páginas do catálogo/admin
+  src/plataforma/    salas multijogador, WebSocket e validação do manifesto
 ```
 
 ## Como subir
@@ -64,6 +66,25 @@ meu-jogo.zip                 meu-jogo.zip
 Use sempre caminhos **relativos** dentro do jogo (`href="style.css"`, e não
 `href="/style.css"`), já que ele é servido em `/jogos/<pasta>/`.
 
+## Jogar em grupo
+
+Jogos que seguem a plataforma podem ser jogados por várias pessoas ao mesmo
+tempo, cada uma no seu aparelho, todos na mesma rede de casa. Na Galinha Feliz
+são até **5 no mesmo terreiro**:
+
+1. Um abre o jogo e clica em **👥 Jogar com amigos** → **Criar sala**.
+2. Aparece um código de 4 letras (por exemplo `RU5L`).
+3. Os outros abrem o mesmo jogo, clicam em **👥 Jogar com amigos** e ou digitam
+   o código, ou só tocam na sala que já aparece na lista de *salas abertas aqui
+   perto*.
+4. Quem criou a sala clica em **Começar!**.
+
+Se a conexão cair ou quem criou a sala fechar a aba, todo mundo volta para a
+sala e um novo anfitrião assume — ninguém fica preso numa tela parada.
+
+Para colocar multijogador (e, mais para a frente, ranking e políticas) num jogo
+novo, veja [PLATAFORMA.md](PLATAFORMA.md).
+
 ## O arquivo `jogo.json`
 
 Opcional. Fica dentro da pasta do jogo e controla como o cartão aparece no
@@ -80,6 +101,9 @@ catálogo. O admin escreve esse arquivo para você, mas dá para editar à mão:
   "visivel": true
 }
 ```
+
+Um bloco opcional `"plataforma"` liga o jogo no multijogador (e, mais adiante,
+no ranking e nas políticas) — está tudo em [PLATAFORMA.md](PLATAFORMA.md).
 
 Sem `jogo.json`, o nome vem do nome da pasta e o cartão ganha um emoji e uma
 cor padrão. Se existir uma imagem chamada `capa.png` (ou `.jpg`/`.webp`) na
@@ -137,7 +161,9 @@ ADMIN_SENHA=algumasenha npm start     # http://localhost:3000
 | `server/src/catalogo.js` | lê a pasta `jogos/` e monta os dados de cada jogo |
 | `server/src/instalarZip.js` | valida e instala o `.zip` enviado |
 | `server/src/auth.js` | senha, cookie de sessão e freio de tentativas |
+| `server/src/plataforma/` | salas multijogador, WebSocket e o manifesto dos jogos |
 | `server/public/` | catálogo, página de jogar e painel do admin |
+| `server/public/plataforma/sdk.js` | o `window.Plataforma` que os jogos carregam |
 
 A rota `/jogar/<pasta>` abre o jogo num `iframe` com uma barrinha de *Voltar* e
 *Tela cheia*; `/jogos/<pasta>/` serve os arquivos do jogo direto.

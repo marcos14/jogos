@@ -47,6 +47,13 @@
   <div id="stage">
     <canvas id="game" width="960" height="600"></canvas>
 
+    <!-- Placar da sala (só no multijogador) -->
+    <aside id="mp-board" class="mp-board hidden">
+      <h3>Sala <span id="mp-code">----</span></h3>
+      <ol id="mp-list"></ol>
+      <p id="mp-net" class="mp-net"></p>
+    </aside>
+
     <!-- Tela inicial -->
     <section id="screen-start" class="screen">
       <div class="panel">
@@ -56,7 +63,8 @@
         <form id="form-start" autocomplete="off">
           <label for="input-name">Qual é o seu nome?</label>
           <input id="input-name" type="text" maxlength="14" placeholder="Digite seu nome" required>
-          <button id="btn-play" type="submit" class="big-btn">Jogar!</button>
+          <button id="btn-play" type="submit" class="big-btn">Jogar sozinho</button>
+          <button id="btn-friends" type="button" class="big-btn friends hidden">👥 Jogar com amigos</button>
         </form>
 
         <details class="how">
@@ -97,11 +105,16 @@
           <div><span>Fase</span><strong id="over-level">1</strong></div>
           <div><span>Ovos</span><strong id="over-eggs">0</strong></div>
         </div>
-        <div class="ranking">
+        <div class="ranking" id="over-ranking">
           <h2>🏆 Melhores galinhas</h2>
           <ol id="ranking-list-2"></ol>
         </div>
+        <div class="ranking hidden" id="over-sala">
+          <h2>🏆 Placar da sala</h2>
+          <ol id="ranking-sala"></ol>
+        </div>
         <button id="btn-again" class="big-btn">Jogar de novo</button>
+        <button id="btn-lobby" class="big-btn friends hidden">👥 Voltar para a sala</button>
         <button id="btn-menu" class="ghost-btn">Trocar de jogador</button>
       </div>
     </section>
@@ -110,6 +123,9 @@
   <footer id="tip">Dica: fique de olho no anel dourado — quando ele completa, sai ovo!</footer>
 </div>
 
+<!-- SDK da plataforma: multijogador, ranking, políticas. Se não carregar (jogo
+     aberto fora da Central), o jogo continua funcionando de um jogador só. -->
+<script src="/plataforma/sdk.js" charset="utf-8"></script>
 <script src="game.js" charset="utf-8"></script>
 </body>
 </html>

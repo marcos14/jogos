@@ -30,6 +30,10 @@
 
   var INK = '#3a2b26';
 
+  // Avisos que o anfitriao manda junto com o estado, para os convidados
+  // fazerem o mesmo barulho e a mesma poeirinha na hora certa.
+  var EV = { OVO: 1, CHOCO: 2, ROUBO: 3, XO: 4, OPS: 5, FASE: 6 };
+
   // Como cada fase fica mais dificil / mais rapida
   var rules = {
     layInterval:  function (L) { return Math.max(0.22, 0.78 * Math.pow(0.88, L - 1)); },
@@ -121,18 +125,43 @@
     overLevel: $('over-level'), overEggs: $('over-eggs'),
     btnAgain: $('btn-again'), btnMenu: $('btn-menu'),
     rank1: $('ranking-list'), rank2: $('ranking-list-2'),
-    tip: $('tip')
+    tip: $('tip'),
+    // multijogador
+    btnFriends: $('btn-friends'), btnLobby: $('btn-lobby'),
+    mpBoard: $('mp-board'), mpCode: $('mp-code'), mpList: $('mp-list'), mpNet: $('mp-net'),
+    overRanking: $('over-ranking'), overSala: $('over-sala'), rankSala: $('ranking-sala')
   };
 
   // ------------------------------------------------------------- Estado ------
   var state = {
     screen: 'start',      // start | playing | paused | levelup | over
     player: '',
-    score: 0, level: 1, eggsLevel: 0, eggsTotal: 0, streak: 0, bestStreak: 0,
-    timeLeft: 0, t: 0, shake: 0, overlayT: 0
+    level: 1, eggsLevel: 0,
+    timeLeft: 0, t: 0, shake: 0, overlayT: 0,
+    // Multijogador: null = sozinho. Ver a secao "Rede" la embaixo.
+    rede: null
   };
 
-  var chicken = { x: W / 2, y: H / 2, dir: 1, walk: 0, lay: 0, cluck: 0, moving: false };
+  /**
+   * Uma galinha por jogador. A minha e `chicken`; as outras chegam pela rede.
+   * `entrada` e o que o jogador esta pedindo agora (mouse/dedo ou setas) - e a
+   * mesma coisa para a minha galinha e para a do amigo do outro lado da casa.
+   */
+  function novaGalinha(cfg) {
+    return {
+      id: cfg.id || 'eu', indice: cfg.indice || 0,
+      apelido: cfg.apelido || '', cor: cfg.cor || '#fffdf7',
+      x: cfg.x != null ? cfg.x : W / 2, y: cfg.y != null ? cfg.y : H / 2,
+      dir: 1, walk: 0, lay: 0, cluck: 0, moving: false,
+      score: 0, streak: 0, bestStreak: 0, eggs: 0,
+      entrada: { ax: W / 2, ay: H / 2, dx: 0, dy: 0, tem: false },
+      // so nos convidados: para onde o anfitriao disse que ela esta indo
+      redeX: null, redeY: null
+    };
+  }
+
+  var galinhas = [novaGalinha({})];
+  var chicken = galinhas[0];     // a minha galinha
   var eggs = new Map();          // chave: r * COLS + c
   var chicks = [];
   var fox = null;
@@ -143,6 +172,16 @@
 
   var pointer = { x: W / 2, y: H / 2, has: false, touch: false, down: false };
   var keys = Object.create(null);
+
+  function galinhaPorIndice(i) {
+    for (var k = 0; k < galinhas.length; k++) if (galinhas[k].indice === i) return galinhas[k];
+    return null;
+  }
+
+  /** Sozinho sao 100 ovos por fase; em grupo, 60 por jogador. */
+  function metaOvos() {
+    return galinhas.length > 1 ? 60 * galinhas.length : EGGS_PER_LEVEL;
+  }
 
   // --------------------------------------------------- Canvas / orientacao ---
   function resizeCanvas() {
@@ -168,8 +207,13 @@
     });
 
     function swap(o) { var t = o.x; o.x = o.y; o.y = t; }
-    swap(chicken);
-    chicken.dir = 1;
+    galinhas.forEach(function (g) {
+      swap(g);
+      g.dir = 1;
+      var t = g.entrada.ax; g.entrada.ax = g.entrada.ay; g.entrada.ay = t;
+      var d = g.entrada.dx; g.entrada.dx = g.entrada.dy; g.entrada.dy = d;
+      if (g.redeX != null) { var r = g.redeX; g.redeX = g.redeY; g.redeY = r; }
+    });
     chicks.forEach(function (ch) { swap(ch); var t = ch.vx; ch.vx = ch.vy; ch.vy = t; });
     parts.forEach(function (p) { swap(p); var t = p.vx; p.vx = p.vy; p.vy = t; });
     texts.forEach(swap);
@@ -178,22 +222,32 @@
     swap(demoTarget);
     if (fox) { swap(fox); var t = fox.homeX; fox.homeX = fox.homeY; fox.homeY = t; }
 
-    chicken.x = clamp(chicken.x, GX + 20, GX + GRID_W - 20);
-    chicken.y = clamp(chicken.y, GY + 22, GY + GRID_H - 18);
-    chicken.lay = 0;            // folego apos girar o aparelho
+    galinhas.forEach(function (g) {
+      g.x = clamp(g.x, GX + 20, GX + GRID_W - 20);
+      g.y = clamp(g.y, GY + 22, GY + GRID_H - 18);
+      g.lay = 0;                // folego apos girar o aparelho
+    });
   }
 
-  // Deitado -> 13x8; em pe -> 8x13. Devolve true se a orientacao mudou.
-  function chooseLayout() {
-    var wantCols = window.innerHeight > window.innerWidth ? 8 : 13;
-    if (wantCols === COLS) return false;
-    COLS = wantCols;
-    ROWS = wantCols === 8 ? 13 : 8;
+  /** Aplica um tabuleiro de `cols` colunas (13 deitado, 8 em pe). */
+  function aplicarLayout(cols) {
+    if (cols !== 8 && cols !== 13) return false;
+    if (cols === COLS) return false;
+    COLS = cols;
+    ROWS = cols === 8 ? 13 : 8;
     GRID_W = COLS * CELL; GRID_H = ROWS * CELL;
     W = GRID_W + MARGIN * 2; H = GRID_H + MARGIN * 2;
     transposeWorld();
     resizeCanvas();
     return true;
+  }
+
+  // Deitado -> 13x8; em pe -> 8x13. Devolve true se a orientacao mudou.
+  // Num convidado o tabuleiro e o do anfitriao: todo mundo precisa ver o
+  // mesmo terreiro, senao os quadradinhos nao batem.
+  function chooseLayout() {
+    if (state.rede && state.rede.papel === 'convidado') return false;
+    return aplicarLayout(window.innerHeight > window.innerWidth ? 8 : 13);
   }
 
   // Deixa o palco o maior possivel sem distorcer nem passar da tela.
@@ -269,6 +323,29 @@
     });
   }
 
+  /** Cor vinda da rede so entra no HTML se for mesmo uma cor. */
+  function corSegura(valor) {
+    return /^#[0-9a-fA-F]{3,8}$/.test(String(valor || '')) ? valor : '#fffdf7';
+  }
+
+  /** Placar de uma partida em grupo (nao mexe no ranking do navegador). */
+  function renderPlacarSala(target, placar) {
+    target.innerHTML = '';
+    var medals = ['🥇', '🥈', '🥉'];
+    placar.forEach(function (p, i) {
+      var li = document.createElement('li');
+      if (p.eu) li.className = 'me';
+      li.innerHTML =
+        '<span class="pos">' + (medals[i] || (i + 1) + '.') + '</span>' +
+        '<span class="dot" style="background:' + corSegura(p.cor) + '"></span>' +
+        '<span class="who"></span>' +
+        '<span class="lv">' + p.eggs + ' ovos</span>' +
+        '<span class="pts">' + p.score + '</span>';
+      li.querySelector('.who').textContent = p.apelido;
+      target.appendChild(li);
+    });
+  }
+
   // ------------------------------------------------------------ Efeitos ------
   function puff(x, y, color, n) {
     for (var i = 0; i < (n || 8); i++) {
@@ -335,15 +412,37 @@
     if (state.screen === 'playing') togglePause();
   });
 
+  /**
+   * Traduz mouse/dedo/teclado para a "entrada" da minha galinha - o mesmo
+   * formatinho que chega pela rede quando e a galinha de um amigo.
+   */
+  function lerEntradaLocal() {
+    var e = chicken.entrada;
+    e.dx = (keys.l ? -1 : 0) + (keys.r ? 1 : 0);
+    e.dy = (keys.u ? -1 : 0) + (keys.d ? 1 : 0);
+    e.tem = pointer.has;
+    if (pointer.has) { e.ax = pointer.x; e.ay = pointer.y; }
+  }
+
   // ------------------------------------------------------- Ciclo de jogo -----
   function startGame(name) {
     state.player = name;
-    state.score = 0; state.level = 1; state.eggsLevel = 0; state.eggsTotal = 0;
-    state.streak = 0; state.bestStreak = 0; state.shake = 0;
+    state.level = 1; state.eggsLevel = 0; state.shake = 0;
     state.timeLeft = rules.levelTime(1);
     eggs.clear(); chicks.length = 0; parts.length = 0; texts.length = 0;
     fox = null; foxTimer = rules.foxInterval(1);
-    chicken.x = W / 2; chicken.y = H / 2; chicken.lay = 0; chicken.cluck = 0;
+
+    // Em grupo, cada galinha comeca num cantinho diferente do terreiro.
+    galinhas.forEach(function (g, i) {
+      var n = galinhas.length;
+      var a = (i / n) * Math.PI * 2;
+      g.x = n > 1 ? W / 2 + Math.cos(a) * GRID_W * 0.28 : W / 2;
+      g.y = n > 1 ? H / 2 + Math.sin(a) * GRID_H * 0.28 : H / 2;
+      g.lay = 0; g.cluck = 0; g.score = 0; g.streak = 0; g.bestStreak = 0; g.eggs = 0;
+      g.entrada.ax = g.x; g.entrada.ay = g.y; g.entrada.dx = 0; g.entrada.dy = 0;
+      g.entrada.tem = false;
+      g.redeX = null; g.redeY = null;
+    });
 
     el.name.textContent = name;
     el.hud.classList.remove('hidden');
@@ -351,22 +450,27 @@
     el.start.classList.add('hidden');
     el.over.classList.add('hidden');
     el.overlay.classList.add('hidden');
-    el.tip.textContent = 'Dica: fique de olho no anel dourado — quando ele completa, sai ovo!';
+    el.tip.textContent = state.rede
+      ? 'Corra para os quadradinhos vazios antes dos seus amigos!'
+      : 'Dica: fique de olho no anel dourado — quando ele completa, sai ovo!';
     state.screen = 'playing';
+    Rede.mostrarPlacar();
     syncHud(true);
     Sfx.wake();
   }
 
   function levelUp() {
-    // Os ovos que sobraram no terreiro chocam de uma vez, como bonus.
+    // Os ovos que sobraram no terreiro chocam de uma vez, como bonus - cada um
+    // rende para quem botou.
     var bonus = 0;
     eggs.forEach(function (e) {
       bonus += 5;
+      var dono = galinhaPorIndice(e.dono) || chicken;
+      dono.score += 5;
       spawnChick(e.x, e.y);
       puff(e.x, e.y, '#ffffff', 4);
     });
     eggs.clear();
-    state.score += bonus;
 
     state.level++;
     state.eggsLevel = 0;
@@ -374,13 +478,19 @@
     fox = null;
     foxTimer = rules.foxInterval(state.level);
 
+    Rede.evento(EV.FASE, 0, 0, state.level, bonus);
+    avisoDeFase(state.level, bonus);
+  }
+
+  /** A telinha de "Fase N" - o convidado mostra a mesma quando o aviso chega. */
+  function avisoDeFase(nivel, bonus) {
     var msgs = [
       'Mais rápido agora!',
       'A Galinha Feliz está animada!',
       'Corra para lugares novos!',
       'Que galinha veloz!'
     ];
-    el.ovTitle.textContent = 'Fase ' + state.level;
+    el.ovTitle.textContent = 'Fase ' + nivel;
     el.ovText.textContent = (bonus ? 'Bônus de ' + bonus + ' pontos! ' : '') + pick(msgs);
     el.btnResume.classList.add('hidden');
     el.btnQuit.classList.add('hidden');
@@ -392,6 +502,8 @@
   }
 
   function togglePause() {
+    // Em grupo ninguem para o jogo dos outros - o mundo continua girando.
+    if (state.rede) return;
     if (state.screen === 'playing') {
       state.screen = 'paused';
       el.ovTitle.textContent = 'Pausa';
@@ -405,31 +517,81 @@
     }
   }
 
-  function gameOver() {
+  /**
+   * Fim de jogo. Sozinho, o placar vai para o ranking do navegador.
+   * Em grupo quem decide o fim e o anfitriao: ele avisa a plataforma e todo
+   * mundo cai nesta mesma tela, com o placar da sala.
+   */
+  function gameOver(placarDaSala) {
+    if (state.screen === 'over') return;
+    var eraRede = Boolean(state.rede);
+
+    if (eraRede && !placarDaSala) {
+      if (state.rede.papel === 'convidado') return;   // quem manda e o anfitriao
+
+      // Anfitriao: fecha a partida pela plataforma e espera o "fim" voltar,
+      // para que todos vejam o mesmo placar ao mesmo tempo.
+      if (!state.rede.encerrando) {
+        state.rede.encerrando = state.t;
+        Rede.enviarEstado();
+        Rede.encerrarPartida(Rede.placar());
+        return;
+      }
+      // Se a plataforma nao confirmar em 3 segundos (rede caiu), mostra o
+      // placar que temos aqui em vez de deixar a tela congelada.
+      if (state.t - state.rede.encerrando < 3) return;
+    }
+
     state.screen = 'over';
     Sfx.over();
-    var entry = {
-      name: state.player, score: state.score, level: state.level,
-      eggs: state.eggsTotal, date: new Date().toISOString().slice(0, 10)
-    };
-    var list = saveRank(entry);
-    var top = list.indexOf(entry);
 
-    el.overScore.textContent = state.score;
+    el.overScore.textContent = chicken.score;
     el.overLevel.textContent = state.level;
-    el.overEggs.textContent = state.eggsTotal;
-    el.overLine.textContent = top === 0
-      ? 'Uau, ' + state.player + '! Você é a galinha mais feliz de todas!'
-      : (top > 0 ? 'Boa, ' + state.player + '! Você ficou em ' + (top + 1) + 'º lugar.'
-                 : 'Boa tentativa, ' + state.player + '!');
-    renderRank(el.rank2, list, top >= 0 ? list[top] : null);
+    el.overEggs.textContent = chicken.eggs;
     el.overlay.classList.add('hidden');
     el.over.classList.remove('hidden');
     el.hud.classList.add('hidden');
+    el.mpBoard.classList.add('hidden');
+
+    if (eraRede) {
+      // Partida em grupo: o ranking de um jogador so nao serve de comparacao,
+      // entao mostramos o placar da sala.
+      var placar = placarDaSala && placarDaSala.length ? placarDaSala : Rede.placar();
+      var meu = 0;
+      placar.forEach(function (p, i) {
+        p.eu = Boolean(p.eu) || p.id === chicken.id;   // marca quem sou eu na lista
+        if (p.eu) meu = i + 1;
+      });
+      el.overLine.textContent = meu === 1
+        ? 'Uau, ' + state.player + '! Você foi a galinha mais feliz da sala!'
+        : 'Boa, ' + state.player + '! Você ficou em ' + meu + 'º lugar na sala.';
+      renderPlacarSala(el.rankSala, placar);
+      el.overRanking.classList.add('hidden');
+      el.overSala.classList.remove('hidden');
+      el.btnAgain.classList.add('hidden');
+      el.btnLobby.classList.remove('hidden');
+    } else {
+      var entry = {
+        name: state.player, score: chicken.score, level: state.level,
+        eggs: chicken.eggs, date: new Date().toISOString().slice(0, 10)
+      };
+      var list = saveRank(entry);
+      var top = list.indexOf(entry);
+      el.overLine.textContent = top === 0
+        ? 'Uau, ' + state.player + '! Você é a galinha mais feliz de todas!'
+        : (top > 0 ? 'Boa, ' + state.player + '! Você ficou em ' + (top + 1) + 'º lugar.'
+                   : 'Boa tentativa, ' + state.player + '!');
+      renderRank(el.rank2, list, top >= 0 ? list[top] : null);
+      el.overRanking.classList.remove('hidden');
+      el.overSala.classList.add('hidden');
+      el.btnAgain.classList.remove('hidden');
+      el.btnLobby.classList.add('hidden');
+    }
     fitStage();
   }
 
   function backToMenu() {
+    Rede.sairDaPartida();
     state.screen = 'start';
     eggs.clear(); chicks.length = 0; parts.length = 0; texts.length = 0; fox = null;
     el.over.classList.add('hidden');
@@ -437,33 +599,33 @@
     el.hud.classList.add('hidden');
     el.start.classList.remove('hidden');
     fitStage();
+    chooseLayout();
     renderRank(el.rank1, loadRank(), null);
   }
 
   // -------------------------------------------------------- Atualizacao ------
-  function multiplier() { return Math.min(5, 1 + Math.floor(state.streak / 10)); }
+  function multiplier(g) { return Math.min(5, 1 + Math.floor((g || chicken).streak / 10)); }
 
-  function moveChicken(dt, live) {
+  /**
+   * Move UMA galinha a partir da entrada dela. Nao importa se a entrada veio
+   * do mouse aqui do lado ou do tablet do primo: e o mesmo caminho.
+   */
+  function moveGalinha(g, dt, live) {
     var sp = rules.chickenSpeed(live ? state.level : 1);
-    var dx = 0, dy = 0;
-
-    if (keys.l) dx -= 1;
-    if (keys.r) dx += 1;
-    if (keys.u) dy -= 1;
-    if (keys.d) dy += 1;
+    var dx = g.entrada.dx, dy = g.entrada.dy;
 
     if (dx || dy) {
       var m = Math.sqrt(dx * dx + dy * dy);
-      chicken.x += (dx / m) * sp * dt;
-      chicken.y += (dy / m) * sp * dt;
-      chicken.moving = true;
-      if (dx) chicken.dir = dx > 0 ? 1 : -1;
-    } else if (live && !pointer.has) {
-      chicken.moving = false;              // jogando, mas sem mouse/toque ainda
+      g.x += (dx / m) * sp * dt;
+      g.y += (dy / m) * sp * dt;
+      g.moving = true;
+      if (dx) g.dir = dx > 0 ? 1 : -1;
+    } else if (live && !g.entrada.tem) {
+      g.moving = false;                    // jogando, mas sem mouse/toque ainda
     } else {
-      // alvo: ponteiro (jogando) ou piloto automatico (tela inicial)
+      // alvo: o que o jogador apontou ou, na tela inicial, o piloto automatico
       var tx, ty;
-      if (live) { tx = pointer.x; ty = pointer.y; }
+      if (live) { tx = g.entrada.ax; ty = g.entrada.ay; }
       else {
         demoTarget.t -= dt;
         if (demoTarget.t <= 0) {
@@ -473,37 +635,38 @@
         }
         tx = demoTarget.x; ty = demoTarget.y;
       }
-      var vx = tx - chicken.x, vy = ty - chicken.y, d = Math.sqrt(vx * vx + vy * vy);
+      var vx = tx - g.x, vy = ty - g.y, d = Math.sqrt(vx * vx + vy * vy);
       if (d > 3) {
         var step = Math.min(d, sp * dt);
-        chicken.x += (vx / d) * step;
-        chicken.y += (vy / d) * step;
-        chicken.moving = true;
-        if (Math.abs(vx) > 4) chicken.dir = vx > 0 ? 1 : -1;
+        g.x += (vx / d) * step;
+        g.y += (vy / d) * step;
+        g.moving = true;
+        if (Math.abs(vx) > 4) g.dir = vx > 0 ? 1 : -1;
       } else {
-        chicken.moving = false;
+        g.moving = false;
       }
     }
 
-    chicken.x = clamp(chicken.x, GX + 20, GX + GRID_W - 20);
-    chicken.y = clamp(chicken.y, GY + 22, GY + GRID_H - 18);
-    if (chicken.moving) chicken.walk += dt * 9;
-    if (chicken.cluck > 0) chicken.cluck -= dt;
+    g.x = clamp(g.x, GX + 20, GX + GRID_W - 20);
+    g.y = clamp(g.y, GY + 22, GY + GRID_H - 18);
+    if (g.moving) g.walk += dt * 9;
+    if (g.cluck > 0) g.cluck -= dt;
   }
 
-  function layTick(dt, live) {
+  function layTick(g, dt, live) {
     var interval = live ? rules.layInterval(state.level) : 1.1;
-    chicken.lay += dt;
-    if (chicken.lay < interval) return;
-    chicken.lay = 0;
+    g.lay += dt;
+    if (g.lay < interval) return;
+    g.lay = 0;
 
-    var c = cellCol(chicken.x), r = cellRow(chicken.y), k = r * COLS + c;
+    var c = cellCol(g.x), r = cellRow(g.y), k = r * COLS + c;
 
     if (eggs.has(k)) {                       // lugar ja ocupado: nao vale
       if (live) {
-        state.streak = 0;
-        floatText(chicken.x, chicken.y - 46, 'Ops! Já tem ovo', '#ffd3e3');
-        Sfx.fail();
+        g.streak = 0;
+        floatText(g.x, g.y - 46, 'Ops! Já tem ovo', '#ffd3e3');
+        Rede.evento(EV.OPS, g.x, g.y, g.indice, 0);
+        if (g === chicken) Sfx.fail();
       }
       return;
     }
@@ -511,24 +674,26 @@
     var e = {
       c: c, r: r, x: cellCX(c), y: cellCY(r) + 6,
       age: 0, hatchAt: rules.hatchTime(live ? state.level : 1), pop: 1,
-      tilt: rand(-0.18, 0.18)
+      tilt: rand(-0.18, 0.18), dono: g.indice
     };
     eggs.set(k, e);
     puff(e.x, e.y, '#ffffff', 5);
-    chicken.cluck = 0.75;
+    g.cluck = 0.75;
 
     if (!live) return;                       // demo da tela inicial: sem som/pontos
-    Sfx.cluck(); Sfx.egg();
+    if (g === chicken) { Sfx.cluck(); Sfx.egg(); }
 
-    state.streak++;
-    state.bestStreak = Math.max(state.bestStreak, state.streak);
-    var mult = multiplier();
-    state.score += 10 * mult;
+    g.streak++;
+    g.bestStreak = Math.max(g.bestStreak, g.streak);
+    var mult = multiplier(g);
+    var pontos = 10 * mult;
+    g.score += pontos;
+    g.eggs++;
     state.eggsLevel++;
-    state.eggsTotal++;
-    floatText(e.x, e.y - 34, '+' + (10 * mult) + (mult > 1 ? ' x' + mult : ''), '#ffd23f');
+    floatText(e.x, e.y - 34, '+' + pontos + (mult > 1 ? ' x' + mult : ''), '#ffd23f');
+    Rede.evento(EV.OVO, e.x, e.y, g.indice, pontos);
 
-    if (state.eggsLevel >= EGGS_PER_LEVEL) levelUp();
+    if (state.eggsLevel >= metaOvos()) levelUp();
   }
 
   function spawnChick(x, y) {
@@ -553,9 +718,11 @@
       spawnChick(e.x, e.y);
       puff(e.x, e.y, '#fffdf7', 7);
       if (live) {
-        Sfx.hatch();
-        state.score += 5;
+        var dono = galinhaPorIndice(e.dono) || chicken;
+        dono.score += 5;
+        if (dono === chicken) Sfx.hatch();
         floatText(e.x, e.y - 30, '+5 piu!', '#fffdf7');
+        Rede.evento(EV.CHOCO, e.x, e.y, e.dono, 5);
       }
     });
   }
@@ -609,23 +776,31 @@
           eggs.delete(fox.key);
           fox.state = 'flee';
           fox.carrying = true;
-          state.score = Math.max(0, state.score - 25);
+          var dono = galinhaPorIndice(e.dono) || chicken;
+          dono.score = Math.max(0, dono.score - 25);
+          dono.streak = 0;
           state.eggsLevel = Math.max(0, state.eggsLevel - 1);
-          state.streak = 0;
           floatText(e.x, e.y - 30, '-25 roubou!', '#ef5b5b');
           puff(e.x, e.y, '#ef5b5b', 10);
           shake(10);
-          Sfx.steal();
+          if (dono === chicken) Sfx.steal();
+          Rede.evento(EV.ROUBO, e.x, e.y, e.dono, 25);
         }
       }
-      // a galinha pode enxotar a raposa
-      if (fox.state === 'hunt' && dist(chicken.x, chicken.y, fox.x, fox.y) < 44) {
-        fox.state = 'flee';
-        state.score += 30;
-        floatText(fox.x, fox.y - 34, 'Xô! +30', '#8ed26a');
-        puff(fox.x, fox.y, '#ffd23f', 10);
-        Sfx.scare();
-        shake(5);
+      // qualquer galinha pode enxotar a raposa - o ponto e de quem chegou perto
+      if (fox.state === 'hunt') {
+        for (var gi = 0; gi < galinhas.length; gi++) {
+          var g = galinhas[gi];
+          if (dist(g.x, g.y, fox.x, fox.y) >= 44) continue;
+          fox.state = 'flee';
+          g.score += 30;
+          floatText(fox.x, fox.y - 34, 'Xô! +30', '#8ed26a');
+          puff(fox.x, fox.y, '#ffd23f', 10);
+          if (g === chicken) Sfx.scare();
+          shake(5);
+          Rede.evento(EV.XO, fox.x, fox.y, g.indice, 30);
+          break;
+        }
       }
     }
 
@@ -666,8 +841,11 @@
       state.timeLeft -= dt;
       if (state.timeLeft <= 0) { state.timeLeft = 0; updateFx(dt); gameOver(); return; }
     }
-    moveChicken(dt, live);
-    layTick(dt, live);
+    lerEntradaLocal();
+    for (var i = 0; i < galinhas.length; i++) {
+      moveGalinha(galinhas[i], dt, live);
+      layTick(galinhas[i], dt, live);
+    }
     updateEggs(dt, live);
     updateChicks(dt);
     if (live) updateFox(dt);
@@ -687,18 +865,20 @@
     function set(key, node, value) {
       if (force || hudCache[key] !== value) { hudCache[key] = value; node.textContent = value; }
     }
-    set('score', el.score, state.score);
+    var meta = metaOvos();
+    set('score', el.score, chicken.score);
     set('level', el.level, state.level);
-    set('eggs', el.eggs, state.eggsLevel + ' / ' + EGGS_PER_LEVEL);
+    set('eggs', el.eggs, state.eggsLevel + ' / ' + meta);
     set('time', el.time, Math.ceil(state.timeLeft) + 's');
 
-    var m = multiplier();
+    var m = multiplier(chicken);
     if (force || hudCache.combo !== m) {
       hudCache.combo = m;
       el.combo.textContent = 'x' + m;
       el.comboBox.classList.toggle('hot', m > 1);
     }
-    el.barEggs.style.width = (state.eggsLevel / EGGS_PER_LEVEL * 100) + '%';
+    if (state.rede) Rede.atualizarPlacar(force);
+    el.barEggs.style.width = (state.eggsLevel / meta * 100) + '%';
     var tp = state.timeLeft / rules.levelTime(state.level);
     el.barTime.style.width = (tp * 100) + '%';
     el.barTime.classList.toggle('low', tp < 0.2);
@@ -823,6 +1003,16 @@
     ctx.ellipse(-5, -6, 3.4, 5.4, -0.4, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(255,255,255,.95)'; ctx.fill();
 
+    // Em grupo, uma fitinha na cor de quem botou o ovo.
+    if (galinhas.length > 1) {
+      var dono = galinhaPorIndice(e.dono);
+      if (dono) {
+        ctx.beginPath();
+        ctx.moveTo(-13, 8); ctx.lineTo(13, 8);
+        ctx.lineWidth = 5; ctx.strokeStyle = dono.cor; ctx.stroke();
+      }
+    }
+
     if (life > 0.7) {                       // rachaduras: vai chocar
       ctx.strokeStyle = INK; ctx.lineWidth = 2;
       ctx.beginPath();
@@ -908,16 +1098,19 @@
     ctx.restore();
   }
 
-  function drawChicken() {
-    var x = chicken.x, y = chicken.y;
-    var bob = chicken.moving ? Math.sin(chicken.walk * 2) * 2.5 : Math.sin(state.t * 3) * 1.2;
-    var swing = chicken.moving ? Math.sin(chicken.walk * 2) * 6 : 0;
+  function drawGalinha(g) {
+    var x = g.x, y = g.y;
+    var euMesmo = g === chicken;
+    var emGrupo = galinhas.length > 1;
+    var bob = g.moving ? Math.sin(g.walk * 2) * 2.5 : Math.sin(state.t * 3) * 1.2;
+    var swing = g.moving ? Math.sin(g.walk * 2) * 6 : 0;
 
     // anel dourado: quanto falta para o proximo ovo
     var live = state.screen !== 'start';
     var interval = live ? rules.layInterval(state.level) : 1.1;
-    var p = clamp(chicken.lay / interval, 0, 1);
+    var p = clamp(g.lay / interval, 0, 1);
     ctx.save();
+    ctx.globalAlpha = euMesmo ? 1 : 0.55;
     ctx.lineWidth = 5;
     ctx.strokeStyle = 'rgba(255,255,255,.35)';
     ctx.beginPath(); ctx.arc(x, y + 16, 31, 0, Math.PI * 2); ctx.stroke();
@@ -927,9 +1120,20 @@
 
     shadowBlob(x, y + 24, 28, 9);
 
+    // Em grupo, cada galinha pisa num tapetinho da cor dela.
+    if (emGrupo) {
+      ctx.save();
+      ctx.lineWidth = euMesmo ? 5 : 3.5;
+      ctx.strokeStyle = g.cor;
+      ctx.beginPath();
+      ctx.ellipse(x, y + 24, 26, 9, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     ctx.save();
     ctx.translate(x, y + bob);
-    ctx.scale(chicken.dir, 1);
+    ctx.scale(g.dir, 1);
 
     // pernas
     ctx.strokeStyle = '#ff9f43'; ctx.lineWidth = 4;
@@ -964,7 +1168,7 @@
     // asa
     ctx.save();
     ctx.translate(2, 2);
-    ctx.rotate(chicken.moving ? Math.sin(chicken.walk * 2) * 0.22 : 0.05);
+    ctx.rotate(g.moving ? Math.sin(g.walk * 2) * 0.22 : 0.05);
     ellipse(0, 0, 14, 11, '#f4efe2');
     ctx.strokeStyle = INK; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(-2, 2, 8, -0.4, 1.4); ctx.stroke();
@@ -999,11 +1203,11 @@
     ctx.restore();
 
     // balaozinho "Co!"
-    if (chicken.cluck > 0) {
-      var a = Math.min(1, chicken.cluck / 0.5);
+    if (g.cluck > 0) {
+      var a = Math.min(1, g.cluck / 0.5);
       ctx.save();
       ctx.globalAlpha = a;
-      var bx = x + chicken.dir * 34, by = y - 58;
+      var bx = x + g.dir * 34, by = y - 58;
       ctx.beginPath();
       if (ctx.roundRect) ctx.roundRect(bx - 26, by - 16, 52, 30, 12);
       else ctx.rect(bx - 26, by - 16, 52, 30);
@@ -1015,6 +1219,22 @@
       ctx.fillStyle = INK;
       ctx.font = 'bold 18px "Comic Sans MS", sans-serif';
       ctx.fillText('Có!', bx, by);
+      ctx.restore();
+    }
+
+    // Em grupo, a plaquinha com o nome de quem controla esta galinha.
+    if (emGrupo && g.apelido) {
+      ctx.save();
+      ctx.font = 'bold 13px "Comic Sans MS", sans-serif';
+      var largura = ctx.measureText(g.apelido).width + 16;
+      var ty = y - 46;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(x - largura / 2, ty - 10, largura, 20, 10);
+      else ctx.rect(x - largura / 2, ty - 10, largura, 20);
+      ctx.fillStyle = g.cor; ctx.fill();
+      ctx.lineWidth = 2.5; ctx.strokeStyle = INK; ctx.stroke();
+      ctx.fillStyle = INK;
+      ctx.fillText(g.apelido, x, ty);
       ctx.restore();
     }
   }
@@ -1065,7 +1285,9 @@
     eggs.forEach(drawEgg);
     chicks.forEach(drawChick);
     if (fox) drawFox(fox);
-    drawChicken();
+    // as outras galinhas primeiro; a minha fica sempre por cima
+    galinhas.forEach(function (g) { if (g !== chicken) drawGalinha(g); });
+    drawGalinha(chicken);
     drawFx();
     drawFrame();
     ctx.restore();
@@ -1079,20 +1301,418 @@
     last = now;
     state.t += dt;
 
+    var convidado = state.rede && state.rede.papel === 'convidado';
+
     if (state.screen === 'playing' || state.screen === 'start') {
-      update(dt);
+      // O convidado nao simula o mundo: ele obedece ao que o anfitriao manda.
+      if (convidado && state.screen === 'playing') Rede.passoConvidado(dt);
+      else update(dt);
     } else if (state.screen === 'levelup') {
       updateFx(dt);
       updateChicks(dt);
+      if (convidado) Rede.passoConvidado(dt, true);
       state.overlayT -= dt;
       if (state.overlayT <= 0) {
         el.overlay.classList.add('hidden');
         state.screen = 'playing';
       }
     }
+
+    Rede.passoRede(dt);
     render();
     requestAnimationFrame(frame);
   }
+
+  /* ==========================================================================
+     REDE  -  o jogo em grupo, em cima da Plataforma
+     --------------------------------------------------------------------------
+     Modelo: o ANFITRIAO simula o terreiro inteiro (o mesmo `update()` de
+     sempre) e manda o mundo pronto ~20x por segundo. Os CONVIDADOS mandam so
+     o que estao pedindo (para onde a galinha deve ir) e desenham o que chega.
+
+     Por que assim: um so lugar decide quem pegou o quadradinho primeiro, entao
+     nunca acontece de dois jogadores acharem que botaram o ovo no mesmo lugar.
+     ========================================================================== */
+  var Rede = (function () {
+    var P = null;            // window.Plataforma, depois de iniciar()
+    var mj = null;           // Plataforma.multijogador
+    var placarCache = '';
+
+    var TAXA_ENTRADA = 20;   // envios de entrada por segundo (convidado)
+
+    // ------------------------------------------------------------- ajudas --
+    function souAnfitriao() { return state.rede && state.rede.papel === 'anfitriao'; }
+    function souConvidado() { return state.rede && state.rede.papel === 'convidado'; }
+
+    function montarGalinhas(sala) {
+      galinhas = sala.jogadores.map(function (j) {
+        return novaGalinha({ id: j.id, indice: j.indice, apelido: j.apelido, cor: corSegura(j.cor) });
+      });
+      chicken = galinhas.filter(function (g) { return g.id === sala.eu; })[0] || galinhas[0];
+    }
+
+    function galinhaPorId(id) {
+      for (var i = 0; i < galinhas.length; i++) if (galinhas[i].id === id) return galinhas[i];
+      return null;
+    }
+
+    // -------------------------------------------------- comeco/fim de sala --
+    function comecar(sala) {
+      state.rede = {
+        papel: sala.souAnfitriao ? 'anfitriao' : 'convidado',
+        sala: sala,
+        seq: 0,
+        eventos: [],
+        acumulado: 0,
+        acumuladoEntrada: 0,
+        encerrando: false,
+        ultimoPacote: 0,
+        primeiroEstado: false
+      };
+      montarGalinhas(sala);
+      state.player = chicken.apelido;
+      el.input.value = chicken.apelido;
+      placarCache = '';
+      el.mpCode.textContent = sala.codigo;
+      startGame(chicken.apelido);
+    }
+
+    function terminar(fim) {
+      if (!state.rede) return;
+      var sala = state.rede.sala;
+      var placar = (fim && fim.placar ? fim.placar : placarLocal()).map(function (p) {
+        return {
+          id: p.id, apelido: p.apelido, cor: corSegura(p.cor),
+          score: p.score | 0, eggs: p.eggs | 0, eu: p.id === sala.eu
+        };
+      });
+      gameOver(placar);
+    }
+
+    function abortar(aviso) {
+      if (!state.rede) return;
+      state.rede = null;
+      galinhas = [chicken];
+      chicken.indice = 0;
+      el.mpBoard.classList.add('hidden');
+      state.screen = 'over';        // deixa o backToMenu limpar tudo
+      backToMenu();
+      el.tip.textContent = aviso && aviso.motivo ? aviso.motivo : 'A partida foi encerrada.';
+    }
+
+    function placarLocal() {
+      return galinhas.map(function (g) {
+        return { id: g.id, apelido: g.apelido, cor: g.cor, score: g.score, eggs: g.eggs };
+      }).sort(function (a, b) { return b.score - a.score; });
+    }
+
+    // --------------------------------------------------------- instantaneo --
+    /** O mundo inteiro num pacote pequeno (numeros inteiros sempre que da). */
+    function montarEstado() {
+      var g = galinhas.map(function (x) {
+        return [x.indice, x.x | 0, x.y | 0, x.dir, x.moving ? 1 : 0,
+                (clamp(x.lay / rules.layInterval(state.level), 0, 1) * 100) | 0,
+                (x.cluck * 100) | 0];
+      });
+
+      var o = [];
+      eggs.forEach(function (e, k) {
+        o.push([k, (clamp(e.age / e.hatchAt, 0, 1) * 100) | 0, (e.hatchAt * 10) | 0, e.dono]);
+      });
+
+      var s = galinhas.map(function (x) { return [x.indice, x.score, x.eggs, x.streak]; });
+
+      var pacote = {
+        k: 'e',
+        n: ++state.rede.seq,
+        c: COLS,
+        f: state.level,
+        tl: (state.timeLeft * 10) | 0,
+        el: state.eggsLevel,
+        mt: metaOvos(),
+        g: g, o: o, s: s,
+        r: fox ? [fox.x | 0, fox.y | 0, fox.dir, fox.carrying ? 1 : 0] : 0,
+        ev: state.rede.eventos
+      };
+      state.rede.eventos = [];
+      return pacote;
+    }
+
+    /** O convidado copia o mundo que chegou por cima do que ele tinha. */
+    function aplicarEstado(s) {
+      // Pacote atrasado que chega depois do fim nao mexe mais em nada.
+      if (!state.rede || (state.screen !== 'playing' && state.screen !== 'levelup')) return;
+      state.rede.primeiroEstado = true;
+      state.rede.ultimoPacote = state.t;
+
+      // O tabuleiro e sempre o do anfitriao - senao os quadradinhos nao batem.
+      if (s.c !== COLS) { aplicarLayout(s.c); fitStage(); }
+
+      state.level = s.f;
+      state.timeLeft = s.tl / 10;
+      state.eggsLevel = s.el;
+
+      // galinhas
+      s.g.forEach(function (linha) {
+        var g = galinhaPorIndice(linha[0]);
+        if (!g) return;
+        var alvoX = linha[1], alvoY = linha[2];
+        if (g === chicken) {
+          // A minha galinha eu ja movo aqui na hora (fica leve no dedo); so
+          // corrijo o rumo se estiver longe do que o anfitriao viu.
+          var erro = dist(g.x, g.y, alvoX, alvoY);
+          if (erro > 90) { g.x = alvoX; g.y = alvoY; }
+          else { g.x += (alvoX - g.x) * 0.25; g.y += (alvoY - g.y) * 0.25; }
+        } else {
+          g.redeX = alvoX; g.redeY = alvoY;
+          g.dir = linha[3];
+          g.moving = linha[4] === 1;
+        }
+        g.lay = (linha[5] / 100) * rules.layInterval(state.level);
+        g.cluck = linha[6] / 100;
+      });
+
+      // pontos
+      s.s.forEach(function (linha) {
+        var g = galinhaPorIndice(linha[0]);
+        if (!g) return;
+        g.score = linha[1]; g.eggs = linha[2]; g.streak = linha[3];
+      });
+
+      // ovos: mantem os que ja existiam (para nao perder a animacao de "pop")
+      var novos = new Map();
+      s.o.forEach(function (linha) {
+        var k = linha[0], frac = linha[1] / 100, hatchAt = linha[2] / 10, dono = linha[3];
+        var e = eggs.get(k);
+        if (!e) {
+          var c = k % COLS, r = (k - c) / COLS;
+          e = { c: c, r: r, x: cellCX(c), y: cellCY(r) + 6, pop: 1, tilt: rand(-0.18, 0.18) };
+        }
+        e.hatchAt = hatchAt || 6;
+        e.age = frac * e.hatchAt;
+        e.dono = dono;
+        novos.set(k, e);
+      });
+      eggs = novos;
+
+      // raposa
+      if (s.r) {
+        if (!fox) fox = { x: s.r[0], y: s.r[1], dir: s.r[2], state: 'hunt', t: 0, carrying: false };
+        fox.x = s.r[0]; fox.y = s.r[1]; fox.dir = s.r[2]; fox.carrying = s.r[3] === 1;
+      } else {
+        fox = null;
+      }
+
+      (s.ev || []).forEach(aplicarEvento);
+      syncHud(false);
+    }
+
+    /** Sons, poeirinha e textos: o convidado refaz o efeito no lugar certo. */
+    function aplicarEvento(ev) {
+      var k = ev[0], x = ev[1], y = ev[2], i = ev[3], v = ev[4];
+      var meu = chicken.indice === i;
+
+      if (k === EV.OVO) {
+        puff(x, y, '#ffffff', 5);
+        floatText(x, y - 34, '+' + v, '#ffd23f');
+        if (meu) { Sfx.cluck(); Sfx.egg(); }
+      } else if (k === EV.CHOCO) {
+        spawnChick(x, y);
+        puff(x, y, '#fffdf7', 7);
+        floatText(x, y - 30, '+5 piu!', '#fffdf7');
+        if (meu) Sfx.hatch();
+      } else if (k === EV.OPS) {
+        floatText(x, y - 46, 'Ops! Já tem ovo', '#ffd3e3');
+        if (meu) Sfx.fail();
+      } else if (k === EV.ROUBO) {
+        puff(x, y, '#ef5b5b', 10);
+        floatText(x, y - 30, '-' + v + ' roubou!', '#ef5b5b');
+        shake(10);
+        if (meu) Sfx.steal();
+      } else if (k === EV.XO) {
+        puff(x, y, '#ffd23f', 10);
+        floatText(x, y - 34, 'Xô! +' + v, '#8ed26a');
+        shake(5);
+        if (meu) Sfx.scare();
+      } else if (k === EV.FASE) {
+        avisoDeFase(i, v);
+      }
+    }
+
+    // ------------------------------------------------------------- placar --
+    function atualizarPlacar(force) {
+      var lista = placarLocal();
+      var assinatura = lista.map(function (p) { return p.id + ':' + p.score; }).join('|');
+      if (!force && assinatura === placarCache) return;
+      placarCache = assinatura;
+
+      el.mpList.innerHTML = '';
+      lista.forEach(function (p) {
+        var li = document.createElement('li');
+        if (p.id === chicken.id) li.className = 'me';
+        li.innerHTML =
+          '<span class="dot" style="background:' + corSegura(p.cor) + '"></span>' +
+          '<span class="who"></span><span class="pts">' + p.score + '</span>';
+        li.querySelector('.who').textContent = p.apelido;
+        el.mpList.appendChild(li);
+      });
+    }
+
+    function mostrarPlacar() {
+      var mostrar = Boolean(state.rede);
+      el.mpBoard.classList.toggle('hidden', !mostrar);
+      if (mostrar) { el.mpCode.textContent = state.rede.sala.codigo; atualizarPlacar(true); }
+    }
+
+    // ---------------------------------------------------------- por quadro --
+    /** Envia o que precisa ser enviado neste quadro. */
+    function passoRede(dt) {
+      if (!state.rede || (state.screen !== 'playing' && state.screen !== 'levelup')) return;
+      var taxa = state.rede.sala.taxaEstado || 15;
+
+      if (souAnfitriao()) {
+        state.rede.acumulado += dt;
+        if (state.rede.acumulado >= 1 / taxa) { state.rede.acumulado = 0; enviarEstado(); }
+        return;
+      }
+
+      state.rede.acumuladoEntrada += dt;
+      if (state.rede.acumuladoEntrada < 1 / TAXA_ENTRADA) return;
+      state.rede.acumuladoEntrada = 0;
+      lerEntradaLocal();
+      mj.paraAnfitriao({
+        k: 'i',
+        ax: chicken.entrada.ax | 0, ay: chicken.entrada.ay | 0,
+        dx: chicken.entrada.dx, dy: chicken.entrada.dy,
+        tem: chicken.entrada.tem ? 1 : 0
+      });
+
+      // Sem noticias do anfitriao ha muito tempo: avisa na tela.
+      var mudo = state.t - state.rede.ultimoPacote;
+      el.mpNet.textContent = state.rede.primeiroEstado && mudo > 2 ? 'Conexão instável…' : '';
+    }
+
+    function enviarEstado() {
+      if (!souAnfitriao() || !mj) return;
+      mj.enviar(montarEstado());
+    }
+
+    /**
+     * O quadro do convidado: ele nao simula o terreiro, mas move a propria
+     * galinha na hora (para o dedo nao ficar "molenga") e desliza as outras
+     * ate onde o anfitriao disse que elas estao.
+     */
+    function passoConvidado(dt, soEfeitos) {
+      if (!soEfeitos) {
+        state.timeLeft = Math.max(0, state.timeLeft - dt);
+        lerEntradaLocal();
+        moveGalinha(chicken, dt, true);
+      }
+
+      galinhas.forEach(function (g) {
+        if (g === chicken || g.redeX == null) return;
+        var f = Math.min(1, dt * 14);
+        g.x += (g.redeX - g.x) * f;
+        g.y += (g.redeY - g.y) * f;
+        if (g.moving) g.walk += dt * 9;
+        if (g.cluck > 0) g.cluck -= dt;
+      });
+
+      // o anel dourado continua girando entre um pacote e outro
+      galinhas.forEach(function (g) { g.lay += dt; });
+
+      updateChicks(dt);
+      updateFx(dt);
+      syncHud(false);
+    }
+
+    // ------------------------------------------------------- entrada remota --
+    function receber(msg) {
+      var d = msg.d;
+      if (!d || !state.rede) return;
+
+      if (d.k === 'i' && souAnfitriao()) {
+        var g = galinhaPorId(msg.de);
+        if (!g) return;
+        g.entrada.ax = clamp(Number(d.ax) || 0, 0, W);
+        g.entrada.ay = clamp(Number(d.ay) || 0, 0, H);
+        g.entrada.dx = clamp(Number(d.dx) || 0, -1, 1);
+        g.entrada.dy = clamp(Number(d.dy) || 0, -1, 1);
+        g.entrada.tem = d.tem === 1;
+        return;
+      }
+
+      if (d.k === 'e' && souConvidado()) aplicarEstado(d);
+    }
+
+    /** Alguem fechou a aba no meio da partida. */
+    function saiu(jogador) {
+      var g = galinhaPorId(jogador.id);
+      if (!g || !state.rede) return;
+      floatText(g.x, g.y - 60, jogador.apelido + ' saiu', '#ffd3e3');
+      galinhas = galinhas.filter(function (x) { return x !== g; });
+      atualizarPlacar(true);
+    }
+
+    // ------------------------------------------------------------- ligacao --
+    function iniciar(plataforma) {
+      P = plataforma;
+      mj = P.multijogador;
+      if (!mj || !mj.disponivel) return false;
+
+      mj.em('saiu', saiu);
+      mj.em('erro', function (texto) { el.mpNet.textContent = texto; });
+
+      el.btnFriends.classList.remove('hidden');
+      el.btnFriends.addEventListener('click', abrirLobby);
+      el.btnLobby.addEventListener('click', abrirLobby);
+      return true;
+    }
+
+    function abrirLobby() {
+      if (!mj) return;
+      var nome = el.input.value.trim().replace(/\s+/g, ' ');
+      if (nome) P.perfil.definirApelido(nome);
+      Sfx.wake();
+      mj.abrirLobby({
+        aoComecar: comecar,
+        aoReceber: receber,
+        aoTerminar: terminar,
+        aoAbortar: abortar,
+        // No fim da partida quem manda na tela e o jogo (o placar da sala);
+        // o lobby so volta quando a crianca clicar em "voltar para a sala".
+        voltarAoLobby: false
+      });
+    }
+
+    /** Volta a ser um jogo de um jogador so (sair da sala pelo menu). */
+    function sairDaPartida() {
+      if (!state.rede) return;
+      state.rede = null;
+      galinhas = [chicken];
+      chicken.indice = 0;
+      chicken.apelido = '';
+      el.mpBoard.classList.add('hidden');
+      if (mj) mj.sair();
+    }
+
+    return {
+      iniciar: iniciar,
+      passoRede: passoRede,
+      passoConvidado: passoConvidado,
+      enviarEstado: enviarEstado,
+      atualizarPlacar: atualizarPlacar,
+      mostrarPlacar: mostrarPlacar,
+      placar: placarLocal,
+      sairDaPartida: sairDaPartida,
+      encerrarPartida: function (placar) { if (mj) mj.terminar(placar); },
+      /** Guarda um efeito para mandar junto com o proximo pacote. */
+      evento: function (k, x, y, i, v) {
+        if (!souAnfitriao() || state.rede.eventos.length > 40) return;
+        state.rede.eventos.push([k, x | 0, y | 0, i, v | 0]);
+      }
+    };
+  }());
 
   // ------------------------------------------------------- Ligacoes UI ------
   el.form.addEventListener('submit', function (ev) {
@@ -1100,6 +1720,7 @@
     var name = el.input.value.trim().replace(/\s+/g, ' ');
     if (!name) { el.input.focus(); return; }
     try { localStorage.setItem(NAME_KEY, name); } catch (e) {}
+    Rede.sairDaPartida();          // "jogar sozinho" sai de qualquer sala
     startGame(name);
   });
   el.btnAgain.addEventListener('click', function () { startGame(state.player); });
@@ -1127,4 +1748,16 @@
   fitStage();
   renderRank(el.rank1, loadRank(), null);
   requestAnimationFrame(frame);
+
+  // Plataforma: se estiver de pe, aparece o botao "Jogar com amigos". Se o
+  // jogo for aberto solto (sem a Central), nada disso existe e o jogo roda
+  // igualzinho de um jogador so.
+  if (window.Plataforma) {
+    window.Plataforma.iniciar({ jogo: 'galinha_feliz', apelido: el.input.value })
+      .then(function (P) {
+        if (!Rede.iniciar(P)) return;
+        if (!el.input.value && P.perfil.apelido) el.input.value = P.perfil.apelido;
+      })
+      .catch(function (e) { console.warn('[galinha] plataforma fora do ar:', e); });
+  }
 }());

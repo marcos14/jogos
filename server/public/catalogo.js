@@ -21,6 +21,11 @@
 
     const idade = jogo.idade ? `<span class="idade">${escapar(jogo.idade)}</span>` : '';
     const descricao = jogo.descricao ? `<p>${escapar(jogo.descricao)}</p>` : '';
+    // Selos vêm da plataforma (multijogador, 18+…), não do texto do jogo.
+    const selos = (jogo.selos || []).length
+      ? `<div class="selos">${jogo.selos
+          .map((s) => `<span class="selo ${escapar(s.tipo)}">${escapar(s.texto)}</span>`).join('')}</div>`
+      : '';
     const tags = jogo.tags.length
       ? `<div class="tags">${jogo.tags.map((t) => `<span class="tag">${escapar(t)}</span>`).join('')}</div>`
       : '';
@@ -28,7 +33,7 @@
     return `
       <li>
         <a class="cartao" href="/jogar/${encodeURIComponent(jogo.slug)}">
-          <div class="capa" style="--cor:${escapar(jogo.cor)}">${capa}${idade}</div>
+          <div class="capa" style="--cor:${escapar(jogo.cor)}">${capa}${idade}${selos}</div>
           <div class="corpo">
             <h2>${escapar(jogo.nome)}</h2>
             ${descricao}

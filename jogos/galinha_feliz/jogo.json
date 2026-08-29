@@ -1,9 +1,36 @@
 {
   "nome": "Galinha Feliz",
-  "descricao": "O joguinho que a Peppa Pig joga: ajude a galinha a botar ovos em lugares novos, choque os pintinhos e fuja da raposa.",
+  "descricao": "O joguinho que a Peppa Pig joga: ajude a galinha a botar ovos em lugares novos, choque os pintinhos e fuja da raposa. Dá para jogar até 5 juntos.",
   "emoji": "🐔",
   "cor": "#ff8fb8",
-  "tags": ["arcade", "peppa", "1 jogador"],
+  "tags": ["arcade", "peppa", "até 5 jogadores"],
   "idade": "3+",
-  "visivel": true
+  "visivel": true,
+
+  "plataforma": {
+    "versao": 1,
+    "multijogador": {
+      "min": 2,
+      "max": 5,
+      "modo": "competitivo",
+      "autoridade": "anfitriao",
+      "taxaEstado": 20,
+      "listarSalas": true
+    },
+    "ranking": {
+      "metrica": "pontos",
+      "rotulo": "Pontos",
+      "ordem": "desc",
+      "tamanho": 10
+    },
+    "classificacao": {
+      "idadeMinima": 0,
+      "conteudo": []
+    },
+    "privacidade": {
+      "coleta": ["apelido"],
+      "guardaLocal": true,
+      "guardaServidor": false
+    }
+  }
 }

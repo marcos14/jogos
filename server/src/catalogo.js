@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { config } from './config.js';
+import { lerManifestoPlataforma, selosDoManifesto } from './plataforma/manifesto.js';
 
 const MANIFESTOS = ['jogo.json', 'game.json'];
 const CAPAS = ['capa.png', 'capa.jpg', 'capa.jpeg', 'capa.webp', 'capa.gif',
@@ -133,7 +134,11 @@ export async function lerJogo(slug) {
     ? m.tags.map((t) => String(t).trim()).filter(Boolean).slice(0, 8)
     : [];
 
+  const plataforma = lerManifestoPlataforma(m.plataforma);
+
   return {
+    plataforma,
+    selos: selosDoManifesto(plataforma),
     slug,
     nome: (typeof m.nome === 'string' && m.nome.trim()) || (typeof m.name === 'string' && m.name.trim()) || tituloDoSlug(slug),
     descricao: (typeof m.descricao === 'string' && m.descricao.trim()) || (typeof m.description === 'string' && m.description.trim()) || '',
@@ -146,7 +151,9 @@ export async function lerJogo(slug) {
     entrada: entrada ? `/jogos/${slug}/${entrada}` : null,
     jogavel: Boolean(entrada),
     atualizadoEm: info.mtime.toISOString(),
-    problema: erro || (entrada ? null : 'Nenhum index.html encontrado nesta pasta'),
+    problema: erro
+      || (entrada ? null : 'Nenhum index.html encontrado nesta pasta')
+      || (plataforma.problemas.length ? plataforma.problemas.join(' ') : null),
   };
 }
 

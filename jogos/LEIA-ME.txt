@@ -1,2 +1,9 @@
 Cada pasta aqui dentro vira um jogo no catalogo.
 A pasta precisa ter um index.html e, opcionalmente, um jogo.json com os dados do catalogo.
+
+Para o jogo entrar no multijogador (ate 8 pessoas na mesma sala), o jogo.json
+precisa do bloco "plataforma" e o index.html precisa carregar o SDK:
+
+    <script src="/plataforma/sdk.js"></script>
+
+O passo a passo esta em PLATAFORMA.md, na raiz do projeto.

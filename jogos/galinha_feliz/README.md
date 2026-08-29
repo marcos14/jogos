@@ -7,8 +7,12 @@ sem dependências e sem build: é só abrir o `index.html` no navegador.
 ```
 index.html   telas (nome, HUD, fase, fim de jogo) e o canvas
 style.css    visual "Peppa": cores chapadas, contorno grosso, tudo arredondado
-game.js      todo o jogo (loop, regras, desenho no canvas, sons, ranking)
+game.js      todo o jogo (loop, regras, desenho no canvas, sons, ranking, rede)
+jogo.json    dados do catalogo + o bloco "plataforma" (multijogador ate 5)
 ```
+
+Sozinho ele roda solto, so abrindo o `index.html`. Servido pela Central de
+Jogos, ele tambem carrega `/plataforma/sdk.js` e ganha o modo em grupo.
 
 ## Como se joga
 
@@ -22,6 +26,25 @@ game.js      todo o jogo (loop, regras, desenho no canvas, sons, ranking)
    o quadradinho de novo e valendo pontos extras.
 6. **100 ovos** = próxima fase. Se o tempo da fase acabar, é fim de jogo e o
    placar entra no ranking.
+
+## Jogando com amigos (até 5)
+
+Servido pela Central de Jogos, aparece o botão **👥 Jogar com amigos**: um cria
+a sala, os outros entram pelo código de 4 letras (ou tocando na sala que aparece
+sozinha na lista). Todo mundo bota ovo **no mesmo terreiro**, então é uma corrida
+pelos quadradinhos vazios.
+
+- Cada jogador tem uma **cor**: o tapetinho embaixo da galinha, a plaquinha com
+  o nome e a fitinha do ovo que ela botou.
+- Os pontos são de **quem botou o ovo** — inclusive quando ele choca (+5) e
+  quando a raposa rouba (−25 de quem era o ovo).
+- A meta da fase vira **60 ovos por jogador** (120 em dois, 300 em cinco).
+- No fim aparece o **placar da sala**, e não o ranking de um jogador só — placar
+  de partida em grupo não é comparável com o de quem jogou sozinho.
+- Não dá para pausar em grupo: o terreiro é de todo mundo.
+
+Como isso funciona por dentro (e como colocar noutro jogo) está em
+[PLATAFORMA.md](../../PLATAFORMA.md).
 
 ## Pontuação
 
@@ -83,4 +106,10 @@ Funciona com o dedo, em pé ou deitado:
   feitos com `Canvas 2D` no próprio `game.js` — nenhuma imagem externa.
 - Sons gerados na hora com **Web Audio API** (osciladores), sem arquivos.
 - Ranking dos 10 melhores guardado em `localStorage`
-  (`galinhaFeliz.ranking.v1`).
+  (`galinhaFeliz.ranking.v1`) — só das partidas de um jogador.
+- **Multijogador**: o anfitrião roda o `update()` de sempre e manda o terreiro
+  inteiro 20x por segundo (~200 bytes por pacote); os convidados mandam só para
+  onde querem ir, preveem a própria galinha e deslizam as outras até a posição
+  que chegou. Som e poeirinha o convidado refaz a partir dos avisos que vêm
+  junto com o estado. Em grupo, o tabuleiro (13×8 ou 8×13) é o do anfitrião —
+  senão os quadradinhos não bateriam entre os aparelhos.
