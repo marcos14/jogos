@@ -40,6 +40,8 @@ sem abrir navegador.
     node testes/come_come/fase2-tela.test.mjs        o labirinto percorrido ate ficar limpo
     node testes/come_come/fase3a.test.mjs            a casa, a saida e a escolha da esquina
     node testes/come_come/fase3a-tela.test.mjs       os quatro fantasmas dentro da partida
+    node testes/come_come/fase3b.test.mjs            as personalidades, o sorteio e os ciclos
+    node testes/come_come/fase3b-tela.test.mjs       dispersar e cacar dentro da partida
 
 O harness.mjs de cada pasta tem o carregador e o corredor de testes. O do
 super_adventure tambem sabe subir o servidor das salas de verdade numa porta

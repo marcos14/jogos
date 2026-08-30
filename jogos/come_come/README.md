@@ -5,14 +5,13 @@ corredores, coma todas as pastilhas e escape dos quatro fantasmas. Três
 labirintos, cada um mais difícil que o anterior — sozinho ou com até 5 amigos
 na mesma sala.
 
-> **Estado de hoje: fase 3a do plano.** Já dá para correr pelo labirinto 1
+> **Estado de hoje: fase 3b do plano.** Já dá para correr pelo labirinto 1
 > comendo todas as pastilhas, ver o placar subir no HUD e limpar o labirinto —
-> e agora os **quatro fantasmas** moram na casa do centro, saem um a um pela
-> porta e circulam pelos corredores atrás do come-come. Eles ainda não têm
-> personalidade nem ciclo de dispersão (fase 3b), a pastilha de poder ainda só
-> vale pontos (fase 4), encostar num fantasma ainda não machuca (fase 5), o
-> labirinto ainda é um só (fase 6a) e a partida ainda entra direto no jogo, sem
-> menu (fase 7).
+> e os **quatro fantasmas** moram na casa do centro, saem um a um pela porta e
+> agora **caçam cada um do seu jeito**, alternando com os respiros de
+> dispersão pelos cantos. A pastilha de poder ainda só vale pontos (fase 4),
+> encostar num fantasma ainda não machuca (fase 5), o labirinto ainda é um só
+> (fase 6a) e a partida ainda entra direto no jogo, sem menu (fase 7).
 
 ---
 
@@ -87,16 +86,61 @@ o vizinho mais perto do **alvo**. Empatou, vence a ordem `cima`, `esquerda`,
 sobra uma saída só, então não há escolha nenhuma — e é assim que eles entram no
 túnel e saem do outro lado sem uma linha de código a mais.
 
-O **alvo chega de fora**, de propósito: hoje os quatro recebem o quadrado em
-que o come-come está. Quem calcula um alvo diferente para cada personalidade —
-e quando eles largam a caça para dispersar pelos cantos — ainda vai ser
-escrito.
+O **alvo chega de fora**, de propósito: o `Fantasmas` sabe *andar* até um alvo,
+e não de quem o alvo é. Quem calcula o alvo de cada um é o `Personalidades`,
+logo abaixo.
 
 Cada um é desenhado com a cúpula redonda rasterizada na mão, a saia balançando
 em pés de 4px (a onda troca de lugar a cada 8 quadros, e é o que faz ele
 parecer que flutua) e dois olhos com a **pupila correndo para o lado em que ele
 anda** — que é o único jeito de a criança saber, de longe, para onde o fantasma
 vai.
+
+---
+
+## Cada um caça do seu jeito
+
+O que faz o jogo ser jogo é que os quatro **não pensam igual**. Na caça, cada
+personalidade mira um lugar diferente:
+
+| Fantasma | Onde ele mira | O que se sente jogando |
+|---|---|---|
+| Vermelho — `perseguidor` | o quadrado em que o come-come **está** | é a sombra: se você parar, ele chega |
+| Rosa — `emboscador` | **4 quadrados à frente** do come-come, na direção em que ele anda | aparece pela esquina de lá, cortando o caminho |
+| Azul — `tímido` | de **longe** (mais de 8 quadrados) ele caça junto; de perto, se acanha e volta para o canto dele | o cerco quase fecha e afrouxa |
+| Laranja — `aleatório` | um lugar **sorteado** do labirinto, trocado a cada meio segundo | é o imprevisível: às vezes salva, às vezes atrapalha |
+
+## Dispersar e caçar
+
+Os fantasmas não caçam a partida inteira. A tabela do fliperama alterna
+**dispersão** (o respiro) e **caça**:
+
+| Ordem | Humor | Quanto dura |
+|---|---|---|
+| 1ª | dispersar | 7 s |
+| 2ª | caçar | 20 s |
+| 3ª | dispersar | 7 s |
+| 4ª | caçar | 20 s |
+| 5ª | dispersar | 5 s |
+| 6ª | caçar | 20 s |
+| 7ª | dispersar | 5 s |
+| 8ª | caçar | **para sempre** |
+
+Na dispersão ninguém mira o come-come: cada um vai para o **seu canto** — o
+vermelho para cima à direita, o rosa para cima à esquerda, o azul para baixo à
+direita e o laranja para baixo à esquerda. O canto fica na **parede da borda**,
+onde ninguém chega: é justamente por isso que o fantasma acaba dando voltas
+pelo quadrante dele em vez de estacionar em algum lugar.
+
+E o detalhe que a criança percebe sem ninguém explicar: **na virada do humor,
+todos que estão na rua dão meia-volta na hora**, no meio do corredor mesmo. É o
+aviso de que eles mudaram de ideia — e a brecha para escapar de um cerco.
+
+O sorteio do laranja não usa `Math.random()`: usa um gerador de bolso com
+**semente** (`Sorteio`). O motivo aparece no multijogador — numa sala, os cinco
+aparelhos precisam ver o laranja andar exatamente igual, e para isso o sorteio
+tem que sair de um número combinado, que é a semente que a Central manda no
+começo da partida. Sozinho, a semente é um número fixo do jogo.
 
 ---
 
@@ -158,7 +202,10 @@ apontando para onde ele anda.
 | `Mapa` | lê o desenho em texto e devolve a grade (paredes, pastilhas, poderes, porta da casa, nascimento e as linhas de túnel) |
 | `Movimento` | um quadro de movimento na grade: direção atual + direção desejada, parada na parede, alinhamento no meio do corredor e a volta do túnel |
 | `Pastilhas` | o caderninho do labirinto: quais pastilhas ainda estão de pé, o que rende comer a do quadrado em que o come-come está, e quantas faltam |
-| `Fantasmas` | os quatro corpos: a espera na casa, a rota da porta e, soltos no labirinto, a escolha da saída que mais aproxima do alvo recebido |
+| `Fantasmas` | os quatro corpos: a espera na casa, a rota da porta, a escolha da saída que mais aproxima do alvo recebido e a meia-volta de todos na virada do humor |
+| `Personalidades` | de quem é o alvo: o quadrado do come-come, quatro casas à frente dele, a coragem que depende da distância, o lugar sorteado — ou, na dispersão, o canto de cada um |
+| `Sorteio` | o gerador de bolso com semente: a mesma semente dá a mesma sequência em qualquer aparelho |
+| `Ciclos` | o relógio dos humores: em que linha da tabela dispersar↔caçar a partida está, e o aviso do quadro exato em que ela vira |
 
 Nenhum deles sabe o que é DOM, e todos são funções puras: recebem um estado e
 devolvem um estado **novo**, sem mexer no que receberam. Isso vale por dois
@@ -197,6 +244,8 @@ node testes/come_come/fase2.test.mjs        # as pastilhas e a pontuação, pura
 node testes/come_come/fase2-tela.test.mjs   # o labirinto percorrido até ficar limpo
 node testes/come_come/fase3a.test.mjs       # a casa, a saída e a escolha da esquina
 node testes/come_come/fase3a-tela.test.mjs  # os quatro fantasmas dentro da partida
+node testes/come_come/fase3b.test.mjs       # as personalidades, o sorteio e os ciclos
+node testes/come_come/fase3b-tela.test.mjs  # dispersar e caçar dentro da partida
 ```
 
 O `fase2-tela.test.mjs` põe um **piloto automático** no volante: a cada centro
@@ -209,3 +258,13 @@ O `fase3a.test.mjs` solta os quatro fantasmas por **6 000 quadros** com um alvo
 que passeia pelos cantos e confere, quadro a quadro, que nenhum deles entra
 numa parede, sai do alinhamento do corredor ou dá meia-volta; a escolha da
 esquina é conferida à mão no cruzamento `(6, 8)`, inclusive o empate.
+
+O `fase3b.test.mjs` monta cenas à mão para cada personalidade (o tímido a nove,
+a oito e a sete quadrados do come-come, por exemplo), confere que a tabela de
+ciclos vira exatamente nos quadros `420, 1620, 2040, …` e que depois da última
+linha ela não vira nunca mais, e roda os três módulos juntos por **4 000
+quadros** — com as meias-voltas acontecendo — sem que ninguém entre numa
+parede. O `fase3b-tela.test.mjs` faz o mesmo dentro da partida: mede que na
+dispersão cada fantasma fica **mais perto do próprio canto do que do canto dos
+outros três**, e que na caça os quatro se aproximam de um come-come parado
+(o vermelho chega em cima dele).

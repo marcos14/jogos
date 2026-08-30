@@ -1,10 +1,10 @@
 /* ==========================================================================
    COME-COME  -  labirinto de fliperama, no clima dos consoles de 8 bits
    --------------------------------------------------------------------------
-   FASE 3a do plano: OS QUATRO FANTASMAS - CASA, SAIDA E MOVIMENTO EM GRADE. O
-   labirinto deixa de ser um passeio: no centro dele mora uma casa com quatro
-   fantasmas, cada um com a sua cor, e um a um eles abrem a porta (que so eles
-   atravessam) e saem a circular pelos corredores.
+   FASE 3b do plano: AS PERSONALIDADES E OS CICLOS DISPERSAR/CACAR. Os quatro
+   fantasmas que a fase 3a soltou no labirinto agora sao quatro BICHOS
+   DIFERENTES - cada um mira um lugar seu - e o jogo passa a respirar: de tempos
+   em tempos eles largam a caca e vao dar uma volta pelo canto deles.
 
    O chao de tudo (fase 1) continua sendo o mesmo:
 
@@ -54,22 +54,40 @@
        deixa o vizinho mais perto do ALVO que receberam. Empatou, vence a ordem
        do fliperama: cima, esquerda, baixo, direita. Corredor comprido nao tem
        escolha nenhuma - e por isso eles entram no tunel e saem do outro lado.
-     - O alvo chega de fora, e de proposito: quem calcula o alvo de cada
-       personalidade (e os ciclos dispersar/cacar) e a fase 3b. Hoje os quatro
-       recebem o quadrado do come-come.
+     - O alvo chega de fora, e de proposito: o `Fantasmas` sabe ANDAR ate um
+       alvo, e nao de quem e o alvo.
      - Desenho 8-bit de cada um: a cupula redonda rasterizada na mao, a saia
        balancando em quatro pes e os olhos apontando para onde ele anda.
+
+   E o que a fase 3b poe por cima:
+
+     - `Personalidades`: quem diz qual e o alvo de cada um, a cada quadro. O
+       vermelho mira o quadrado do come-come; o rosa, quatro casas A FRENTE
+       dele; o azul so tem coragem de longe (de perto, se acanha e volta para
+       o canto); o laranja sorteia um lugar do labirinto de meio em meio
+       segundo. Na dispersao ninguem mira o come-come: cada um vai para o SEU
+       canto - que fica na parede da borda, onde nunca se chega, e e por isso
+       que ele fica dando voltas pelo quadrante em vez de estacionar.
+     - `Sorteio`: um gerador de bolso com SEMENTE, no lugar do `Math.random()`.
+       Numa sala os cinco aparelhos precisam ver o laranja andar igual, e para
+       isso o sorteio tem que sair de um numero combinado.
+     - `Ciclos`: a tabela do fliperama - 7 segundos dispersando, 20 cacando,
+       de novo 7 e 20, depois 5 e 20 duas vezes, e dai em diante e caca ate o
+       fim. Sao esses respiros que fazem o jogo ser jogavel.
+     - Na virada do ciclo, TODOS que estao na rua dao meia-volta na hora
+       (`Fantasmas.inverter`), como no original: e o aviso que a crianca ve sem
+       ler nada, e a brecha para escapar de um cerco.
 
    O labirinto tem 28 colunas por 31 linhas de quadrados de 16px - 448 x 496
    pixels, que e o tamanho de dentro do canvas. O tamanho de FORA (o quanto ele
    aparece na tela) e escolhido pelo CSS, mantendo a proporcao: as contas do
    jogo acontecem sempre nos mesmos 448 x 496, em qualquer aparelho.
 
-   Os fantasmas ainda nao tem personalidade nem ciclo de dispersao (fase 3b), a
-   pastilha de poder ainda so vale pontos (fase 4), encostar num fantasma ainda
-   nao machuca (fase 5), o labirinto ainda e um so (fase 6a) e a tela entra
-   direto no jogo, sem menu (fase 7). O que da para fazer hoje e o que a fase
-   3a promete: ver os quatro sairem da casa, um a um, e correrem o labirinto.
+   A pastilha de poder ainda so vale pontos (fase 4), encostar num fantasma
+   ainda nao machuca (fase 5), o labirinto ainda e um so (fase 6a) e a tela
+   entra direto no jogo, sem menu (fase 7). O que da para fazer hoje e o que a
+   fase 3b promete: ver os quatro cacarem cada um do seu jeito e, de repente,
+   darem meia-volta todos juntos para ir passear nos cantos.
    ========================================================================== */
 
 (function () {
@@ -99,6 +117,41 @@
      quadros (60 = 1 segundo). O primeiro ja nasce na rua; os outros tres saem
      escalonados, para a crianca ter tempo de comecar a comer. */
   var SAIDAS = [0, 120, 240, 360];
+
+  /* Os ciclos do fliperama: os fantasmas nao cacam a partida inteira - de
+     tempos em tempos eles largam o come-come e vao dar uma volta pelo canto
+     deles. Sao os respiros que fazem o jogo ser jogavel: sem eles a crianca
+     seria cercada em dez segundos. A tabela e a do arcade original, em
+     quadros (60 = 1 segundo), e o -1 do fim quer dizer "daqui em diante e
+     caca para sempre". A tabela de dificuldade da fase 6a vai encurtar as
+     dispersoes labirinto a labirinto. */
+  var CICLOS = [
+    { modo: 'dispersar', quadros:  7 * 60 },
+    { modo: 'cacar',     quadros: 20 * 60 },
+    { modo: 'dispersar', quadros:  7 * 60 },
+    { modo: 'cacar',     quadros: 20 * 60 },
+    { modo: 'dispersar', quadros:  5 * 60 },
+    { modo: 'cacar',     quadros: 20 * 60 },
+    { modo: 'dispersar', quadros:  5 * 60 },
+    { modo: 'cacar',     quadros: -1 }
+  ];
+
+  /* De quanto em quanto o fantasma aleatorio sorteia um lugar novo do
+     labirinto: meio segundo e o bastante para ele mudar de ideia numa esquina
+     ou noutra sem virar um pinguim eletrico. */
+  var TROCA_SORTEIO = 30;
+
+  /* Quantos quadrados a frente do come-come o emboscador mira, e a partir de
+     que distancia o timido cria coragem (em quadrados). Os dois numeros sao os
+     do fliperama. */
+  var PASSOS_A_FRENTE = 4;
+  var DISTANCIA_TIMIDO = 8;
+
+  /* A semente do sorteio. Numa sala ela vem da Central (a mesma para os cinco
+     aparelhos, e por isso o laranja anda igual em todos); no jogo de um
+     jogador so ela e este numero fixo - assim a partida e sempre a mesma para
+     quem esta testando, e a crianca nao nota diferenca nenhuma. */
+  var SEMENTE_PADRAO = 20250830;
 
   // ------------------------------------------------------------ As regras ---
   var PONTOS_PASTILHA = 10;               // cada pastilha comum
@@ -303,6 +356,7 @@
         altura: grade.length * TILE,
         pastilhas: [],          // todas elas, na ordem de leitura
         poderes: [],            // so os indices das pastilhas de poder
+        chao: [],               // todo quadrado por onde se anda, fora da casa
         indicePastilha: [],     // quadrado -> indice da pastilha dali (-1: nenhuma)
         portas: [],             // os quadrados da porta da casa
         tuneis: [],             // tuneis[linha] = true na linha do tunel
@@ -336,6 +390,19 @@
 
       mapa.totalPastilhas = mapa.pastilhas.length;
       mapa.casa = acharCasa(mapa);
+
+      /* A lista de todo quadrado por onde se anda, sem o miolo da casa. E dela
+         que o fantasma aleatorio tira o alvo dele (fase 3b): sortear um lugar
+         de dentro da casa mandaria o coitado bater na porta a partida inteira,
+         ja que de fora ela e parede. */
+      for (l = 0; l < mapa.linhas; l++) {
+        for (c = 0; c < colunas; c++) {
+          if (!livre(mapa, c, l)) continue;
+          if (mapa.casa && c >= mapa.casa.c0 && c <= mapa.casa.c1
+                        && l >= mapa.casa.l0 && l <= mapa.casa.l1) continue;
+          mapa.chao.push({ c: c, l: l });
+        }
+      }
       return mapa;
     }
 
@@ -582,11 +649,12 @@
      uma saida so, entao nao ha escolha nenhuma - e e assim que eles entram no
      tunel e saem do outro lado sem uma linha de codigo a mais.
 
-     O ALVO vem de fora de proposito. Quem decide para onde cada personalidade
-     olha, e quando eles trocam de cacar para dispersar, e a fase 3b: aqui
-     dentro alvo e so um par de numeros. Puro como o resto - `passo()` devolve
-     um estado NOVO -, porque numa sala vai ser este mesmo passo, no aparelho do
-     anfitriao, que diz onde os quatro estao para todo mundo. */
+     O ALVO vem de fora de proposito: aqui dentro ele e so um par de numeros.
+     Quem decide para onde cada personalidade olha e o `Personalidades`, e quem
+     diz quando eles largam a caca para dispersar e o `Ciclos` - os dois logo
+     abaixo. Puro como o resto - `passo()` devolve um estado NOVO -, porque numa
+     sala vai ser este mesmo passo, no aparelho do anfitriao, que diz onde os
+     quatro estao para todo mundo. */
   var Fantasmas = (function () {
 
     /* A ordem de desempate do fliperama: entre duas saidas que aproximam o
@@ -764,6 +832,29 @@
       return novo;
     }
 
+    /**
+     * A meia-volta de todo mundo, do jeito do fliperama: quando o ciclo troca
+     * (de dispersar para cacar, ou o contrario) os fantasmas que estao na rua
+     * dao meia-volta na hora, no meio do corredor mesmo. E o aviso que a
+     * crianca ve sem ler nada - "eles mudaram de ideia" - e o que abre a
+     * brecha para escapar de um cerco.
+     *
+     * Quem ainda esta na casa ou subindo a porta fica como esta: a rota de
+     * saida e escrita a mao e nao tem meia-volta nenhuma.
+     */
+    function inverter(estado) {
+      var lista = [];
+      for (var i = 0; i < estado.lista.length; i++) {
+        var f = estado.lista[i];
+        if (f.etapa !== 'livre') { lista.push(f); continue; }
+        var volta = oposta(f.corpo.dir);
+        lista.push(copia(f, {
+          corpo: junta(f.corpo, { dir: volta, desejada: volta, parado: false })
+        }));
+      }
+      return { lista: lista, relogio: estado.relogio };
+    }
+
     /** Todos ja sairam da casa? (o teste e o desenho gostam de saber) */
     function todosNaRua(estado) {
       for (var i = 0; i < estado.lista.length; i++) {
@@ -778,12 +869,268 @@
       passoDeUm: passoDeUm,
       escolher: escolher,
       distancia: distancia,
+      inverter: inverter,
       todosNaRua: todosNaRua,
       TIPOS: TIPOS,
       SAIDAS: SAIDAS,
       PREFERENCIA: PREFERENCIA,
       BALANCO: BALANCO,
       VELOCIDADE: VEL_FANTASMA
+    };
+  }());
+
+  // ---------------------------------------------------------- O sorteio ----
+  /* Um sorteador de bolso, e nao o `Math.random()`: o fantasma aleatorio
+     precisa sortear IGUAL nos cinco aparelhos de uma sala, e para isso o
+     sorteio tem que sair de um numero combinado - a SEMENTE que a Central manda
+     no comeco da partida.
+
+     E o gerador linear de sempre (o dos livros: `x = a*x + c`, tudo modulo
+     2^32). Ele nao serve para criptografia nenhuma, e nem precisa: serve para
+     dois aparelhos tirarem a mesma sequencia de numeros a partir do mesmo
+     ponto de partida, que e exatamente o pedido. As contas cabem folgadas nos
+     inteiros exatos do JavaScript (1664525 x 2^32 ainda esta abaixo de 2^53),
+     entao o resultado e o mesmo em qualquer maquina.
+
+     Puro como o resto: quem guarda a semente e o estado que passa por aqui. */
+  var Sorteio = (function () {
+    var A = 1664525, C = 1013904223, M = 4294967296;   // 2^32
+
+    /** Qualquer numero virando uma semente valida (inteiro dentro de 0..2^32). */
+    function semear(semente) {
+      var n = Math.floor(Math.abs(Number(semente)));
+      return isFinite(n) ? n % M : 1;
+    }
+
+    /** A proxima semente da sequencia. */
+    function proximo(semente) { return (A * semear(semente) + C) % M; }
+
+    /** A semente virando um numero de 0 (inclusive) a 1 (exclusive). */
+    function valor(semente) { return semear(semente) / M; }
+
+    /** Um inteiro sorteado de 0 a n-1. */
+    function ate(semente, n) {
+      return n > 0 ? Math.floor(valor(semente) * n) % n : 0;
+    }
+
+    /** Pular `vezes` sorteios de uma vez (os testes gostam). */
+    function avancar(semente, vezes) {
+      var s = semear(semente);
+      for (var i = 0; i < vezes; i++) s = proximo(s);
+      return s;
+    }
+
+    return {
+      semear: semear, proximo: proximo, valor: valor, ate: ate, avancar: avancar
+    };
+  }());
+
+  // ------------------------------------------------ Dispersar e cacar -------
+  /* O relogio dos humores. O jogo nao e uma cacada sem fim: ele alterna entre
+     DISPERSAR (cada fantasma vai dar uma volta pelo canto dele) e CACAR (os
+     quatro miram o come-come), na tabela do fliperama - sete segundos de
+     respiro, vinte de perigo, e assim por diante, ate a caca virar permanente
+     no fim.
+
+     Um estado de tres numeros: em que linha da tabela estamos, ha quantos
+     quadros, e o humor que sai disso. `passo()` e puro e devolve, junto, o
+     aviso de que a linha VIROU - e desse aviso que sai a meia-volta de todos
+     (`Fantasmas.inverter`), o sinal mais visivel do jogo. */
+  var Ciclos = (function () {
+
+    function tabelaDe(opcoes) {
+      var tabela = opcoes && opcoes.tabela;
+      return tabela && tabela.length ? tabela : CICLOS;
+    }
+
+    /** O comeco da rodada: a primeira linha da tabela, do quadro zero. */
+    function novoEstado(opcoes) {
+      var tabela = tabelaDe(opcoes);
+      return { etapa: 0, relogio: 0, modo: tabela[0].modo, trocou: false };
+    }
+
+    /**
+     * Um quadro do relogio. Devolve um estado NOVO, com `trocou: true` no
+     * exato quadro em que a linha da tabela muda. A ultima linha tem
+     * `quadros: -1` e nao acaba nunca: dali em diante e caca ate o fim.
+     */
+    function passo(estado, opcoes) {
+      var tabela = tabelaDe(opcoes);
+      var etapa = estado.etapa, relogio = estado.relogio + 1, trocou = false;
+      var linha = tabela[etapa] || tabela[tabela.length - 1];
+
+      if (linha.quadros >= 0 && relogio >= linha.quadros && etapa + 1 < tabela.length) {
+        etapa++;
+        relogio = 0;
+        trocou = true;
+      }
+      return {
+        etapa: etapa,
+        relogio: relogio,
+        modo: tabela[etapa].modo,
+        trocou: trocou
+      };
+    }
+
+    /** Quantos quadros faltam para a proxima troca (-1 = nao troca mais). */
+    function faltam(estado, opcoes) {
+      var linha = tabelaDe(opcoes)[estado.etapa];
+      return linha.quadros < 0 ? -1 : linha.quadros - estado.relogio;
+    }
+
+    return {
+      novoEstado: novoEstado,
+      passo: passo,
+      faltam: faltam,
+      tabelaDe: tabelaDe,
+      TABELA: CICLOS
+    };
+  }());
+
+  // ------------------------------------------------- As personalidades ------
+  /* Aqui mora a diferenca entre os quatro. O `Fantasmas` sabe ANDAR ate um
+     alvo; quem diz qual e o alvo de cada um, a cada quadro, e este modulo:
+
+       perseguidor (vermelho)  mira o quadrado em que o come-come esta. E o
+                               caçador puro: se voce parar, ele chega.
+       emboscador  (rosa)      mira quatro quadrados A FRENTE do come-come, na
+                               direcao em que ele anda - por isso ele parece
+                               sempre aparecer pela esquina de la.
+       timido      (azul)      alterna conforme a DISTANCIA: de longe (mais de
+                               oito quadrados) ele caca junto com os outros; de
+                               perto, se acanha e volta para o canto dele. E o
+                               que faz o cerco quase se fechar e afrouxar.
+       aleatorio   (laranja)   sorteia um lugar do labirinto de meio em meio
+                               segundo e vai la. Usa a SEMENTE, e nao o
+                               `Math.random()`: numa sala os cinco aparelhos
+                               precisam ve-lo andar igual.
+
+     Na DISPERSAO ninguem mira o come-come: cada um vai para o seu canto, e
+     como o canto fica fora do labirinto ele nunca chega - fica dando voltas
+     pelo quadrante dele, que e o respiro que a crianca usa para comer em paz.
+
+     Estado de tres campos (a semente, o alvo sorteado e quanto falta para
+     sortear outro) e `passo()` puro, como todo o resto: numa sala e o
+     anfitriao que roda isto. */
+  var Personalidades = (function () {
+
+    /* O canto de cada um, um por quadrante. Numero negativo conta da outra
+       beirada: `-2` e "a segunda coluna de tras para a frente". Os cantos ficam
+       de proposito na borda do desenho, onde e parede: fantasma nenhum chega
+       la, e e isso que faz ele circular pelo quadrante em vez de estacionar. */
+    var CANTOS = {
+      perseguidor: { c: -2, l:  0 },    // canto de cima, a direita
+      emboscador:  { c:  1, l:  0 },    // canto de cima, a esquerda
+      timido:      { c: -1, l: -1 },    // canto de baixo, a direita
+      aleatorio:   { c:  0, l: -1 }     // canto de baixo, a esquerda
+    };
+
+    /** O canto de dispersao daquela personalidade, neste labirinto. */
+    function cantoDe(mapa, chave) {
+      var canto = CANTOS[chave] || CANTOS.perseguidor;
+      return {
+        c: canto.c < 0 ? mapa.colunas + canto.c : canto.c,
+        l: canto.l < 0 ? mapa.linhas + canto.l : canto.l
+      };
+    }
+
+    /** O comeco da rodada, com a semente combinada (a da sala, quando houver). */
+    function novoEstado(semente) {
+      return {
+        semente: Sorteio.semear(semente === undefined ? SEMENTE_PADRAO : semente),
+        espera: 0,        // quadros ate o proximo sorteio
+        sorteado: null    // o lugar que o laranja esta procurando agora
+      };
+    }
+
+    /** Um quadro do sorteio do laranja: so tira um lugar novo quando da a hora. */
+    function sortear(estado, mapa) {
+      if (estado.sorteado && estado.espera > 0) {
+        return {
+          semente: estado.semente,
+          espera: estado.espera - 1,
+          sorteado: estado.sorteado
+        };
+      }
+      var semente = Sorteio.proximo(estado.semente);
+      var chao = mapa.chao && mapa.chao.length ? mapa.chao : [{ c: 0, l: 0 }];
+      var lugar = chao[Sorteio.ate(semente, chao.length)];
+      return {
+        semente: semente,
+        espera: TROCA_SORTEIO,
+        sorteado: { c: lugar.c, l: lugar.l }
+      };
+    }
+
+    /**
+     * O alvo de uma personalidade, montado a mao. `dados` traz:
+     *   mapa      o labirinto (e dele que saem os cantos)
+     *   modo      'dispersar' ou 'cacar'
+     *   come      { c, l, dir } - onde o come-come esta e para onde vai
+     *   fantasma  { c, l } - onde ESTE fantasma esta (so o timido usa)
+     *   sorteado  { c, l } - o lugar da vez (so o laranja usa)
+     */
+    function alvoDe(chave, dados) {
+      var mapa = dados.mapa;
+      if (dados.modo === 'dispersar') return cantoDe(mapa, chave);
+
+      var come = dados.come || { c: 0, l: 0, dir: 'esquerda' };
+      var aqui = { c: come.c, l: come.l };
+
+      if (chave === 'emboscador') {
+        var v = VETORES[come.dir] || VETORES.esquerda;
+        return {
+          c: come.c + v.dc * PASSOS_A_FRENTE,
+          l: come.l + v.dl * PASSOS_A_FRENTE
+        };
+      }
+
+      if (chave === 'timido') {
+        var f = dados.fantasma || aqui;
+        var longe = Fantasmas.distancia(f.c, f.l, come.c, come.l)
+                  > DISTANCIA_TIMIDO * DISTANCIA_TIMIDO;
+        return longe ? aqui : cantoDe(mapa, chave);
+      }
+
+      if (chave === 'aleatorio') return dados.sorteado || aqui;
+
+      return aqui;   // o perseguidor, e qualquer chave que ninguem conheca
+    }
+
+    /**
+     * Um quadro: sorteia (se der a hora) e devolve o alvo de cada fantasma, na
+     * ordem da lista. Sai `{ estado, alvos }` - o `alvos` vai direto para o
+     * `Fantasmas.passo()`.
+     */
+    function passo(estado, fantasmas, mapa, contexto) {
+      var ctx = contexto || {};
+      var novo = sortear(estado, mapa);
+      var modo = ctx.modo || 'cacar';
+      var alvos = [];
+
+      for (var i = 0; i < fantasmas.lista.length; i++) {
+        var f = fantasmas.lista[i];
+        alvos.push(alvoDe(f.chave, {
+          mapa: mapa,
+          modo: modo,
+          come: ctx.come,
+          fantasma: { c: Mapa.coluna(f.corpo.x), l: Mapa.linha(f.corpo.y) },
+          sorteado: novo.sorteado
+        }));
+      }
+      return { estado: novo, alvos: alvos };
+    }
+
+    return {
+      novoEstado: novoEstado,
+      passo: passo,
+      sortear: sortear,
+      alvoDe: alvoDe,
+      cantoDe: cantoDe,
+      CANTOS: CANTOS,
+      PASSOS_A_FRENTE: PASSOS_A_FRENTE,
+      DISTANCIA_TIMIDO: DISTANCIA_TIMIDO,
+      TROCA_SORTEIO: TROCA_SORTEIO
     };
   }());
 
@@ -846,6 +1193,9 @@
       Movimento: Movimento,
       Pastilhas: Pastilhas,
       Fantasmas: Fantasmas,
+      Sorteio: Sorteio,
+      Ciclos: Ciclos,
+      Personalidades: Personalidades,
       LABIRINTO_1: LABIRINTO_1,
       LABIRINTOS: LABIRINTOS,
       mapas: mapas,
@@ -854,7 +1204,9 @@
         TILE: TILE, COLUNAS: COLUNAS, LINHAS: LINHAS,
         LARGURA: LARGURA, ALTURA: ALTURA,
         PASSO_MS: PASSO_MS, VEL_COME: VEL_COME, VEL_FANTASMA: VEL_FANTASMA,
-        SAIDAS: SAIDAS,
+        SAIDAS: SAIDAS, CICLOS: CICLOS, TROCA_SORTEIO: TROCA_SORTEIO,
+        PASSOS_A_FRENTE: PASSOS_A_FRENTE, DISTANCIA_TIMIDO: DISTANCIA_TIMIDO,
+        SEMENTE_PADRAO: SEMENTE_PADRAO,
         PONTOS_PASTILHA: PONTOS_PASTILHA, PONTOS_PODER: PONTOS_PODER,
         VIDAS_INICIAIS: VIDAS_INICIAIS, TOTAL_FASES: TOTAL_FASES
       }
@@ -1132,7 +1484,9 @@
     vidas: VIDAS_INICIAIS,           // ainda nao ha como perder (fase 5)
     come: Movimento.novoCorpo(labirinto.nascimento.c, labirinto.nascimento.l),
     pastilhas: Pastilhas.novoEstado(labirinto),
-    fantasmas: Fantasmas.novoEstado(labirinto)
+    fantasmas: Fantasmas.novoEstado(labirinto),
+    ciclo: Ciclos.novoEstado(),              // dispersar ou cacar, e ha quanto tempo
+    miras: Personalidades.novoEstado()       // a semente e o alvo sorteado do laranja
   };
 
   // O estado vivo, para os testes dirigirem o jogo sem navegador.
@@ -1154,12 +1508,25 @@
       if (mordida.limpou) concluirFase();
     }
 
-    /* Os quatro perseguem o quadrado em que o come-come esta. Isto e um alvo
-       PROVISORIO: quem calcula o alvo de cada personalidade - e quando eles
-       largam a caca para dispersar - e a fase 3b do plano. Encostar num deles
-       ainda nao machuca (fase 5). */
-    var alvo = { c: Mapa.coluna(jogo.come.x), l: Mapa.linha(jogo.come.y) };
-    jogo.fantasmas = Fantasmas.passo(jogo.fantasmas, labirinto, alvo);
+    /* O relogio dos humores anda primeiro: quando ele vira a linha da tabela,
+       os quatro dao meia-volta na hora, como no fliperama. */
+    jogo.ciclo = Ciclos.passo(jogo.ciclo);
+    if (jogo.ciclo.trocou) jogo.fantasmas = Fantasmas.inverter(jogo.fantasmas);
+
+    /* Agora cada um recebe o SEU alvo: o vermelho mira o come-come, o rosa
+       quatro casas a frente dele, o azul so caca de longe e o laranja vai
+       aonde o sorteio mandar - ou, na dispersao, cada um para o seu canto.
+       Encostar num deles ainda nao machuca (fase 5). */
+    var mira = Personalidades.passo(jogo.miras, jogo.fantasmas, labirinto, {
+      modo: jogo.ciclo.modo,
+      come: {
+        c: Mapa.coluna(jogo.come.x),
+        l: Mapa.linha(jogo.come.y),
+        dir: jogo.come.dir
+      }
+    });
+    jogo.miras = mira.estado;
+    jogo.fantasmas = Fantasmas.passo(jogo.fantasmas, labirinto, mira.alvos);
   }
 
   /**
