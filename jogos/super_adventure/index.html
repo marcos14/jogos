@@ -51,6 +51,15 @@
   <div id="palco">
     <canvas id="tela" width="960" height="540"></canvas>
 
+    <!-- O placar da sala, no canto de cima à esquerda: a turma inteira e os
+         pontos de cada um, em tempo real. Só existe nas partidas em grupo (no
+         solo o placar é o do HUD) e some junto com a caixa de controles quando
+         alguma tela sobe por cima. As linhas são escritas pelo game.js. -->
+    <aside id="placar-sala" class="hidden">
+      <h2 class="placar-titulo">Placar da sala</h2>
+      <ol id="placar-lista" class="placar-lista"></ol>
+    </aside>
+
     <!-- Lembrete dos controles, no canto de baixo à direita. Fica só com o
          jogo rolando; qualquer tela por cima (menu, pausa, fim de fase) o
          esconde. Não recebe clique nenhum: é só um cartaz. -->
@@ -122,11 +131,13 @@
     </section>
 
     <!-- Fim do jogo: só depois da bandeira da fase 3. Traz o resumo da corrida
-         inteira — quanto cada fase rendeu, com o bônus, e o total. -->
+         inteira — quanto cada fase rendeu, com o bônus, e o total. Numa sala
+         vem junto o ranking de todo mundo, montado com o placar que a Central
+         devolve para todos ao mesmo tempo. -->
     <section id="tela-fim" class="tela hidden">
       <div class="painel">
         <h1 class="titulo"><span class="destaque">PARABÉNS!</span></h1>
-        <p class="subtitulo">Você venceu as três fases 🏆</p>
+        <p id="fim-subtitulo" class="subtitulo">Você venceu as três fases 🏆</p>
 
         <ul class="resumo">
           <li><span>Fase 1</span><b id="fim-fase-1">0</b></li>
@@ -135,6 +146,14 @@
         </ul>
         <p class="legenda">moedas e bichos + bônus da bandeira</p>
         <p class="placar">Total: <b id="fim-total">0</b></p>
+
+        <!-- Só nas partidas em grupo. A lista vai do último para o primeiro,
+             de propósito: ela sobe degrau por degrau e termina no campeão. -->
+        <div id="fim-sala" class="hidden">
+          <h2 class="ranking-titulo">Ranking da sala</h2>
+          <ol id="fim-ranking" class="placar-lista ranking"></ol>
+          <p id="fim-esperando" class="legenda">Juntando o placar da sala…</p>
+        </div>
 
         <button id="btn-de-novo" type="button" class="botao">JOGAR NOVAMENTE</button>
       </div>

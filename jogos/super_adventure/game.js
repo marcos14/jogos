@@ -1,10 +1,18 @@
 /* ==========================================================================
    SUPER ADVENTURE  -  plataforma retro, no estilo dos consoles de 8 bits
    --------------------------------------------------------------------------
-   FASE 12 do plano: a bandeira e o checkpoint sao da SALA. O primeiro jogador
-   que encostar na bandeira - anfitriao ou convidado, tanto faz - fecha a fase
-   para todo mundo junto, e o mastro que um acende passa a valer para o grupo
-   inteiro: dali em diante e nele que a sala renasce. O mundo ja era um so
+   FASE 13 do plano: TODO MUNDO VE O PLACAR DE TODO MUNDO. Numa sala, uma
+   mini-lista no canto da tela mostra a turma inteira e quantos pontos cada um
+   fez, na hora em que faz; e a bandeira da fase 3 fecha a partida da sala pela
+   Central (`terminar(placar)`), de onde volta para todos, ao mesmo tempo, o
+   mesmo RANKING - montado do pior para o melhor, para a lista terminar no
+   campeao. Se a plataforma nao confirmar em ~3 segundos, cada tela mostra o
+   placar que ela mesma tem, e ninguem fica esperando para sempre.
+
+   Antes disso a bandeira e o checkpoint ja eram da SALA (fase 12): o primeiro
+   jogador que encostar na bandeira - anfitriao ou convidado, tanto faz - fecha
+   a fase para todo mundo junto, e o mastro que um acende passa a valer para o
+   grupo inteiro: dali em diante e nele que a sala renasce. O mundo ja era um so
    desde a fase 11 (moedas, blocos e bichos do MUNDO do anfitriao: quem pega
    tira de todos e os pontos ficam so com quem pegou), com a camera de cada
    aparelho centrada no personagem de casa e os outros jogadores aparecendo,
@@ -35,6 +43,10 @@
        para o proprio personagem.
      - `Corrida`: o caderninho da partida solo - quanto cada fase rendeu, o
        bonus de bandeira e qual e a proxima. So anda para a frente. Puro.
+     - `Placar`: a lista de jogadores virando placar - a ordem (do melhor para
+       o pior na mini-lista, do pior para o melhor no ranking do fim), o lugar
+       de cada um com empate valendo o mesmo lugar, e o que viaja para a
+       plataforma no `terminar()`. Puro tambem.
      - `Previsao`: como a posicao que o convidado adivinhou e casada com a que
        o anfitriao mandou - 25% do erro por pacote, ou de uma vez acima de
        90px. Pura tambem.
@@ -79,7 +91,8 @@
 
    O que e do MUNDO fica solto no `jogo` (`itens`, `inimigos`, `moveis`,
    `limites`, `quemChegou`) e o que e de cada um fica na linha dele (`corpo`,
-   `pontos`, `vidas`, `progresso`, `entrada`). Dai sai a regra do mundo
+   `pontos` da fase, `total` das fases fechadas, `vidas`, `progresso`,
+   `entrada`). Dai sai a regra do mundo
    compartilhado: moeda pega some para todos, bloco quebrado cai para todos,
    bicho pisado nao volta para ninguem - e so o placar de quem fez e que sobe.
    Cair num buraco, ao contrario, e problema de quem caiu: o mundo dos outros
@@ -92,6 +105,15 @@
    o mastro que um acende entra na conta de todo mundo (`acenderNoGrupo`), de
    modo que a lista de checkpoints e a mesma em todas as linhas. Os coracoes,
    esses, continuam sendo de cada um.
+
+   O PLACAR e a terceira coisa que e da sala: a mini-lista lateral mostra a
+   turma inteira ordenada pelo total da corrida (as fases fechadas mais a de
+   agora), e ela e reescrita so quando algum numero muda. No fim das tres
+   fases, o anfitriao manda o ultimo retrato e chama `terminar(placar)`: a
+   Central devolve o mesmo placar para todos, e cada tela monta com ele o
+   ranking do pior para o melhor. Nao vindo resposta em ~3 segundos, cada uma
+   mostra o placar que tem em casa - que bate com o dos outros, porque o
+   `total` de cada jogador viaja no retrato.
 
    A camera, essa, e de cada aparelho: `seguirCamera()` centra a janela no
    personagem de casa, dentro da MESMA geometria que o anfitriao esta usando -
@@ -1251,6 +1273,167 @@
     };
   }());
 
+  // -------------------------------------------------------------- As cores --
+  var COR_SOLO = '#0058f8';               // o azul do macacao, jogando sozinho
+
+  /** So aceita cor de verdade; qualquer outra coisa vira o azul de sempre. */
+  function corSegura(cor) {
+    return /^#[0-9a-fA-F]{3,8}$/.test(String(cor || '')) ? cor : COR_SOLO;
+  }
+
+  // -------------------------------------------------------------- O placar --
+  /* Numa sala o jogo e uma disputa, e disputa pede placar: a mini-lista que
+     fica no canto da tela durante a partida inteira e o ranking que sobe no
+     fim das tres fases saem os dois daqui. Este modulo nao ve tela nenhuma -
+     sao funcoes puras sobre a lista de jogadores.
+
+     Uma linha do placar e:
+
+         { id, indice, apelido, cor, pontos, eu }
+
+     `pontos` e o total da CORRIDA, e nao o da fase: o que ja fechou (`total`,
+     as fases vencidas com o bonus de bandeira de cada uma) mais o que esta
+     sendo feito na fase de agora. Com a fase ja fechada pela bandeira, o
+     `total` sozinho ja e a conta inteira - somar os pontos da fase de novo
+     contaria a mesma fase duas vezes, e e disso que `faseFechada` cuida.
+
+     O ranking do fim vai do PIOR para o MELHOR, de proposito: a lista sobe
+     degrau por degrau e termina no campeao. Empate vale o mesmo lugar, e o
+     desempate da ORDEM e sempre o `indice` do jogador na sala - o mesmo numero
+     em todos os aparelhos, entao todo mundo ve a lista na mesma ordem. */
+  var Placar = (function () {
+
+    /** O que este jogador fez na corrida inteira, ate agora. */
+    function pontosDe(j, faseFechada) {
+      return (j.total | 0) + (faseFechada ? 0 : (j.pontos | 0));
+    }
+
+    /** A lista de jogadores do mundo virando placar, do melhor para o pior. */
+    function daSala(jogadores, faseFechada) {
+      var lista = [], i;
+      for (i = 0; i < jogadores.length; i++) {
+        var j = jogadores[i];
+        lista.push({
+          id: j.id,
+          indice: j.indice | 0,
+          apelido: j.apelido || 'Jogador',
+          cor: j.cor,
+          pontos: pontosDe(j, faseFechada),
+          eu: !!j.local
+        });
+      }
+      return melhorPrimeiro(lista);
+    }
+
+    function copiar(p, lugar) {
+      return {
+        id: p.id, indice: p.indice, apelido: p.apelido, cor: p.cor,
+        pontos: p.pontos, eu: !!p.eu, lugar: lugar || p.lugar || 0
+      };
+    }
+
+    /** Do melhor para o pior; quem empata fica na ordem do indice. */
+    function melhorPrimeiro(lista) {
+      return lista.slice().sort(function (a, b) {
+        return (b.pontos - a.pontos) || (a.indice - b.indice);
+      });
+    }
+
+    /** E o contrario: a lista que termina no campeao. */
+    function piorPrimeiro(lista) {
+      return melhorPrimeiro(lista).reverse();
+    }
+
+    /** Cada um com o seu lugar (1, 2, 3...), do melhor para o pior. Quem
+        empata em pontos divide o mesmo lugar. */
+    function colocar(lista) {
+      var ordenada = melhorPrimeiro(lista), saida = [], lugar = 1;
+      for (var i = 0; i < ordenada.length; i++) {
+        if (i > 0 && ordenada[i].pontos < ordenada[i - 1].pontos) lugar = i + 1;
+        saida.push(copiar(ordenada[i], lugar));
+      }
+      return saida;
+    }
+
+    /** O ranking do fim: do pior para o melhor, cada um com o seu lugar. */
+    function ranking(lista) {
+      return colocar(lista).reverse();
+    }
+
+    /** Em que lugar ficou quem tem esse id (0 se ele nao esta na lista). */
+    function lugarDe(lista, id) {
+      var comLugar = colocar(lista);
+      for (var i = 0; i < comLugar.length; i++) {
+        if (comLugar[i].id === id) return comLugar[i].lugar;
+      }
+      return 0;
+    }
+
+    /** O placar de quem sou eu, quando a lista chegou pronta de fora. */
+    function lugarDoEu(lista) {
+      for (var i = 0; i < lista.length; i++) if (lista[i].eu) return lugarDe(lista, lista[i].id);
+      return 0;
+    }
+
+    /* O que viaja para a plataforma no `terminar()`: so os campos que o outro
+       lado precisa. `eu` fica de fora de proposito - isso e coisa de cada
+       tela, e cada uma marca a sua linha quando o placar chega. */
+    function paraRede(lista) {
+      var saida = [];
+      for (var i = 0; i < lista.length; i++) {
+        saida.push({
+          id: lista[i].id, indice: lista[i].indice,
+          apelido: lista[i].apelido, cor: lista[i].cor,
+          pontos: lista[i].pontos | 0
+        });
+      }
+      return saida;
+    }
+
+    /* O caminho de volta: as linhas que chegaram pela rede arrumadas para a
+       tela - apelido em texto, cor que e mesmo uma cor, pontos inteiros - e
+       com a marca de quem sou eu. */
+    function normalizar(placar, meuId) {
+      var bruto = placar || [], lista = [];
+      for (var i = 0; i < bruto.length; i++) {
+        var p = bruto[i] || {};
+        lista.push({
+          id: p.id || '',
+          indice: typeof p.indice === 'number' ? p.indice : i,
+          apelido: String(p.apelido || 'Jogador'),
+          cor: corSegura(p.cor),
+          pontos: p.pontos | 0,
+          eu: !!p.id && p.id === meuId
+        });
+      }
+      return lista;
+    }
+
+    /* O placar inteiro num texto so. E com ele que o HUD sabe se mudou alguma
+       coisa: sem isso a mini-lista seria reescrita 60 vezes por segundo. */
+    function assinatura(lista) {
+      var partes = [];
+      for (var i = 0; i < lista.length; i++) {
+        partes.push(lista[i].id + ':' + lista[i].pontos);
+      }
+      return partes.join('|');
+    }
+
+    return {
+      daSala: daSala,
+      pontosDe: pontosDe,
+      melhorPrimeiro: melhorPrimeiro,
+      piorPrimeiro: piorPrimeiro,
+      colocar: colocar,
+      ranking: ranking,
+      lugarDe: lugarDe,
+      lugarDoEu: lugarDoEu,
+      paraRede: paraRede,
+      normalizar: normalizar,
+      assinatura: assinatura
+    };
+  }());
+
   // ------------------------------------------------ A previsao do convidado -
   /* O convidado nao pode esperar o pacote do anfitriao para sair do lugar: com
      o vai-e-volta da rede o controle ficaria "molenga", sempre alguns quadros
@@ -1365,7 +1548,7 @@
            t: 940,                 // o relogio do anfitriao
            q: 0,                   // 1 = a bandeira ja foi tocada
            w: -1,                  // quem tocou nela (indice; -1 = ninguem)
-           j: [[i, x, y, dir, sinais, pontos, vidas, checkpoints], ...],
+           j: [[i, x, y, dir, sinais, pontos, vidas, checkpoints, total], ...],
            m: [ ... ],             // as moedas que ainda existem, em bits
            b: [ ... ],             // idem para os blocos quebraveis
            i: [[x, y, vx, estado], ...],    // os bichos
@@ -1374,7 +1557,11 @@
      `sinais` sao os dois bits que o desenho precisa (1 = com os pes no chao,
      2 = andando) e `checkpoints` e a lista de mastros acesos cabendo num
      numero so - ela e a mesma para todo mundo, porque o checkpoint e do grupo.
-     Cem moedas viram quatro numeros: cada um carrega 30 bits.
+     `total` e o que aquele jogador ja levou das fases FECHADAS (com o bonus de
+     bandeira de cada uma): sem ele, o placar da sala so saberia contar a fase
+     de agora e o convidado nao teria como montar o ranking sozinho quando a
+     plataforma demora. Cem moedas viram quatro numeros: cada um carrega 30
+     bits.
 
      Tudo aqui e funcao pura de conversao: `aplicar()` mexe no mundo que
      recebe, mas nao sabe desenhar nem tocar em tela nenhuma - o que ele
@@ -1442,13 +1629,14 @@
       return null;
     }
 
-    /** Um jogador em oito numeros. */
+    /** Um jogador em nove numeros. */
     function linhaJogador(j) {
       var c = j.corpo;
       return [
         j.indice, c.x | 0, c.y | 0, c.direcao,
         (c.noChao ? 1 : 0) | (c.andando ? 2 : 0),
-        j.pontos | 0, j.vidas | 0, bitsDe(j.progresso.ativos)
+        j.pontos | 0, j.vidas | 0, bitsDe(j.progresso.ativos),
+        j.total | 0
       ];
     }
 
@@ -1547,6 +1735,9 @@
         }
         j.pontos = linha[5];
         j.vidas = linha[6];
+        // O total das fases fechadas e do anfitriao: e ele quem soma o bonus
+        // da bandeira quando a fase acaba para a sala.
+        j.total = linha[8] | 0;
         var ativos = deBits(linha[7], mapa.checkpoints.length);
         /* As faiscas do checkpoint saem uma vez so, na linha do jogador de
            casa - e a lista dele ja traz os mastros que os OUTROS acenderam,
@@ -1750,6 +1941,7 @@
       Moveis: Moveis,
       Camera: Camera,
       Corrida: Corrida,
+      Placar: Placar,
       Previsao: Previsao,
       Pacote: Pacote,
       FASE_1: FASE_1,
@@ -1973,6 +2165,8 @@
     aviso: $('aviso'),
     hudSala: $('hud-sala'),
     hudSalaCodigo: $('hud-sala-codigo'),
+    placarSala: $('placar-sala'),
+    placarLista: $('placar-lista'),
     btnProxima: $('btn-proxima'),
     btnDeNovo: $('btn-de-novo'),
     btnPausa: $('btn-pausa'),
@@ -1988,7 +2182,11 @@
     faseBonus: $('fase-bonus'),
     faseProxima: $('fase-proxima'),
     fimLinhas: [$('fim-fase-1'), $('fim-fase-2'), $('fim-fase-3')],
-    fimTotal: $('fim-total')
+    fimTotal: $('fim-total'),
+    fimSubtitulo: $('fim-subtitulo'),
+    fimSala: $('fim-sala'),
+    fimRanking: $('fim-ranking'),
+    fimEsperando: $('fim-esperando')
   };
 
   function bloco(x, y, l, a, cor) {
@@ -2337,15 +2535,11 @@
      DAQUELE jogador (o corpo, os pontos, as vidas, os checkpoints acesos e as
      teclas que ele esta apertando) - o resto (mapa, moedas, bichos,
      plataformas) e do mundo, e por isso fica solto no `jogo`. */
-  var COR_SOLO = '#0058f8';               // o azul do macacao, jogando sozinho
+  // (`COR_SOLO` e `corSegura()` moram la em cima, junto do `Placar`: o placar
+  // da sala precisa deles antes de existir tela nenhuma.)
   var VAO_NASCIMENTO = 10;                // um respiro entre quem nasce junto
 
   var entrada = { esquerda: false, direita: false, pular: false };
-
-  /** So aceita cor de verdade; qualquer outra coisa vira o azul de sempre. */
-  function corSegura(cor) {
-    return /^#[0-9a-fA-F]{3,8}$/.test(String(cor || '')) ? cor : COR_SOLO;
-  }
 
   /* Um jogador novinho. O de casa (`local`) usa o MESMO objeto de entrada que
      o teclado escreve; os outros tem o deles, preenchido pelos pacotes que
@@ -2362,6 +2556,10 @@
       seq: 0,
       corpo: Fisica.novoCorpo(fase.spawn.x, fase.spawn.y),
       pontos: 0,
+      // `pontos` e o que ele fez NESTA fase (e o numero do HUD); `total` e o
+      // que as fases ja fechadas renderam, com o bonus de bandeira de cada
+      // uma. O placar da sala e a soma dos dois.
+      total: 0,
       vidas: VIDAS_INICIAIS,
       progresso: Progresso.novoEstado(fase),
       quedas: 0
@@ -2427,7 +2625,8 @@
        'dano', 'vida-perdida', 'jogador-recomecou', 'fase-reiniciada',
        'fase-concluida', 'corrida-vencida', 'pausa', 'continuou',
        'rede-ligada', 'sala-comecou', 'sala-terminou', 'sala-abortada',
-       'saiu-da-sala'. */
+       'saiu-da-sala', 'ranking-da-sala' (o placar oficial da plataforma) e
+       'ranking-local' (o daqui, quando ela demorou demais). */
   function emitir(tipo) {
     var evento = { tipo: tipo, quadro: jogo.relogio };
     jogo.eventos.push(evento);
@@ -2477,6 +2676,78 @@
     if (jogo.fase !== hudPintado.fase) {
       hudPintado.fase = jogo.fase;
       el.fase.textContent = jogo.fase + ' / ' + TOTAL_FASES;
+    }
+  }
+
+  // ------------------------------------------------- O placar da sala ------
+  /* A mini-lista lateral: quem esta na sala e quantos pontos cada um fez, na
+     hora em que faz. Ela nao existe no jogo solo (sozinho o placar e o do HUD)
+     e e reescrita so quando algum numero muda - com oito jogadores, mexer no
+     DOM 60 vezes por segundo seria desperdicio puro.
+
+     O numero de cada linha e o total da CORRIDA (as fases fechadas mais a de
+     agora), e nao so o da fase: numa disputa de tres fases e esse o numero que
+     diz quem esta na frente. */
+  var placarPintado = '';
+
+  /** Mostra ou esconde um pedaco da pagina. */
+  function exibir(elemento, sim) {
+    if (sim) elemento.classList.remove('hidden');
+    else elemento.classList.add('hidden');
+  }
+
+  /** O placar de agora, do melhor para o pior. */
+  function placarDaSala() {
+    return Placar.daSala(jogo.jogadores, jogo.concluida);
+  }
+
+  /* Um pedacinho de texto da lista. Sempre `textContent`, nunca HTML: o
+     apelido vem da rede e vira texto, e mais nada. */
+  function pedaco(classe, texto) {
+    var e = document.createElement('span');
+    e.className = classe;
+    e.textContent = texto;
+    return e;
+  }
+
+  /** O quadradinho da cor do jogador, do lado do nome. */
+  function pedacoDaCor(cor) {
+    var e = document.createElement('span');
+    e.className = 'cor';
+    e.style.background = corSegura(cor);
+    return e;
+  }
+
+  /** Uma linha de placar: lugar, cor, nome e pontos. */
+  function linhaDoPlacar(p, lugar) {
+    var li = document.createElement('li');
+    if (p.eu) li.className = 'eu';
+    li.appendChild(pedaco('lugar', lugar));
+    li.appendChild(pedacoDaCor(p.cor));
+    li.appendChild(pedaco('nome', p.apelido));
+    li.appendChild(pedaco('pts', String(p.pontos)));
+    return li;
+  }
+
+  /** O ouro, a prata e o bronze - do quarto lugar em diante, o numero. */
+  function medalha(lugar) {
+    return ['🥇', '🥈', '🥉'][lugar - 1] || lugar + 'º';
+  }
+
+  /* Reescreve a mini-lista, se e que mudou alguma coisa. `forcar` serve para
+     as horas em que a lista some e volta (o comeco de uma sala, a saida de uma
+     pausa): dai o texto tem de ser pintado de novo mesmo sem novidade. */
+  function atualizarPlacar(forcar) {
+    if (!emGrupo()) { placarPintado = ''; return; }
+
+    var lista = Placar.colocar(placarDaSala());
+    var assinatura = Placar.assinatura(lista);
+    if (!forcar && assinatura === placarPintado) return;
+    placarPintado = assinatura;
+
+    el.placarLista.innerHTML = '';
+    for (var i = 0; i < lista.length; i++) {
+      el.placarLista.appendChild(linhaDoPlacar(lista[i], lista[i].lugar + 'º'));
     }
   }
 
@@ -2730,11 +3001,15 @@
   // ------------------------------------------------- Pausa e tela cheia ----
   /* A caixa de controles no canto do palco. Ela so aparece com o jogo
      rolando: no menu, na pausa e nas telas de fim tem sempre um quadro por
-     cima, e o lembrete atras dele so sujaria a tela. */
+     cima, e o lembrete atras dele so sujaria a tela.
+
+     O placar da sala segue a mesma regra - e so aparece quando ha sala. */
   function atualizarControles() {
     var mostrar = jogo.tela === 'jogando' && !jogo.pausado && !jogo.concluida;
-    if (mostrar) el.controles.classList.remove('hidden');
-    else el.controles.classList.add('hidden');
+    var comPlacar = mostrar && emGrupo();
+    exibir(el.controles, mostrar);
+    exibir(el.placarSala, comPlacar);
+    if (comPlacar) atualizarPlacar(true);
   }
 
   /* Pausar so faz sentido com uma fase em andamento - no menu nao ha o que
@@ -2864,7 +3139,54 @@
         : '—';
     }
     el.fimTotal.textContent = String(jogo.corrida.total);
+    prepararFimDaSala();
     el.fim.classList.remove('hidden');
+  }
+
+  /* Sozinho, o PARABENS e o de sempre: o resumo da corrida e o botao de jogar
+     de novo. Numa sala ele ganha embaixo o RANKING DA SALA - que ainda nao
+     chegou, porque quem da a palavra final e a plataforma. Ate o `aoTerminar`
+     voltar (ou ate a espera de ~3s acabar) fica o recado de que o placar esta
+     sendo juntado, e o botao vira "voltar ao lobby": recomecar a corrida
+     sozinho deixaria a sala inteira para tras. */
+  function prepararFimDaSala() {
+    var grupo = emGrupo();
+    exibir(el.fimSala, grupo);
+    el.btnDeNovo.textContent = grupo ? 'VOLTAR AO LOBBY' : 'JOGAR NOVAMENTE';
+    if (!grupo) {
+      el.fimSubtitulo.textContent = 'Você venceu as três fases 🏆';
+      return;
+    }
+    el.fimSubtitulo.textContent = 'A sala terminou as três fases 🏆';
+    el.fimRanking.innerHTML = '';
+    exibir(el.fimEsperando, true);
+  }
+
+  /** O recado de cima do ranking: em que lugar da sala este jogador ficou. */
+  function recadoDoRanking(lista) {
+    var lugar = Placar.lugarDoEu(lista);
+    if (lugar === 1) return 'Você foi o campeão da sala! 🏆';
+    if (lugar > 1) return 'Você ficou em ' + lugar + 'º lugar na sala 🏆';
+    return 'A sala terminou as três fases 🏆';
+  }
+
+  /* O ranking da sala, do PIOR para o MELHOR: a lista sobe degrau por degrau e
+     termina no campeao, que e como a criancada gosta de ver. `oficial` diz de
+     onde ele veio - do `aoTerminar` da plataforma (o mesmo placar para todos)
+     ou daqui de dentro, porque a confirmacao demorou demais. */
+  function mostrarRanking(placar, oficial) {
+    var lista = Placar.ranking(placar);
+
+    el.fimRanking.innerHTML = '';
+    for (var i = 0; i < lista.length; i++) {
+      el.fimRanking.appendChild(linhaDoPlacar(lista[i], medalha(lista[i].lugar)));
+    }
+    el.fimSubtitulo.textContent = recadoDoRanking(lista);
+    exibir(el.fimEsperando, false);
+    exibir(el.fimSala, true);
+    el.btnDeNovo.textContent = 'VOLTAR AO LOBBY';
+    el.fim.classList.remove('hidden');
+    emitir(oficial ? 'ranking-da-sala' : 'ranking-local');
   }
 
   /* O botao "Proxima fase". A corrida so anda para a frente e so depois de uma
@@ -2887,15 +3209,33 @@
   function concluirFase(quemChegou) {
     jogo.concluida = true;
     if (quemChegou) jogo.quemChegou = quemChegou.indice;
+    fecharPontosDaFase();
     jogo.corrida = Corrida.concluir(jogo.corrida, jogo.fase, jogo.pontos);
     emitir('fase-concluida');
 
     if (jogo.corrida.terminada) {
       mostrarParabens();
+      // Numa sala a corrida so acaba de verdade quando a plataforma disser:
+      // e ela que devolve para todos o mesmo placar, na mesma hora.
+      Rede.encerrarPartida();
       emitir('corrida-vencida');
       return;
     }
     mostrarFimDeFase(jogo.corrida.fases[jogo.corrida.fases.length - 1]);
+  }
+
+  /* O que esta fase rendeu para cada jogador entra no total da corrida dele:
+     os pontos que ele fez nela mais o bonus da bandeira, que e da sala inteira
+     (a fase acaba para todos ao mesmo tempo, entao o bonus tambem e de todos).
+     Quem faz essa conta e quem manda no mundo - o anfitriao, ou quem joga
+     sozinho; no convidado o `total` chega pronto no retrato, e somar aqui
+     tambem contaria a mesma fase duas vezes. */
+  function fecharPontosDaFase() {
+    if (rede.papel === 'convidado') return;
+    for (var i = 0; i < jogo.jogadores.length; i++) {
+      var j = jogo.jogadores[i];
+      j.total = (j.total | 0) + j.pontos + PONTOS_BANDEIRA;
+    }
   }
 
   /* Um quadro do mundo inteiro - e o que o anfitriao (ou quem esta sozinho)
@@ -2992,6 +3332,9 @@
     // os convidados ficam sabendo que a fase acabou (e, logo depois, qual e a
     // proxima).
     Rede.passo();
+    // E o placar de todos anda junto: os pontos que sobem aqui e os que
+    // chegaram no ultimo retrato.
+    atualizarPlacar(false);
   }
 
   /* Comeca (ou recomeca) a corrida inteira: caderno em branco, fase 1. E o
@@ -3006,6 +3349,10 @@
     jogo.tentativas = 1;
     jogo.eventos.length = 0;
     jogo.corrida = Corrida.novoEstado();
+    // Corrida nova, placar novo: o total das fases fechadas volta a zero (os
+    // pontos da fase quem zera e o `reiniciarFase()`, logo abaixo).
+    for (var i = 0; i < jogo.jogadores.length; i++) jogo.jogadores[i].total = 0;
+    placarPintado = '';
     entrada.esquerda = entrada.direita = entrada.pular = false;
     irParaFase(1);
     el.menu.classList.add('hidden');
@@ -3017,6 +3364,19 @@
   /** "Jogar solo": larga qualquer sala e comeca a corrida sozinho. */
   function comecarSolo() {
     Rede.sairDaSala();
+    comecarPartida();
+  }
+
+  /* O botao da tela de PARABENS. Sozinho ele recomeca a corrida na hora. Numa
+     sala a partida e de todos: quando ela acaba, a Central devolve a sala ao
+     lobby - entao o caminho e voltar para la, onde o anfitriao pode comecar
+     outra com a turma inteira. */
+  function jogarDeNovo() {
+    if (rede.sala) {
+      voltarAoMenu();
+      Rede.abrirLobby();
+      return;
+    }
     comecarPartida();
   }
 
@@ -3064,13 +3424,17 @@
     atrasados: 0,         // retratos que chegaram velhos e foram para o lixo
     erro: 0,              // o quanto a previsao local errou no ultimo retrato
     correcoes: 0,         // retratos que puxaram a previsao de leve (25%)
-    snaps: 0              // ... e os que precisaram encaixar de uma vez
+    snaps: 0,             // ... e os que precisaram encaixar de uma vez
+    encerrando: false,    // a corrida acabou e o placar oficial esta a caminho
+    espera: 0,            // quadros de espera por esse placar
+    encerrada: false      // ja veio (ou ja desistimos): a partida acabou
   };
 
   var Rede = (function () {
     var P = null;         // o SDK da Central, ja iniciado
     var mj = null;        // P.multijogador
     var quadrosDesdeEnvio = 0;   // para mandar na taxa certa, nao a cada quadro
+    var QUADROS_ESPERA_FIM = 3 * 60;   // ~3s esperando o placar da plataforma
 
     /* Liga o jogo na plataforma. Devolve `false` (e nao muda nada na tela)
        quando o multijogador nao esta disponivel - e o caso do servidor fora do
@@ -3123,6 +3487,9 @@
       rede.erro = 0;
       rede.correcoes = 0;
       rede.snaps = 0;
+      rede.encerrando = false;
+      rede.espera = 0;
+      rede.encerrada = false;
       quadrosDesdeEnvio = 0;
       montarJogadores(sala);
       avisar('');
@@ -3249,7 +3616,10 @@
        relogio de 60 quadros da um pacote a cada tres. Bem dentro dos freios da
        plataforma: 64 KB e 90 mensagens por segundo. */
     function passo() {
-      if (!rede.sala || jogo.tela !== 'jogando') return;
+      // Corrida fechada: em vez de mandar mundo, o que se faz aqui e contar os
+      // quadros de espera pelo placar oficial.
+      if (rede.encerrando) { esperarFim(); return; }
+      if (!rede.sala || rede.encerrada || jogo.tela !== 'jogando') return;
 
       var taxa = rede.sala.taxaEstado || 15;
       var cada = Math.max(1, Math.round(60 / taxa));
@@ -3272,9 +3642,52 @@
       mj.paraAnfitriao(Pacote.entrada(++rede.seq, entrada));
     }
 
-    /** A partida foi encerrada pela plataforma. */
-    function terminar() {
+    /* A bandeira da fase 3 fechou a corrida. Numa sala quem encerra a partida
+       e o ANFITRIAO: ele manda o ultimo retrato (e assim os convidados veem a
+       bandeira cair) e pede a plataforma que termine, com o placar da sala
+       junto - do pior para o melhor, que e a ordem em que o ranking aparece.
+       Todo mundo, ele inclusive, cai no `aoTerminar` com esse mesmo placar.
+
+       Ate ele voltar, cada quadro conta: passados ~3 segundos sem resposta,
+       vale o placar daqui (a regra da tabela 4.5) - ninguem fica olhando para
+       um "juntando o placar..." que nao termina nunca. */
+    function encerrarPartida() {
+      if (!rede.sala || rede.encerrando || rede.encerrada) return;
+      rede.encerrando = true;
+      rede.espera = 0;
+      if (rede.papel !== 'anfitriao') return;
+
+      mandarEstado();
+      if (mj) mj.terminar(Placar.paraRede(Placar.piorPrimeiro(placarDaSala())));
+    }
+
+    /** Conta a espera pelo placar oficial e desiste depois de ~3 segundos. */
+    function esperarFim() {
+      if (++rede.espera < QUADROS_ESPERA_FIM) return;
+      rede.encerrando = false;
+      rede.encerrada = true;
+      mostrarRanking(placarDaSala(), false);
+    }
+
+    /* A partida foi encerrada pela plataforma. Com a corrida terminada, e este
+       o placar que o ranking do PARABENS estava esperando; a sala continua de
+       pe (a Central devolveu ela ao lobby), e e para la que vai quem clicar no
+       botao. Fora disso a sala acabou no meio do caminho, e ninguem pode ficar
+       preso numa fase que nao existe mais. */
+    function terminar(fim) {
       if (!rede.sala) return;
+
+      // Esperando o placar, ou ainda com o quadro de fim na tela (o oficial
+      // chegou atrasado, depois de a espera ja ter mostrado o daqui).
+      var noQuadroDoFim = jogo.corrida.terminada && jogo.tela === 'jogando';
+      if (rede.encerrando || noQuadroDoFim) {
+        var placar = Placar.normalizar((fim && fim.placar) || [], rede.sala.eu);
+        rede.encerrando = false;
+        rede.encerrada = true;
+        mostrarRanking(placar.length ? placar : placarDaSala(), true);
+        emitir('sala-terminou');
+        return;
+      }
       limparSala();
       voltarAoMenu();
       avisar('A partida da sala terminou.');
@@ -3301,8 +3714,12 @@
     function limparSala() {
       rede.sala = null;
       rede.papel = 'solo';
+      rede.encerrando = false;
+      rede.espera = 0;
+      rede.encerrada = false;
       jogarSozinho();
       mostrarSala();
+      atualizarControles();      // sem sala nao ha placar lateral
     }
 
     /** O codigo da sala no HUD - so nas partidas em grupo. */
@@ -3326,6 +3743,7 @@
       iniciar: iniciar,
       abrirLobby: abrirLobby,
       sairDaSala: sairDaSala,
+      encerrarPartida: encerrarPartida,
       passo: passo,
       mandarEstado: mandarEstado,
       mandarEntrada: mandarEntrada,
@@ -3334,6 +3752,7 @@
   }());
 
   window.SuperAdventure.rede = rede;
+  window.SuperAdventure.placarDaSala = function () { return placarDaSala(); };
   window.SuperAdventure.abrirLobby = function () { Rede.abrirLobby(); };
   window.SuperAdventure.voltarAoMenu = function () { voltarAoMenu(); };
   window.SuperAdventure.mandarEstado = function () { Rede.mandarEstado(); };
@@ -3374,7 +3793,7 @@
 
   el.btnSolo.addEventListener('click', comecarSolo);
   el.btnProxima.addEventListener('click', avancarFase);
-  el.btnDeNovo.addEventListener('click', comecarPartida);
+  el.btnDeNovo.addEventListener('click', jogarDeNovo);
   el.btnPausa.addEventListener('click', alternarPausa);
   el.btnContinuar.addEventListener('click', function () { definirPausa(false); });
   // "Recomecar" e o mesmo caminho do "Jogar novamente": a corrida inteira do

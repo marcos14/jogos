@@ -27,6 +27,8 @@ sem abrir navegador.
     node testes/super_adventure/fase10.test.mjs      a previsao local do convidado
     node testes/super_adventure/fase11.test.mjs      o mundo de todos e a camera de cada um
     node testes/super_adventure/fase12.test.mjs      a bandeira e o checkpoint da sala
+    node testes/super_adventure/fase13.test.mjs      o placar de todos e o ranking do fim
+    node testes/super_adventure/fase13-tela.test.mjs o ranking passando pela Central
 
 O harness.mjs de cada pasta tem o carregador e o corredor de testes. O do
 super_adventure tambem sabe subir o servidor das salas de verdade numa porta

@@ -4,18 +4,19 @@ Um platformer retrô, de 8 bits, para as crianças: corra, pule, junte moedas e
 chegue na bandeira. São 3 fases fixas e dá para jogar sozinho ou com até 8
 amigos na mesma fase, cada um no seu aparelho.
 
-> **Estado: em construção.** Esta é a **fase 12** do plano — o jogo solo está
+> **Estado: em construção.** Esta é a **fase 13** do plano — o jogo solo está
 > completo (as três fases em ordem fixa, o bônus da bandeira, a tela de
 > **PARABÉNS** e a interface inteira: pausa, recomeçar, tela cheia e a caixa de
 > controles) e o multijogador já joga de verdade: o **JOGAR COM AMIGOS** abre o
 > lobby da Central, o anfitrião simula **um mundo só** para a sala inteira, o
 > convidado adivinha o próprio corpo para o controle não ficar molenga, as
 > moedas/blocos/bichos são de todos (quem pega, tira dos outros), **cada
-> aparelho tem a sua câmera** centrada no próprio personagem e agora a
-> **bandeira e os checkpoints são da sala**: o primeiro que encosta na bandeira
-> fecha a fase para todo mundo e o mastro que um acende vale para o grupo. O que
-> ainda **não** acontece: o placar de todos no HUD e a tela de ranking no fim —
-> são as etapas seguintes.
+> aparelho tem a sua câmera** centrada no próprio personagem, a **bandeira e os
+> checkpoints são da sala** e agora **todo mundo vê o placar de todo mundo**:
+> uma mini-lista no canto da tela durante a partida e o **ranking da sala** na
+> tela de PARABÉNS. O que ainda **não** acontece: os casos de borda da rede
+> (alguém sair no meio, o anfitrião cair, a conexão engasgar) e o polimento
+> final — são as etapas seguintes.
 
 ## Como jogar
 
@@ -326,8 +327,40 @@ verde aparece na tela de quem estiver perto o bastante para ver.
 | Pega uma **moeda** / quebra um **bloco** / pisa num **bicho** | some para todos, mas os pontos são só de quem fez |
 | **Cai** num buraco | ninguém mais é afetado: o mundo não recomeça |
 
-> **Ainda não nesta etapa:** o placar de todos numa mini-lista no HUD e o
-> ranking da sala no fim das três fases entram nas etapas seguintes do plano.
+### O placar de todos, em tempo real
+
+Com uma sala aberta, o canto de cima à esquerda da tela ganha a **mini-lista do
+placar**: a turma inteira, do primeiro para o último, com a **cor de cada um** e
+os pontos que ele já fez. Ela anda sozinha — quem pega uma moeda do outro lado
+do mapa aparece subindo na sua tela — e **a sua linha vem destacada**, para a
+criança se achar no meio de oito nomes. No jogo solo essa lista não existe: lá o
+placar é o do HUD.
+
+O número da mini-lista é o **total da corrida**, e não só o da fase: as fases já
+vencidas (com o bônus de +50 de cada bandeira) mais o que está sendo feito
+agora. É esse o número que diz quem está ganhando de verdade numa disputa de
+três fases — e ele viaja junto com o resto do mundo, no mesmo retrato que o
+anfitrião manda 20 vezes por segundo.
+
+### O ranking do fim
+
+Quando a bandeira da **fase 3** cai, a corrida acaba para a sala inteira. O
+anfitrião manda o último retrato (para todos verem a bandeira) e pede à Central
+que **encerre a partida**, com o placar junto; o servidor devolve **o mesmo
+placar para todo mundo, ao mesmo tempo**, e cada tela monta com ele o **RANKING
+DA SALA** dentro da tela de PARABÉNS.
+
+A lista vai do **pior para o melhor**: ela sobe degrau por degrau e termina no
+campeão, que fecha o quadro em amarelo com o 🥇. O subtítulo fala com cada
+criança ("Você foi o campeão da sala!", "Você ficou em 3º lugar na sala") e
+quem empata em pontos divide o mesmo lugar.
+
+Se a Central **não confirmar o fim em ~3 segundos** (a rede engasgou), cada tela
+mostra o placar que ela mesma tem em vez de ficar esperando para sempre — e ele
+bate com o das outras, porque o total de cada jogador já vinha viajando no
+retrato. Terminada a partida, a sala volta ao lobby na Central: por isso o botão
+da tela de fim vira **VOLTAR AO LOBBY**, de onde o anfitrião pode começar outra
+corrida com a turma inteira.
 
 ## As plataformas móveis (fase 3)
 
@@ -534,6 +567,24 @@ câmera, para dar sensação de distância.
 - **Quem fica sem corações numa sala não perde os mastros do grupo**
   (`renovarVidas`): eles são da *fase*, não dele. Apagá-los mandaria um jogador
   sozinho de volta a um começo que a sala inteira já deixou para trás.
+- **O placar da sala é o total da corrida, não o da fase.** Cada jogador carrega
+  dois números: `pontos` (o que ele fez nesta fase — é o número do HUD) e `total`
+  (as fases já fechadas, com o bônus de +50 de cada bandeira). A mini-lista e o
+  ranking somam os dois; quem fecha essa conta é sempre o anfitrião, e o `total`
+  viaja no retrato do mundo. É por isso que o placar local de um convidado dá o
+  mesmo resultado do oficial quando a Central demora a responder.
+- **Quem encerra a partida é o anfitrião, pela plataforma.** Ele manda o último
+  retrato *antes* de chamar `terminar(placar)`, para os convidados verem a
+  bandeira cair; o placar oficial volta pelo `aoTerminar` de todo mundo, e é ele
+  que vira ranking. Assim ninguém monta uma lista diferente da do vizinho.
+- **~3 segundos de espera e o placar local entra** (regra da tabela 4.5). A tela
+  de PARABÉNS sobe na hora, com o resumo da corrida; o que fica esperando é só o
+  bloco do ranking, e ele nunca fica esperando para sempre.
+- **O ranking vai do pior para o melhor.** É uma lista para criança ler em voz
+  alta: ela sobe degrau por degrau e termina no campeão, em vez de entregar o
+  vencedor na primeira linha e transformar o resto num consolo.
+- **As linhas do placar são montadas com `textContent`, nunca com HTML.** O
+  apelido vem da rede: ele entra na tela como texto e mais nada.
 
 ## Testes
 
@@ -563,6 +614,8 @@ node testes/super_adventure/fase9.test.mjs         # o mundo único do anfitriã
 node testes/super_adventure/fase10.test.mjs        # a previsão do convidado, com latência
 node testes/super_adventure/fase11.test.mjs        # o mundo compartilhado e a câmera de cada um
 node testes/super_adventure/fase12.test.mjs        # a bandeira e o checkpoint da sala inteira
+node testes/super_adventure/fase13.test.mjs        # o placar de todos e o ranking do fim
+node testes/super_adventure/fase13-tela.test.mjs   # o ranking passando pela Central de verdade
 ```
 
 O `fase8-tela.test.mjs` sobe o **servidor das salas de verdade** dentro do teste
@@ -591,6 +644,23 @@ nome de quem chegou; o convidado não consegue virar a página sozinho e, quando
 anfitriã clica em "Ir para a fase 2", as três vão juntas — com os checkpoints
 apagados de novo na fase nova. No fim, um teste sozinho confere que nada disso
 mudou o jogo solo.
+
+O `fase13.test.mjs` fecha o placar. Primeiro sem DOM nenhum, no módulo
+`Placar`: a ordem (do melhor para o pior e ao contrário), o empate dividindo o
+mesmo lugar, o que viaja para a plataforma e o que volta dela. Depois com as
+três abas: a mini-lista aparece só em grupo, mostra os três com a cor da sala,
+reordena quando alguém passa na frente e sobrevive à troca de fase (os pontos da
+fase zeram, o total da corrida não). No fim das três fases, a anfitriã chama
+`terminar()` com o placar do pior para o melhor, as três telas montam o mesmo
+ranking com as medalhas, cada uma marcando a sua linha — e, num segundo teste
+com a plataforma emudecida de propósito, as três desistem de esperar depois de
+~3 segundos e mostram o placar local, que dá exatamente o mesmo resultado.
+
+O `fase13-tela.test.mjs` repete o fim da partida com o **servidor de verdade** no
+meio: o `terminar()` do jogo vira um `t: 'fim'` no canal, o `salas.js` devolve o
+placar para a sala inteira e as três abas montam o ranking a partir dele. No fim,
+a sala volta a aparecer na lista de salas abertas — é para lá que o botão da tela
+de fim leva a criançada.
 
 O `fase10.test.mjs` põe uma Central de mentira **com latência** entre as abas —
 cada mensagem fica seis quadros na fila antes de ser entregue, nos dois

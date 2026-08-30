@@ -141,6 +141,80 @@ body{
 #controles b{ color: var(--amarelo); }
 #controles .separador{ color: var(--cinza); }
 
+/* ------------------------------------------------- O placar da sala ------ */
+/* A mini-lista do canto de cima à esquerda do palco, por cima do canvas. Como
+   a caixa de controles, ela é só um cartaz: não recebe clique nenhum. */
+#placar-sala{
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  min-width: 132px;
+  max-width: 38%;
+  background: rgba(13, 13, 23, .78);
+  border: 3px solid var(--branco);
+  padding: 4px 6px;
+  line-height: 1.4;          /* o #palco zera a linha para o canvas */
+  pointer-events: none;
+}
+
+.placar-titulo{
+  margin: 0 0 3px;
+  font-size: clamp(7px, 1.1vw, 10px);
+  letter-spacing: 2px;
+  font-weight: normal;
+  text-transform: uppercase;
+  color: var(--amarelo);
+}
+
+/* Uma linha por jogador: lugar, cor, nome e pontos. O nome encolhe (é o único
+   pedaço de tamanho imprevisível) para o número nunca sair da caixa. */
+.placar-lista{
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: clamp(8px, 1.3vw, 12px);
+  letter-spacing: 1px;
+  line-height: 1.5;
+}
+
+.placar-lista li{
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--branco);
+}
+
+.placar-lista .lugar{
+  min-width: 2.1em;
+  color: var(--cinza);
+}
+
+.placar-lista .cor{
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--preto);
+  flex: none;
+}
+
+.placar-lista .nome{
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.placar-lista .pts{
+  color: var(--amarelo);
+}
+
+/* A minha linha, para achar de primeira quem sou eu no meio de oito. */
+.placar-lista li.eu{
+  background: var(--ceu-2);
+}
+
+.placar-lista li.eu .lugar{ color: var(--branco); }
+
 /* --------------------------------------------------------------- Telas --- */
 .tela{
   position: absolute;
@@ -207,6 +281,44 @@ body{
 }
 
 .resumo b{ color: var(--amarelo); }
+
+/* O ranking da sala, na tela de PARABÉNS. É a mesma lista do canto do palco,
+   só que maior e com as medalhas — e de cabeça para baixo: o campeão é a
+   última linha, para a leitura terminar nele. */
+.ranking-titulo{
+  margin: 14px 0 6px;
+  font-size: clamp(10px, 2vw, 14px);
+  letter-spacing: 3px;
+  font-weight: normal;
+  text-transform: uppercase;
+  color: var(--amarelo);
+}
+
+.ranking{
+  margin: 0 auto 10px;
+  max-width: 340px;
+  font-size: clamp(11px, 2.2vw, 15px);
+  text-align: left;
+}
+
+.ranking li{
+  gap: 8px;
+  padding: 4px 8px;
+  border-bottom: 3px solid var(--cinza);
+}
+
+.ranking li:last-child{
+  border-bottom: none;
+  /* O campeão fecha a lista: fundo amarelo, letra preta. */
+  background: var(--amarelo);
+  color: var(--preto);
+}
+
+.ranking li:last-child .lugar,
+.ranking li:last-child .pts{ color: var(--preto); }
+
+.ranking .lugar{ min-width: 1.8em; }
+.ranking .cor{ width: 12px; height: 12px; }
 
 .legenda{
   margin: 0 0 14px;
@@ -309,4 +421,9 @@ html:-webkit-full-screen body{ padding: 0; background: var(--preto); }
   .botoes{ gap: 10px; margin-bottom: 8px; }
   .botao-icone{ width: 38px; height: 38px; font-size: 15px; }
   #controles{ padding: 2px 6px; gap: 6px; }
+  #placar-sala{ padding: 2px 5px; min-width: 112px; }
+  .placar-lista{ line-height: 1.35; }
+  .ranking-titulo{ margin: 8px 0 4px; }
+  .ranking li{ padding: 2px 8px; border-bottom-width: 2px; }
+  .ranking{ margin-bottom: 6px; }
 }

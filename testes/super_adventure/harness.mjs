@@ -67,15 +67,23 @@ export function carregarJogo(slug = 'super_adventure') {
    cheia de verdade so vale dentro de um clique num navegador.
    -------------------------------------------------------------------------- */
 
-function criarElemento(id) {
-  return {
+/* Um elemento de mentira. Desde a fase 13 ele tambem sabe ter FILHOS: o placar
+   da sala e o ranking do fim sao listas montadas na mao pelo jogo
+   (`createElement` + `appendChild`), e o teste precisa conseguir ler o que
+   sobrou na tela. `textContent` de quem tem filhos e a juncao dos filhos, como
+   no DOM de verdade, e `innerHTML = ''` esvazia a lista. */
+function criarElemento(tag, id) {
+  const elemento = {
+    tag,
     id,
+    className: '',
     style: {},
     offsetHeight: id === 'palco' ? 540 : 620,
     offsetWidth: 960,
     clientWidth: 960,
     clientHeight: 540,
     classes: new Set(),
+    filhos: [],
     ouvintes: {},
     atributos: {},
     classList: {
@@ -89,7 +97,39 @@ function criarElemento(id) {
     disparar(tipo, evento = {}) {
       (this.ouvintes[tipo] || []).forEach((fn) => fn({ preventDefault() {}, ...evento }));
     },
+    appendChild(filho) { this.filhos.push(filho); return filho; },
+    /** So o que o jogo usa: '.classe' e '#id', procurando fundo adentro. */
+    querySelector(seletor) { return this.querySelectorAll(seletor)[0] || null; },
+    querySelectorAll(seletor) {
+      const alvo = seletor.slice(1);
+      const casa = (e) => (seletor[0] === '.'
+        ? String(e.className || '').split(' ').includes(alvo)
+        : e.id === alvo);
+      const achados = [];
+      for (const f of this.filhos) {
+        if (casa(f)) achados.push(f);
+        achados.push(...f.querySelectorAll(seletor));
+      }
+      return achados;
+    },
   };
+
+  let texto = '';
+  Object.defineProperty(elemento, 'textContent', {
+    get() {
+      return elemento.filhos.length
+        ? elemento.filhos.map((f) => f.textContent).join('')
+        : texto;
+    },
+    set(valor) { texto = String(valor); elemento.filhos.length = 0; },
+  });
+  Object.defineProperty(elemento, 'innerHTML', {
+    get() { return ''; },
+    set() { elemento.filhos.length = 0; texto = ''; },
+  });
+
+  elemento.classList.dono = elemento;
+  return elemento;
 }
 
 /**
@@ -115,12 +155,13 @@ export function carregarJogoComTela(slug = 'super_adventure', opcoes = {}) {
                     'btn-solo', 'btn-amigos', 'btn-proxima', 'btn-de-novo',
                     'btn-pausa', 'btn-tela-cheia', 'btn-continuar', 'btn-recomecar',
                     'aviso', 'hud-sala', 'hud-sala-codigo',
+                    'placar-sala', 'placar-lista',
                     'hud-pontos', 'hud-vidas', 'hud-fase',
                     'fase-numero', 'fase-subtitulo', 'fase-pontos', 'fase-bonus',
                     'fase-proxima',
-                    'fim-fase-1', 'fim-fase-2', 'fim-fase-3', 'fim-total']) {
-    elementos[id] = criarElemento(id);
-    elementos[id].classList.dono = elementos[id];
+                    'fim-fase-1', 'fim-fase-2', 'fim-fase-3', 'fim-total',
+                    'fim-subtitulo', 'fim-sala', 'fim-ranking', 'fim-esperando']) {
+    elementos[id] = criarElemento('div', id);
   }
   // No index.html o HUD, as telas de fim, a pausa e a caixa de controles ja
   // nascem escondidos.
@@ -134,9 +175,11 @@ export function carregarJogoComTela(slug = 'super_adventure', opcoes = {}) {
   elementos['btn-amigos'].classes.add('hidden');
   elementos.aviso.classes.add('hidden');
   elementos['hud-sala'].classes.add('hidden');
+  // O placar da sala e o ranking do fim tambem: os dois so existem em grupo.
+  elementos['placar-sala'].classes.add('hidden');
+  elementos['fim-sala'].classes.add('hidden');
 
-  elementos.tela = criarElemento('tela');
-  elementos.tela.classList.dono = elementos.tela;
+  elementos.tela = criarElemento('canvas', 'tela');
   elementos.tela.getContext = () => contexto2d;
 
   let proximoQuadro = null;
@@ -151,13 +194,14 @@ export function carregarJogoComTela(slug = 'super_adventure', opcoes = {}) {
   /* A Fullscreen API de mentira. O navegador de verdade nao deixa entrar em
      tela cheia fora de um clique, entao aqui so ficam registradas as chamadas
      - e o `fullscreenchange` e disparado na hora, como o navegador faz. */
-  const raiz = criarElemento('html');
-  raiz.classList.dono = raiz;
+  const raiz = criarElemento('html', 'html');
   const telaCheia = { pedidos: 0, saidas: 0 };
 
   const documento = {
     documentElement: raiz,
     fullscreenElement: null,
+    // O jogo monta na mao as linhas do placar da sala e do ranking do fim.
+    createElement(tag) { return criarElemento(tag, ''); },
     exitFullscreen() {
       telaCheia.saidas++;
       documento.fullscreenElement = null;
