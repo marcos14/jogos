@@ -4,10 +4,11 @@ Um platformer retrô, de 8 bits, para as crianças: corra, pule, junte moedas e
 chegue na bandeira. São 3 fases fixas e dá para jogar sozinho ou com até 8
 amigos na mesma fase, cada um no seu aparelho.
 
-> **Estado: em construção.** Esta é a **fase 5** do plano — já dá para
-> atravessar a fase 1 inteira juntando as 100 moedas, quebrando os blocos,
-> acendendo os checkpoints, perdendo vidas de verdade e enfrentando os dois
-> tipos de bicho. As fases 2 e 3 e o multijogador chegam nas próximas etapas.
+> **Estado: em construção.** Esta é a **fase 6a** do plano — as **três fases**
+> já existem, com dificuldade progressiva: moedas, blocos, checkpoints, vidas,
+> os dois tipos de bicho e, na fase 3, plataformas móveis e bichos que
+> perseguem. O que falta é a sequência automática fase 1 → 2 → 3 com a tela de
+> parabéns (fase 6b) e o multijogador, nas etapas seguintes.
 
 ## Como jogar
 
@@ -28,7 +29,8 @@ checkpoints, pule em cima dos bichos e chegue na bandeira.
 | Quebrar um bloco | solta o cristal (enfeite); pontos, só os das moedas |
 
 A fase 1 tem **100 moedas** — 1000 pontos se você pegar todas — mais os 4
-bichos, que valem 20 cada. Cada moeda some
+bichos, que valem 20 cada; a fase 2 tem 80 moedas e 6 bichos, e a fase 3 tem 60
+moedas e 6 bichos. Cada moeda some
 de vez: uma vez pega, não volta mais durante a tentativa. O HUD no topo mostra
 os pontos, os ❤️ e em que fase você está, e o número dos pontos sobe na hora em
 que a moeda é encostada.
@@ -44,8 +46,9 @@ no lugar, checkpoints apagados, placar zerado e os 3 ❤️ cheios de novo). O
 placar zera junto justamente para ninguém juntar as mesmas 100 moedas duas
 vezes.
 
-Os checkpoints são três mastros com bandeirinha, plantados **logo depois dos
-lugares onde dá para cair** (colunas 29, 63 e 87 do tilemap). Apagados eles são
+Os checkpoints são três mastros com bandeirinha por fase, plantados **logo
+depois dos lugares onde dá para cair** (colunas 29, 63 e 87 na fase 1; 25, 76 e
+105 na fase 2; 29, 82 e 108 na fase 3). Apagados eles são
 cinza e a bandeirinha fica caída no pé; encostar acende: a bandeirinha sobe,
 fica verde e solta faíscas. Uma vez aceso, o checkpoint **não expira** — vale
 até o fim da tentativa, mesmo que o herói volte atrás ou caia várias vezes. O
@@ -62,7 +65,8 @@ coisas custam o mesmo coração e usam o mesmo caminho de volta.
 
 ## Os blocos quebráveis
 
-São 10 na fase 1, roxos e com um cristal piscando dentro. Eles são **sólidos
+São 10 na fase 1, 5 na fase 2 e 8 espalhados pela fase 3, roxos e com um
+cristal piscando dentro. Eles são **sólidos
 enquanto estão de pé**: dá para pousar em cima e a cabeça bate na base deles.
 Bater por baixo (ou pousar em cima) quebra o bloco — o cristal sai voando junto
 com os cacos e o caminho abre, porque o bloco sai da lista de sólidos na mesma
@@ -77,7 +81,7 @@ fora). Os dois patrulham do mesmo jeito.
 
 | Coisa | Valor |
 |---|---|
-| Velocidade da patrulha | 2 px por quadro, sempre a mesma |
+| Velocidade da patrulha | 2 px por quadro na fase 1, 3 px nas fases 2 e 3 |
 | Onde eles viram | na parede, na beirada da plataforma e na ponta do mundo |
 | Pular em cima | **+20** pontos, e o herói quica ~60 px |
 | Encostar de qualquer outro jeito | **−1 ❤️** e de volta ao checkpoint |
@@ -104,6 +108,41 @@ fase inteira — quando os ❤️ acabam — põe os quatro de pé outra vez.
 Se no mesmo quadro o herói pisa num bicho e esbarra noutro, o **pisão ganha**:
 quem estava no ataque não leva dano, do jeito que os platformers antigos sempre
 fizeram.
+
+Na **fase 3** os bichos são **espertos**: enxergando o herói a até 6 quadrados,
+na mesma altura, eles largam a ida e volta e vão atrás dele — sempre na mesma
+velocidade de 3 px por quadro, que é o que o PRD permite. Basta pular que o
+herói some da vista e a patrulha normal volta; é por isso que o caminho deles
+fica difícil de adivinhar. Eles continuam sem cair de bobeira: mesmo caçando,
+param na beirada da plataforma.
+
+## As três fases
+
+| Fase | Tamanho | Moedas | Bichos | O que ela tem de diferente |
+|---|---|---|---|---|
+| 1 — Campo Aberto | 120 colunas | 100 | 4 a 2 px/quadro | buracos de 2 quadrados, degraus e plataformas soltas |
+| 2 — Salto Alto | 128 colunas | 80 | 6 a 3 px/quadro | buracos por toda parte e uma ponte de plataformas soltas sobre um vão de 12 quadrados |
+| 3 — Torre Movediça | 140 colunas | 60 | 6 a 3 px/quadro, espertos | três **pontes móveis** sobre vãos de 8 quadrados, um **elevador** e blocos espalhados |
+
+Por enquanto a partida sempre começa na fase 1; a sequência automática
+1 → 2 → 3 com a tela de parabéns é a próxima etapa do plano.
+
+## As plataformas móveis (fase 3)
+
+São pontes de ferro que andam sozinhas pelo trilho desenhado no mapa: **1 px
+por quadro**, e param **24 quadros** (uns 0,4 s) em cada ponta antes de voltar.
+A paradinha é de propósito — é ela que dá tempo de subir e de descer com calma.
+
+Nas três **pontes deitadas** o trilho vai de ponta a ponta do vão, então numa
+extremidade a plataforma fica rente ao chão de trás e na outra rente ao chão da
+frente: dá para entrar e sair andando, sem pulo nenhum. O **elevador** sobe de
+um poço até o alto de um paredão que não tem como ser pulado — é o único
+caminho para o outro lado.
+
+Quem está em cima **vai junto**: a física marca em qual plataforma o herói
+pousou e, no quadro seguinte, ele é deslocado o mesmo tanto que ela andou antes
+de dar o próprio passo. Nessa ordem o chão nunca escapa debaixo dos pés, nem
+quando a plataforma desce.
 
 ## Como o herói se move
 
@@ -140,20 +179,31 @@ O mapa é um tilemap: quadrados de 32×32 px escritos como texto dentro do
 | `C` | checkpoint (o herói renasce nele depois de aceso) |
 | `g` | goomba (patrulha a plataforma abaixo da letra) |
 | `t` | turtle (mesma coisa, mas vira casco quando é pisada) |
+| `M` | plataforma móvel deitada (o trilho dela é o rastro de `-`) |
+| `N` | elevador (o trilho dele é o rastro de barras verticais) |
 | `P` | onde o herói nasce |
 | `F` | a bandeira do fim |
+
+Uma plataforma móvel é a **fileira** de `M` (ou de `N`) desenhada no mapa: ela
+mede o tanto de quadrados que a fileira tem, e o rastro de trilho colado nela é
+o trecho que ela percorre. Trilho e rastro são marcas de desenho — nenhum dos
+dois é sólido.
 
 `Mapa.ler()` transforma esse desenho nos retângulos sólidos que a física usa —
 quadrados vizinhos da mesma linha viram **um** retângulo só, o que deixa a
 colisão curta e barata. Os blocos quebráveis são a exceção: cada um fica sozinho
 numa lista à parte, porque precisa poder sumir sem levar os vizinhos junto. A
-fase 1 tem 120 colunas (3840 px, umas quatro telas).
+fase 1 tem 120 colunas (3840 px, umas quatro telas), a fase 2 tem 128 e a fase
+3 tem 140.
 
 Os números do percurso saem direto da física: subindo 120 px o herói passa uns
 31 quadros no ar e anda no máximo ~93 px na horizontal. Por isso os buracos têm
 **2 quadrados** (64 px) e os degraus sobem **2 quadrados** — tudo com folga,
 como uma fase fácil pede. Um teste confere que o maior buraco do mapa tem
-mesmo 2 quadrados, e um piloto automático atravessa a fase inteira sem cair.
+mesmo 2 quadrados, e um piloto automático atravessa a fase inteira sem cair. Os
+vãos maiores que isso — os das fases 2 e 3 — ou têm plataformas soltas formando
+ponte, ou têm uma plataforma móvel atravessando; um teste confere que nenhum vão
+grande ficou sem travessia.
 
 A câmera é lateral: anda só na horizontal, centrada no herói, e trava nas duas
 pontas do mundo. O fundo (nuvens e morros) anda pela metade da velocidade da
@@ -197,6 +247,14 @@ câmera, para dar sensação de distância.
   `perderVida()` diz se é para renascer no checkpoint ou recomeçar a fase. Puras
   as duas, e sem saber nada de tela — quando o anfitrião simular oito heróis de
   uma vez, cada um vai ser só mais um desses estados.
+- **As plataformas móveis também são um estado puro** (`Moveis`), e o carregar
+  é explícito: `Fisica.passo()` devolve em `apoio` o índice da plataforma em que
+  o herói pousou, e `Moveis.carregar()` usa esse índice para somar no herói o
+  quanto ela andou. Sem isso, uma plataforma descendo escapa debaixo dos pés e o
+  herói fica "flutuando" atrás dela — o bug clássico de elevador.
+- **A dificuldade é tempero de fase, não código novo:** cada fase declara
+  `velInimigo` e `espertos`, e é isso que muda a velocidade da patrulha e liga a
+  perseguição. O mesmo `Inimigos` roda nas três.
 - **O checkpoint e a bandeira são o mesmo formato de "mastro"**: um retângulo de
   uma coluna que vai da letra até o primeiro chão abaixo dela. Assim dá para
   encostar neles andando pelo chão ou passando por cima, sem casos especiais.
@@ -226,4 +284,6 @@ node testes/super_adventure/fase4.test.mjs          # checkpoints e vidas
 node testes/super_adventure/fase4-tela.test.mjs     # cair, perder vida, voltar ao checkpoint
 node testes/super_adventure/fase5.test.mjs          # patrulha, pisão e dano dos bichos
 node testes/super_adventure/fase5-tela.test.mjs     # os inimigos dentro da partida
+node testes/super_adventure/fase6a.test.mjs         # as 3 fases e as plataformas móveis
+node testes/super_adventure/fase6a-tela.test.mjs    # as fases 2 e 3 até a bandeira
 ```

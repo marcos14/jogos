@@ -1,7 +1,7 @@
 /* ==========================================================================
    SUPER ADVENTURE  -  plataforma retro, no estilo dos consoles de 8 bits
    --------------------------------------------------------------------------
-   FASE 5 do plano: inimigos (goomba e turtle) patrulhando a fase.
+   FASE 6a do plano: as tres fases do PRD, com dificuldade progressiva.
 
      - `Fisica`: as funcoes puras do movimento, com colisao AABB contra os
        blocos solidos do mapa (para em cima, nao atravessa, bate a cabeca).
@@ -17,13 +17,22 @@
        2px por quadro) e o que acontece no contato: pisar em cima derrota
        (+20 pontos; a turtle vira casco), encostar de frente custa uma vida.
        Puro do mesmo jeito.
+     - `Moveis`: as plataformas moveis da fase 3. Andam sozinhas pelo trilho
+       desenhado no tilemap, param um instante em cada ponta e CARREGAM quem
+       estiver em cima. Pura tambem.
      - `Camera`: side-scroll, seguindo o heroi sem sair das bordas do mundo.
-     - A fase 1 do jogo ja e um percurso de verdade: 120 colunas de 32px, com
-       buracos, degraus, plataformas soltas, 100 moedas, 10 blocos quebraveis,
-       3 checkpoints, 4 inimigos e a bandeira no fim.
+     - As tres fases do PRD, cada uma um degrau mais dificil que a anterior:
 
-   Nada disto usa imagem: tudo e retangulo pintado no Canvas 2D. As fases 2 e 3
-   e a rede chegam nas fases seguintes do plano.
+         fase 1  facil   120 colunas, 100 moedas, 4 bichos a 2px/quadro
+         fase 2  medio   128 colunas,  80 moedas, 6 bichos a 3px/quadro,
+                         buracos por toda parte e uma ponte de plataformas
+                         soltas sobre um vao de 12 quadrados
+         fase 3  dificil 140 colunas,  60 moedas, 6 bichos a 3px/quadro que
+                         PERSEGUEM o heroi quando o veem, tres plataformas
+                         moveis sobre vaos e um elevador
+
+   Nada disto usa imagem: tudo e retangulo pintado no Canvas 2D. A sequencia
+   das fases, a tela de parabens e a rede chegam nas fases seguintes do plano.
    ========================================================================== */
 
 (function () {
@@ -40,6 +49,10 @@
   var PONTOS_INIMIGO = 20;                // pisar num inimigo vale 20 pontos
   var VIDAS_INICIAIS = 3;                 // cada tentativa comeca com 3 vidas
   var TOTAL_FASES = 3;                    // o jogo completo tem 3 fases
+
+  // ------------------------------------------------------------- Os bichos ---
+  var VEL_INIMIGO = 2;                    // patrulha padrao: 2px por quadro
+  var VISTA_INIMIGO = 6 * TILE;           // ate onde um bicho "esperto" enxerga
 
   // ------------------------------------------------------------- A fisica ---
   // Numeros em pixels por quadro, num relogio fixo de 60 quadros por segundo.
@@ -101,7 +114,8 @@
         subida: 0,                  // quanto ja subiu neste pulo (teto: 120px)
         pularPreso: false,          // o pulo ja estava apertado no quadro passado
         direcao: 1,                 // 1 = olhando para a direita, -1 esquerda
-        andando: false              // so para a animacao
+        andando: false,             // so para a animacao
+        apoio: -1                   // em que plataforma movel esta pisando
       };
     }
 
@@ -142,6 +156,10 @@
      *   limites - { esquerda, direita, chao?, solidos? }
      *             `chao` e o piso liso da tela de treino (opcional) e
      *             `solidos` sao os retangulos do tilemap.
+     *
+     * O corpo devolvido traz `apoio`: o indice da plataforma movel em que ele
+     * pousou (os retangulos delas vem marcados com `movel`), ou -1 quando o
+     * chao e firme. E com isso que `Moveis.carregar()` leva o heroi junto.
      */
     function passo(corpo, entrada, limites) {
       var lim = limites || LIMITES_PADRAO;
@@ -160,6 +178,7 @@
       var vy = corpo.vy;
       var noChao = false;
       var subida = corpo.subida || 0;
+      var apoio = -1;
 
       // Sem pulo duplo: so decola quem esta no chao. E cada pulo precisa de um
       // toque novo - segurar a tecla nao faz o heroi ficar quicando sozinho.
@@ -188,7 +207,12 @@
           if (x + HEROI_L <= s.x || x >= s.x + s.l) continue;  // fora do bloco
           if (corpo.y + HEROI_A > s.y) continue;               // ja estava abaixo
           if (y + HEROI_A < s.y) continue;                     // ainda nao chegou
-          pouso = Math.min(pouso, s.y - HEROI_A);
+          var topo = s.y - HEROI_A;
+          // Pisando em duas coisas na mesma altura, a plataforma movel ganha:
+          // e nela que o heroi precisa ficar grudado para ser carregado.
+          if (topo > pouso || (topo === pouso && s.movel === undefined)) continue;
+          pouso = topo;
+          apoio = s.movel === undefined ? -1 : s.movel;
         }
         if (pouso < Infinity) { y = pouso; vyProximo = 0; noChao = true; subida = 0; }
       } else {
@@ -209,6 +233,7 @@
         vyProximo = 0;
         noChao = true;
         subida = 0;
+        apoio = -1;
       }
 
       return {
@@ -217,7 +242,8 @@
         subida: subida,
         pularPreso: pularPreso,
         direcao: vx === 0 ? corpo.direcao : (vx > 0 ? 1 : -1),
-        andando: vx !== 0 && noChao
+        andando: vx !== 0 && noChao,
+        apoio: apoio
       };
     }
 
@@ -252,6 +278,14 @@
          o  moeda          ?  bloco quebravel (tem um cristal dentro)
          C  checkpoint (o heroi renasce nele depois de ligado)
          g  goomba         t  turtle  (os dois patrulham a plataforma abaixo)
+         M  plataforma movel (anda deitada)   -  o trilho por onde ela anda
+         N  plataforma movel (elevador)       |  o trilho de subir e descer
+
+     Uma plataforma movel e a fileira de `M` (ou de `N`) desenhada no mapa: ela
+     mede o tanto de quadrados que a fileira tem. O trilho e o rastro de `-`
+     (ou de `|`) colado nela - a plataforma vai e volta de ponta a ponta do
+     rastro, e o `M`/`N` so diz onde ela comeca. Trilho e rastro sao marcas de
+     desenho: nenhum dos dois e solido.
 
      `Mapa.ler()` transforma esse desenho nos retangulos solidos que a fisica
      usa. Blocos vizinhos de uma mesma linha viram UM retangulo so, o que deixa
@@ -309,11 +343,64 @@
       for (var i = 0; i < mapa.quebraveis.length; i++) {
         if (!blocosVivos || blocosVivos[i]) solidos.push(mapa.quebraveis[i]);
       }
-      return { esquerda: 0, direita: mapa.largura, solidos: solidos };
+      return {
+        esquerda: 0, direita: mapa.largura, solidos: solidos,
+        espertos: mapa.espertos          // os bichos desta fase perseguem?
+      };
     }
 
-    /** Le o desenho e devolve o mapa pronto para a fisica e para o desenho. */
-    function ler(grade) {
+    /**
+     * O molde de uma plataforma movel deitada: a fileira de `M` das colunas
+     * `c0` a `c1` da linha `r`, e o trilho de `-` colado nas duas pontas dela.
+     */
+    function movelDeitada(mapa, c0, c1, r) {
+      var l = (c1 - c0 + 1) * TILE;
+      var esq = c0, dir = c1;
+      while (tile(mapa, esq - 1, r) === '-') esq--;
+      while (tile(mapa, dir + 1, r) === '-') dir++;
+      return {
+        eixo: 'x', x: c0 * TILE, y: r * TILE, l: l, a: TILE,
+        min: esq * TILE, max: (dir + 1) * TILE - l
+      };
+    }
+
+    /**
+     * O molde de um elevador: a fileira de `N` e o trilho de `|` que sobe e
+     * desce pela coluna da esquerda dela.
+     */
+    function movelEmPe(mapa, c0, c1, r) {
+      var cima = r, baixo = r;
+      while (tile(mapa, c0, cima - 1) === '|') cima--;
+      while (tile(mapa, c0, baixo + 1) === '|') baixo++;
+      return {
+        eixo: 'y', x: c0 * TILE, y: r * TILE, l: (c1 - c0 + 1) * TILE, a: TILE,
+        min: cima * TILE, max: baixo * TILE
+      };
+    }
+
+    /** Acha as fileiras de `M` e de `N` do desenho e devolve os moldes. */
+    function lerMoveis(mapa) {
+      var lista = [], r, c;
+      for (r = 0; r < mapa.linhas; r++) {
+        for (c = 0; c < mapa.colunas; c++) {
+          var ch = tile(mapa, c, r);
+          if (ch !== 'M' && ch !== 'N') continue;
+          var fim = c;
+          while (tile(mapa, fim + 1, r) === ch) fim++;
+          lista.push(ch === 'M' ? movelDeitada(mapa, c, fim, r)
+                                : movelEmPe(mapa, c, fim, r));
+          c = fim;
+        }
+      }
+      return lista;
+    }
+
+    /**
+     * Le o desenho e devolve o mapa pronto para a fisica e para o desenho.
+     * `opcoes` e o tempero da fase: { velInimigo, espertos }.
+     */
+    function ler(grade, opcoes) {
+      var op = opcoes || {};
       var colunas = 0, r, c;
       for (r = 0; r < grade.length; r++) colunas = Math.max(colunas, grade[r].length);
 
@@ -328,8 +415,11 @@
         quebraveis: [],
         checkpoints: [],
         inimigos: [],
+        moveis: [],
         spawn: null,
-        bandeira: null
+        bandeira: null,
+        velInimigo: op.velInimigo || VEL_INIMIGO,   // quantos px por quadro
+        espertos: !!op.espertos                     // eles perseguem o heroi?
       };
       mapa.fundo = mapa.altura;      // abaixo disto, caiu num buraco
 
@@ -370,6 +460,7 @@
       // inimigos, que ficam em linhas diferentes conforme a plataforma.
       mapa.checkpoints.sort(function (a, b) { return a.x - b.x; });
       mapa.inimigos.sort(function (a, b) { return a.x - b.x; });
+      mapa.moveis = lerMoveis(mapa);
 
       // Os limites do mapa inteirinho, com todos os blocos quebraveis de pe.
       mapa.limites = limitesCom(mapa, null);
@@ -384,6 +475,135 @@
       retanguloMoeda: retanguloMoeda,
       mastro: mastro,
       TILE: TILE
+    };
+  }());
+
+  // -------------------------------------------------- As plataformas moveis --
+  /* A novidade da fase 3: chao que nao fica quieto.
+
+     O mapa diz o molde de cada plataforma (onde ela comeca, que tamanho tem e
+     de onde ate onde vai o trilho); o "estado das moveis" diz onde elas estao
+     agora e para que lado estao indo:
+
+         { lista: [ { eixo: 'x'|'y', x, y, l, a, min, max, passo, espera } ] }
+
+     `passo` e quantos pixels ela anda por quadro (1, para um lado ou para o
+     outro) e `espera` sao os quadros que ela ainda vai ficar parada. Chegando
+     numa ponta do trilho ela para meio segundo antes de voltar - e essa
+     paradinha que da tempo de subir e de descer dela com calma.
+
+     Quem esta em cima precisa ir junto, senao a plataforma escapa debaixo dos
+     pes. Por isso `andar()` devolve tambem o quanto cada uma andou, e
+     `carregar()` usa o `apoio` que a fisica marcou no corpo para somar esse
+     tanto no heroi antes do passo seguinte. Como todo o resto por aqui, as
+     duas sao funcoes puras. */
+  var Moveis = (function () {
+
+    var VEL = 1;                          // 1px por quadro: da para embarcar
+    var PAUSA = 24;                       // quadros parados em cada ponta
+    var VAZIO = { lista: [] };
+
+    /** Uma plataforma novinha, no lugar em que o mapa desenhou ela. */
+    function novo(molde) {
+      return {
+        eixo: molde.eixo, x: molde.x, y: molde.y, l: molde.l, a: molde.a,
+        min: molde.min, max: molde.max,
+        // Comeca indo para a ponta em que o heroi embarca: a esquerda, nas
+        // deitadas; embaixo, nos elevadores.
+        passo: molde.eixo === 'x' ? -VEL : VEL,
+        espera: 0
+      };
+    }
+
+    /** O estado do comeco da fase: cada plataforma no lugar do desenho. */
+    function novoEstado(mapa) {
+      if (!mapa.moveis.length) return VAZIO;
+      var lista = [];
+      for (var i = 0; i < mapa.moveis.length; i++) lista.push(novo(mapa.moveis[i]));
+      return { lista: lista };
+    }
+
+    /** O retangulo solido da plataforma `i`, marcado para a fisica reconhecer. */
+    function retangulo(m, i) {
+      return { x: m.x, y: m.y, l: m.l, a: m.a, movel: i };
+    }
+
+    /** Uma copia da plataforma com a posicao e o rumo trocados. */
+    function mover(m, pos, passo, espera) {
+      var deitada = m.eixo === 'x';
+      return {
+        eixo: m.eixo,
+        x: deitada ? pos : m.x,
+        y: deitada ? m.y : pos,
+        l: m.l, a: m.a, min: m.min, max: m.max,
+        passo: passo, espera: espera
+      };
+    }
+
+    /** Um quadro de uma plataforma so. Funcao pura. */
+    function andarUm(m) {
+      if (m.min >= m.max) return m;                  // trilho de um lugar so
+      var pos = m.eixo === 'x' ? m.x : m.y;
+      if (m.espera > 0) return mover(m, pos, m.passo, m.espera - 1);
+
+      pos += m.passo;
+      var passo = m.passo, espera = 0;
+      if (pos <= m.min) { pos = m.min; passo = VEL; espera = PAUSA; }
+      else if (pos >= m.max) { pos = m.max; passo = -VEL; espera = PAUSA; }
+      return mover(m, pos, passo, espera);
+    }
+
+    /**
+     * Um quadro de todas elas. Devolve { estado, deltas }, com `deltas[i]`
+     * dizendo o quanto a plataforma `i` andou neste quadro.
+     */
+    function andar(estado) {
+      if (!estado || !estado.lista.length) return { estado: VAZIO, deltas: [] };
+      var lista = [], deltas = [];
+      for (var i = 0; i < estado.lista.length; i++) {
+        var antes = estado.lista[i];
+        var depois = andarUm(antes);
+        lista.push(depois);
+        deltas.push({ dx: depois.x - antes.x, dy: depois.y - antes.y });
+      }
+      return { estado: { lista: lista }, deltas: deltas };
+    }
+
+    /** Leva o corpo junto com a plataforma em que ele esta pisando. */
+    function carregar(corpo, deltas) {
+      var i = corpo ? corpo.apoio : -1;
+      var d = (i >= 0 && deltas) ? deltas[i] : null;
+      if (!d || (d.dx === 0 && d.dy === 0)) return corpo;
+      return {
+        x: corpo.x + d.dx, y: corpo.y + d.dy,
+        vx: corpo.vx, vy: corpo.vy,
+        noChao: corpo.noChao, subida: corpo.subida,
+        pularPreso: corpo.pularPreso, direcao: corpo.direcao,
+        andando: corpo.andando, apoio: corpo.apoio
+      };
+    }
+
+    /** Os limites do mapa mais as plataformas moveis onde elas estao agora. */
+    function limitesCom(limites, estado) {
+      if (!estado || !estado.lista.length) return limites;
+      var solidos = limites.solidos.slice();
+      for (var i = 0; i < estado.lista.length; i++) {
+        solidos.push(retangulo(estado.lista[i], i));
+      }
+      return {
+        esquerda: limites.esquerda, direita: limites.direita,
+        solidos: solidos, espertos: limites.espertos
+      };
+    }
+
+    return {
+      novoEstado: novoEstado,
+      retangulo: retangulo,
+      andar: andar,
+      andarUm: andarUm,
+      carregar: carregar,
+      limitesCom: limitesCom,
+      medidas: { VEL: VEL, PAUSA: PAUSA }
     };
   }());
 
@@ -632,11 +852,19 @@
                       x, y, vx, vy,
                       estado: 'vivo' | 'casco' | 'morto' } ] }
 
-     A patrulha e simples e sempre na mesma velocidade (2px por quadro): o
-     bicho anda para um lado ate achar uma parede, a beirada da plataforma ou a
-     ponta do mundo, e ai vira. Ele nao cai de bobeira, mas TEM gravidade - se
-     o chao sumir debaixo dele (um bloco quebravel, por exemplo), ele despenca
-     ate pousar no proximo solido.
+     A patrulha e simples e sempre na mesma velocidade: o bicho anda para um
+     lado ate achar uma parede, a beirada da plataforma ou a ponta do mundo, e
+     ai vira. Ele nao cai de bobeira, mas TEM gravidade - se o chao sumir
+     debaixo dele (um bloco quebravel, por exemplo), ele despenca ate pousar no
+     proximo solido.
+
+     A velocidade e o tempero de cada fase (`mapa.velInimigo`): 2px por quadro
+     na fase 1, 3px nas fases 2 e 3. E na fase 3 eles ainda sao ESPERTOS
+     (`limites.espertos`): enxergando o heroi a ate seis quadrados, na mesma
+     altura, o bicho para de fazer ida e volta e vai atras dele - na mesma
+     velocidade de sempre, que e o que o RF-4 permite. Basta o heroi pular que
+     ele some da vista e a patrulha volta ao normal; e por isso que o caminho
+     deles fica dificil de adivinhar.
 
      No contato valem as duas regras do PRD:
 
@@ -655,7 +883,7 @@
 
     var LARG = 32, ALT = 32;              // goomba e turtle ocupam um quadrado
     var CASCO_A = 20;                     // o casco e mais baixo que a turtle
-    var VEL = 2;                          // 2px por quadro, para sempre
+    var VEL = VEL_INIMIGO;                // a patrulha padrao, da fase 1
     var NADA = [];
 
     /** O retangulo que o inimigo ocupa no mundo (o casco e mais baixinho). */
@@ -666,17 +894,19 @@
 
     /** Um bicho novinho, no lugar em que o mapa plantou ele, andando para a
         esquerda (e como os platformers de 8 bits sempre soltaram os seus). */
-    function novo(molde) {
+    function novo(molde, vel) {
       return {
         tipo: molde.tipo, x: molde.x, y: molde.y,
-        vx: -VEL, vy: 0, estado: 'vivo'
+        vx: -(vel || VEL), vy: 0, estado: 'vivo'
       };
     }
 
     /** O estado do comeco da fase: todos vivos, cada um no seu lugar. */
     function novoEstado(mapa) {
       var lista = [];
-      for (var i = 0; i < mapa.inimigos.length; i++) lista.push(novo(mapa.inimigos[i]));
+      for (var i = 0; i < mapa.inimigos.length; i++) {
+        lista.push(novo(mapa.inimigos[i], mapa.velInimigo));
+      }
       return { lista: lista };
     }
 
@@ -726,12 +956,27 @@
       return achado;
     }
 
+    /**
+     * O bicho esperto enxergou o heroi? So conta quem esta na mesma altura
+     * (pulou = sumiu da vista) e a ate seis quadrados de distancia.
+     */
+    function vendo(ini, heroi) {
+      return !!heroi &&
+             Math.abs(heroi.y - ini.y) <= ALT &&
+             Math.abs(heroi.x - ini.x) <= VISTA_INIMIGO;
+    }
+
     /** Um quadro de patrulha de um bicho so. Funcao pura. */
-    function andarUm(ini, limites) {
+    function andarUm(ini, limites, heroi) {
       if (ini.estado === 'morto') return ini;
       var solidos = limites.solidos;
       var vx = ini.estado === 'casco' ? 0 : ini.vx;          // casco nao anda
       var x = ini.x;
+
+      // Fase 3: vendo o heroi, o bicho vira para o lado dele e vai atras.
+      if (vx !== 0 && limites.espertos && vendo(ini, heroi) && heroi.x !== ini.x) {
+        vx = heroi.x > ini.x ? Math.abs(vx) : -Math.abs(vx);
+      }
 
       if (vx !== 0) {
         x = ini.x + vx;
@@ -739,7 +984,7 @@
         if (x < limites.esquerda || x + LARG > limites.direita) vx = -vx;
         else if (parede(x, ini.y, solidos)) vx = -vx;
         else if (noChao && !chaoAFrente(x, ini.y, vx, solidos)) vx = -vx;
-        if (vx !== ini.vx) x = ini.x;                        // vira sem sair do lugar
+        if (x !== ini.x + vx) x = ini.x;                     // vira sem sair do lugar
       }
 
       var y = ini.y + ini.vy;
@@ -753,10 +998,10 @@
     }
 
     /** Um quadro de patrulha de todos eles. */
-    function andar(estado, limites) {
+    function andar(estado, limites, heroi) {
       var lista = [];
       for (var i = 0; i < estado.lista.length; i++) {
-        lista.push(andarUm(estado.lista[i], limites));
+        lista.push(andarUm(estado.lista[i], limites, heroi));
       }
       return { lista: lista };
     }
@@ -806,7 +1051,7 @@
 
     /** Patrulha + contato, o passo que o jogo chama a cada quadro. */
     function passo(estado, limites, antes, depois) {
-      return contato(andar(estado, limites), antes, depois);
+      return contato(andar(estado, limites, depois), antes, depois);
     }
 
     /**
@@ -818,7 +1063,8 @@
       var lista = [];
       for (var i = 0; i < estado.lista.length; i++) {
         var ini = estado.lista[i];
-        lista.push(ini.estado === 'vivo' ? novo(mapa.inimigos[i]) : ini);
+        lista.push(ini.estado === 'vivo'
+          ? novo(mapa.inimigos[i], mapa.velInimigo) : ini);
       }
       return { lista: lista };
     }
@@ -828,13 +1074,15 @@
       retangulo: retangulo,
       quantos: quantos,
       andar: andar,
+      andarUm: andarUm,
       contato: contato,
       passo: passo,
       pisou: pisou,
       reposicionar: reposicionar,
+      vendo: vendo,
       medidas: {
         LARG: LARG, ALT: ALT, CASCO_A: CASCO_A,
-        VEL: VEL, PONTOS: PONTOS_INIMIGO
+        VEL: VEL, VISTA: VISTA_INIMIGO, PONTOS: PONTOS_INIMIGO
       }
     };
   }());
@@ -885,7 +1133,84 @@
     '##########################..#############..##################..#####################..##########..######################'
   ];
 
-  var fase = Mapa.ler(FASE_1);
+  // ------------------------------------------------------ O mapa da fase 2 --
+  // Medio: 128 colunas cheias de buracos de 2 quadrados, um vao de 12
+  // quadrados atravessado por uma ponte de plataformas soltas (colunas 62-64 e
+  // 67-69, com dois quadrados de ar entre elas), 80 moedas, 5 blocos
+  // quebraveis, 3 checkpoints (colunas 25, 76 e 105 - sempre logo depois de um
+  // buraco) e SEIS bichos, todos 3px por quadro em vez de 2.
+  //
+  // Cada bicho fica pelo menos cinco quadrados adiante do buraco anterior: de
+  // um lado do buraco ninguem enxerga o bicho do outro, e por isso o heroi
+  // nunca fica encurralado entre o vao e um bicho que nao da para alcancar.
+  var FASE_2 = [
+    '................................................................................................................................',
+    '................................................................................................................................',
+    '................................................................................................................................',
+    '................................................................................................................................',
+    '................................................................................................................................',
+    '................................................................................................................................',
+    '................................................................................................................................',
+    '................................................................................................................................',
+    '................................................................................................................................',
+    '..........................................................................................................................F.....',
+    '......ooo............................................................................................................ooo........',
+    '......===..........?...............?..............?...............................................?.................?===........',
+    '............oo.o......oo.C.....oo.....oo....o..oo...oo.....ooo...oo...oo....C...o.....oo.......oo...oo...C...o..oo..............',
+    '..P..ooo..oo..g...ooo......oo.t...ooo.....ooo.g..oo.....ooo...............oo..oo.t..oo....ooo.g..oo....oo..oo.t.....ooo.oo...oo.',
+    '######################..##############..############..######..===..===..##############..############..##########..##############',
+    '######################..##############..############..######............##############..############..##########..##############',
+    '######################..##############..############..######............##############..############..##########..##############'
+  ];
+
+  // ------------------------------------------------------ O mapa da fase 3 --
+  // Dificil: 140 colunas, 60 moedas, 8 blocos quebraveis espalhados por toda a
+  // fase, 3 checkpoints (colunas 29, 82 e 108) e seis bichos ESPERTOS, que
+  // perseguem o heroi quando o veem.
+  //
+  // A novidade sao as quatro plataformas moveis. Tres sao deitadas e fazem o
+  // papel de ponte sobre vaos de 8 quadrados (colunas 20-27, 46-53 e 98-105):
+  // o trilho `-` vai de ponta a ponta do vao, entao numa ponta a plataforma
+  // fica rente ao chao de tras e na outra rente ao chao da frente - da para
+  // entrar e sair andando, sem pulo. A quarta e um elevador (`N` na coluna 72,
+  // com trilho `|` da linha 10 a 14): ele sobe de um poco ate o alto do
+  // paredao das colunas 74-79, que nao tem como ser pulado.
+  var FASE_3 = [
+    '............................................................................................................................................',
+    '............................................................................................................................................',
+    '............................................................................................................................................',
+    '............................................................................................................................................',
+    '............................................................................................................................................',
+    '............................................................................................................................................',
+    '............................................................................................................................................',
+    '............................................................................................................................................',
+    '............................................................................................................................................',
+    '...........................................................................oooo.......................................................F.....',
+    '........................................................................|.######............................................................',
+    '...............?.................?.........?...............?............|.######......?..........................?........?............?....',
+    '........o........o...oo..oo..C........o........oo..oo...o...o..o........NN######..C.......o........oo..oo...C...o.....o.......oo.....o......',
+    '..P..oo..oo.g...oo............oo..o.t...oo..oo...........oo...g..oo.t...|.######....oo..t...oo..o.............oo..o.g...oo..o......oo...oo..',
+    '####################--MM----##################--MM----##################|.########################--MM----####################..############',
+    '####################........##################........##################..########################........####################..############',
+    '####################........##################........##################..########################........####################..############'
+  ];
+
+  // As tres fases do PRD, na ordem fixa em que sao jogadas. Cada uma tem o seu
+  // tempero: os bichos ficam mais rapidos na 2 e viram cacadores na 3.
+  var FASES = [
+    { numero: 1, nome: 'Campo Aberto', desenho: FASE_1, velInimigo: 2, espertos: false },
+    { numero: 2, nome: 'Salto Alto', desenho: FASE_2, velInimigo: 3, espertos: false },
+    { numero: 3, nome: 'Torre Movedica', desenho: FASE_3, velInimigo: 3, espertos: true }
+  ];
+
+  var mapas = [];
+  for (var iFase = 0; iFase < FASES.length; iFase++) {
+    mapas.push(Mapa.ler(FASES[iFase].desenho, FASES[iFase]));
+  }
+
+  // A fase que esta sendo jogada agora. `irParaFase()` troca esta variavel -
+  // todo o resto do arquivo (desenho, itens, bichos) le sempre daqui.
+  var fase = mapas[0];
 
   // Aberto para os testes em Node (e, mais para a frente, para a rede).
   // Nada disto depende de DOM.
@@ -896,8 +1221,13 @@
       Itens: Itens,
       Progresso: Progresso,
       Inimigos: Inimigos,
+      Moveis: Moveis,
       Camera: Camera,
       FASE_1: FASE_1,
+      FASE_2: FASE_2,
+      FASE_3: FASE_3,
+      FASES: FASES,
+      mapas: mapas,
       fase: fase,
       mundo: {
         LARGURA: LARGURA, ALTURA: ALTURA, CHAO_Y: CHAO_Y, TILE: TILE,
@@ -1260,6 +1590,40 @@
     }
   }
 
+  // ----- As plataformas moveis da fase 3: uma ponte de ferro que anda pelo
+  // trilho. O trilho e pintado antes, bem apagadinho, para o jogador ver de
+  // onde ate onde ela vai antes mesmo de a plataforma chegar.
+  function desenharTrilho(m, cam) {
+    var deitada = m.eixo === 'x';
+    var x = (deitada ? m.min : m.x + m.l / 2 - 2) - cam;
+    var y = deitada ? m.y + m.a / 2 - 2 : m.min;
+    var comprimento = deitada ? (m.max - m.min) + m.l : (m.max - m.min) + m.a;
+    for (var i = 4; i < comprimento - 4; i += 12) {
+      if (deitada) bloco(x + i, y, 6, 4, '#54547c');
+      else bloco(x, y + i, 4, 6, '#54547c');
+    }
+  }
+
+  function desenharMovel(m, cam) {
+    var x = m.x - cam;
+    bloco(x, m.y, m.l, m.a, '#0d0d17');
+    bloco(x + 2, m.y + 2, m.l - 4, m.a - 4, '#a4a4c4');      // o ferro
+    bloco(x + 2, m.y + 2, m.l - 4, 5, '#dcdcf4');            // luz em cima
+    bloco(x + 2, m.y + m.a - 8, m.l - 4, 6, '#4c4c6c');      // sombra embaixo
+    for (var i = 6; i < m.l - 8; i += 14) {                  // os rebites
+      bloco(x + i, m.y + m.a / 2 - 2, 4, 4, '#242438');
+    }
+  }
+
+  function desenharMoveis(cam) {
+    for (var i = 0; i < fase.moveis.length; i++) {
+      var m = jogo.moveis.lista[i];
+      if (!m || !naTela(m, cam)) continue;
+      desenharTrilho(m, cam);
+      desenharMovel(m, cam);
+    }
+  }
+
   // ----- Os checkpoints: um mastro com bandeirinha. Apagado ele e cinza e a
   // bandeirinha fica caida no pe; aceso, ela sobe para o topo e balanca.
   function desenharCheckpoint(cp, cam, aceso, quadro) {
@@ -1381,6 +1745,7 @@
     var cam = jogo.camera;
     desenharFundo(cam);
     desenharMapa(cam);
+    desenharMoveis(cam);
     desenharItens(cam);
     desenharCheckpoints(cam);
     desenharBandeira(cam);
@@ -1411,6 +1776,8 @@
     itens: Itens.novoEstado(fase),      // quais moedas/blocos ainda existem
     progresso: Progresso.novoEstado(fase),   // vidas e checkpoints ligados
     inimigos: Inimigos.novoEstado(fase),     // onde os bichos estao e como estao
+    moveis: Moveis.novoEstado(fase),         // onde estao as plataformas moveis
+    limites: fase.limites,              // os solidos deste quadro (com as moveis)
     efeitos: [],                        // faiscas e cristais, so enfeite
     eventos: []                         // os ultimos avisos (para os testes)
   };
@@ -1432,6 +1799,7 @@
   window.SuperAdventure.jogo = jogo;
   window.SuperAdventure.entrada = entrada;
   window.SuperAdventure.aoEvento = function (fn) { ouvintes.push(fn); };
+  window.SuperAdventure.irParaFase = function (n) { irParaFase(n); };
 
   function centroDoHeroi() { return jogo.heroi.x + HEROI_L / 2; }
 
@@ -1475,6 +1843,8 @@
   function nascer() {
     var onde = Progresso.nascedouro(fase, jogo.progresso);
     jogo.heroi = Fisica.novoCorpo(onde.x, onde.y);
+    jogo.moveis = Moveis.novoEstado(fase);     // as plataformas voltam ao lugar
+    jogo.limites = Moveis.limitesCom(jogo.itens.limites, jogo.moveis);
     jogo.efeitos.length = 0;
     jogo.camera = Camera.seguir(centroDoHeroi(), fase.largura, LARGURA);
   }
@@ -1491,6 +1861,19 @@
     nascer();
     el.fim.classList.add('hidden');
     atualizarHud();
+  }
+
+  /* Troca a fase que esta em jogo (1, 2 ou 3) e comeca ela do zero. A ordem
+     fixa fase 1 -> 2 -> 3 e a tela de parabens chegam na fase 6b do plano;
+     por enquanto quem chama isto e o inicio da partida (sempre a fase 1) e os
+     testes, que precisam entrar nas fases novas para percorre-las. */
+  function irParaFase(numero) {
+    var n = Math.min(Math.max(numero | 0, 1), TOTAL_FASES);
+    fase = mapas[n - 1];
+    jogo.fase = n;
+    window.SuperAdventure.fase = fase;
+    window.SuperAdventure.mundo.LARGURA_MUNDO = fase.largura;
+    reiniciarFase();
   }
 
   /** Guarda um efeito de tela (faisca da moeda, cristal do bloco). */
@@ -1518,6 +1901,7 @@
     if (r.estado === jogo.itens) return;
 
     jogo.itens = r.estado;
+    jogo.limites = Moveis.limitesCom(r.estado.limites, jogo.moveis);
     jogo.pontos += r.pontos;
 
     for (var i = 0; i < r.pegou.length; i++) {
@@ -1549,7 +1933,7 @@
 
     aplicarProgresso(r.estado);
     jogo.inimigos = Inimigos.reposicionar(jogo.inimigos, fase);
-    nascer();
+    nascer();                                  // e as moveis voltam com ele
     atualizarHud();
     emitir('vida-perdida');
   }
@@ -1571,7 +1955,8 @@
       subida: ALTURA_MAX_PULO - QUIQUE_ALTURA,
       pularPreso: corpo.pularPreso,
       direcao: corpo.direcao,
-      andando: false
+      andando: false,
+      apoio: -1
     };
   }
 
@@ -1579,7 +1964,7 @@
      resultado sai daqui. Devolve `true` quando o contato custou uma vida - o
      `atualizar()` para o quadro por ali, porque o mundo ja mudou de lugar. */
   function atualizarInimigos(antes) {
-    var r = Inimigos.passo(jogo.inimigos, jogo.itens.limites, antes, jogo.heroi);
+    var r = Inimigos.passo(jogo.inimigos, jogo.limites, antes, jogo.heroi);
     jogo.inimigos = r.estado;
 
     if (r.derrotados.length) {
@@ -1612,8 +1997,16 @@
     if (jogo.concluida) return;
 
     jogo.relogio++;
-    var antes = jogo.heroi;
-    jogo.heroi = Fisica.passo(antes, entrada, jogo.itens.limites);
+
+    /* Primeiro as plataformas moveis andam; depois quem estava em cima e
+       levado junto; so entao o heroi da o passo dele, ja com as plataformas na
+       posicao nova. Nessa ordem o chao nunca escapa debaixo dos pes. */
+    var passoMoveis = Moveis.andar(jogo.moveis);
+    jogo.moveis = passoMoveis.estado;
+    jogo.limites = Moveis.limitesCom(jogo.itens.limites, jogo.moveis);
+
+    var antes = Moveis.carregar(jogo.heroi, passoMoveis.deltas);
+    jogo.heroi = Fisica.passo(antes, entrada, jogo.limites);
     jogo.camera = Camera.seguir(centroDoHeroi(), fase.largura, LARGURA);
     envelhecerEfeitos();
 
@@ -1639,10 +2032,9 @@
     jogo.relogio = 0;
     jogo.quedas = 0;
     jogo.tentativas = 1;
-    jogo.fase = 1;
     jogo.eventos.length = 0;
     entrada.esquerda = entrada.direita = entrada.pular = false;
-    reiniciarFase();
+    irParaFase(1);
     el.menu.classList.add('hidden');
     el.hud.classList.remove('hidden');
     ajustarPalco();
