@@ -4,11 +4,14 @@ Um platformer retrô, de 8 bits, para as crianças: corra, pule, junte moedas e
 chegue na bandeira. São 3 fases fixas e dá para jogar sozinho ou com até 8
 amigos na mesma fase, cada um no seu aparelho.
 
-> **Estado: em construção.** Esta é a **fase 7** do plano — o jogo solo está
-> completo: as três fases em ordem fixa (1 → 2 → 3), o bônus de chegar na
-> bandeira, a tela de **PARABÉNS** com o placar fase a fase e a interface
-> inteira (pausa, recomeçar, tela cheia e a caixa de controles). O que falta é
-> o multijogador, nas etapas seguintes.
+> **Estado: em construção.** Esta é a **fase 8** do plano — o jogo solo está
+> completo (as três fases em ordem fixa, o bônus da bandeira, a tela de
+> **PARABÉNS** e a interface inteira: pausa, recomeçar, tela cheia e a caixa de
+> controles) e o menu já tem o **JOGAR COM AMIGOS**, que abre o lobby da
+> Central: criar sala, código de 4 letras, lista de salas abertas, "pronto" e
+> "começar" — e todo mundo cai na tela do jogo. O que ainda **não** acontece é a
+> sincronia: nesta etapa cada aparelho roda o próprio mundo. O anfitrião passa a
+> simular a fase para todos na etapa seguinte.
 
 ## Como jogar
 
@@ -184,6 +187,46 @@ No canto de baixo à direita do palco fica a **caixa de controles**
 aparece com o jogo rolando e some atrás de qualquer tela — menu, pausa, fim de
 fase e parabéns.
 
+## Jogar com amigos
+
+O menu tem dois caminhos:
+
+| Botão | O que faz |
+|---|---|
+| **JOGAR SOLO** | a corrida das 3 fases sozinho. Se você estava numa sala, ele sai dela |
+| **JOGAR COM AMIGOS** | abre o **lobby da Central** |
+
+O botão dos amigos **só aparece quando a Central está no ar**. Ele vem do
+`/plataforma/sdk.js`, que é carregado com caminho absoluto: abrindo o
+`index.html` direto do disco (dois cliques no arquivo), o SDK não carrega, o
+`window.Plataforma` não existe, o botão continua escondido e o jogo inteiro
+funciona igual, do menu até o PARABÉNS. Se o SDK carregar mas o servidor de
+salas estiver fora do ar, dá na mesma: fica só o "Jogar solo".
+
+O lobby é da plataforma, inteiro — o jogo não desenha nada dele:
+
+1. Quem começa clica em **Criar sala** e ganha um **código de 4 letras** (sem
+   `O`, `0`, `I` nem `1`, para a criança do lado conseguir copiar da tela).
+2. Os amigos digitam esse código — ou clicam na sala na lista de **salas
+   abertas aqui perto**, que aparece sozinha para quem está no mesmo wi-fi.
+3. Todo mundo marca **Pronto** e o **anfitrião** (quem criou) aperta
+   **Começar!**.
+4. As telas de todos vão juntas para a fase 1, com o **código da sala no HUD**.
+
+A sala vai de **1 a 8 jogadores**, é competitiva e quem simula é o anfitrião —
+tudo declarado no `jogo.json`, no bloco `plataforma`.
+
+Durante a partida em grupo, **JOGAR SOLO** larga a sala e continua a corrida
+sozinho; **RECOMEÇAR** e **JOGAR NOVAMENTE** não largam nada, só recomeçam a
+corrida. Se o anfitrião fechar a aba no meio, a plataforma avisa todo mundo: os
+convidados voltam ao menu com o recado na tela, sem ninguém preso numa fase que
+acabou.
+
+> **Ainda não nesta etapa:** o mundo compartilhado. Por enquanto cada aparelho
+> roda a própria simulação, então as moedas e os bichos de cada um são os dele.
+> A simulação única do anfitrião, a previsão do convidado, a câmera por jogador
+> e o placar de todos entram nas etapas seguintes do plano.
+
 ## As plataformas móveis (fase 3)
 
 São pontes de ferro que andam sozinhas pelo trilho desenhado no mapa: **1 px
@@ -344,8 +387,19 @@ câmera, para dar sensação de distância.
   quem ainda está aprendendo a ler. Ela é `pointer-events: none`, para nunca
   roubar um toque do jogo no tablet.
 - **Manifesto pronto para a plataforma** (`jogo.json`): sala de 1 a 8 jogadores,
-  modo competitivo, autoridade do anfitrião, estado 20×/s. A rede em si entra
-  nas fases seguintes — por enquanto o jogo é 100% solo e nem carrega o SDK.
+  modo competitivo, autoridade do anfitrião, estado 20×/s.
+- **Toda a rede mora num módulo só** (`Rede`), e o resto do `game.js` não sabe
+  que ela existe. O arquivo inteiro só entra nesse caminho no último pedaço, com
+  `window.Plataforma ? ... : null` — é o que garante que o jogo aberto direto do
+  disco (ou com o servidor fora do ar) continue sendo exatamente o mesmo jogo.
+- **O lobby é o da plataforma, não o nosso.** Criar sala, código de 4 letras,
+  lista de salas abertas, "pronto" e "começar" já vêm prontos no
+  `/plataforma/sdk.js`; o jogo só diz o que fazer nos quatro momentos que
+  interessam a ele (`aoComecar`, `aoReceber`, `aoTerminar`, `aoAbortar`). E vai
+  com `voltarAoLobby: false`: depois da partida quem manda na tela é o jogo.
+- **"Recomeçar" não larga a sala.** Só o "Jogar solo" sai — é o botão que a
+  criança clica quando quer voltar a jogar sozinha, e é o único lugar em que
+  sair da sala é o que ela pediu.
 
 ## Testes
 
@@ -369,4 +423,14 @@ node testes/super_adventure/fase6a-tela.test.mjs    # as fases 2 e 3 até a band
 node testes/super_adventure/fase6b.test.mjs         # o caderno da corrida (pontos por fase)
 node testes/super_adventure/fase6b-tela.test.mjs    # uma corrida inteira, fase 1 → 2 → 3
 node testes/super_adventure/fase7-tela.test.mjs    # pausa, recomeçar, tela cheia e controles
+node testes/super_adventure/fase8.test.mjs         # o jogo sem a Central (e a fiação do SDK)
+node testes/super_adventure/fase8-tela.test.mjs    # 3 abas numa sala, por WebSocket de verdade
 ```
+
+O `fase8-tela.test.mjs` sobe o **servidor das salas de verdade** dentro do teste
+(o mesmo `montarWebSocket()` e o mesmo `salas.js` do `server/src/plataforma/`,
+numa porta sorteada) e abre três "abas": cada uma tem o seu canal WebSocket e a
+sua cópia do jogo rodando no DOM de mentira. Uma cria a sala, as outras entram
+pelo código, todas marcam pronto, a anfitriã começa — e as três caem na tela do
+jogo. O lobby em si (que é HTML desenhado pelo SDK) fica de fora: o que o teste
+usa é o miolo do SDK, com as mesmas mensagens e os mesmos ganchos.

@@ -1,9 +1,11 @@
 /* ==========================================================================
    SUPER ADVENTURE  -  plataforma retro, no estilo dos consoles de 8 bits
    --------------------------------------------------------------------------
-   FASE 7 do plano: a interface completa - pausa (com "Continuar" e
-   "Recomecar"), tela cheia pela API do navegador e a caixa de controles no
-   canto do palco.
+   FASE 8 do plano: a ligacao com a Central - o menu ganha o "Jogar com
+   amigos", que abre o lobby pronto da plataforma (criar sala, codigo de 4
+   letras, lista de salas abertas, "pronto" e "comecar"). Quando a sala comeca,
+   todo mundo cai na tela do jogo. A sincronia do mundo em si ainda nao: ela
+   comeca na fase 9.
 
      - `Fisica`: as funcoes puras do movimento, com colisao AABB contra os
        blocos solidos do mapa (para em cima, nao atravessa, bate a cabeca).
@@ -44,8 +46,13 @@
    quadro de pausa congela o mundo (o laco continua desenhando, so o
    `atualizar()` para) e a caixa no canto lembra os controles.
 
-   Nada disto usa imagem: tudo e retangulo pintado no Canvas 2D. A rede chega
-   nas fases seguintes do plano.
+     - `Rede`: tudo o que sabe da Central mora aqui dentro, e o arquivo inteiro
+       so entra nesse caminho se `window.Plataforma` existir. Sem servidor (o
+       index.html aberto direto do disco), o `/plataforma/sdk.js` nem carrega:
+       o botao "Jogar com amigos" continua escondido e o jogo e o mesmo de
+       sempre, do menu ao PARABENS.
+
+   Nada disto usa imagem: tudo e retangulo pintado no Canvas 2D.
    ========================================================================== */
 
 (function () {
@@ -1509,6 +1516,10 @@
     telaPausa: $('tela-pausa'),
     controles: $('controles'),
     btnSolo: $('btn-solo'),
+    btnAmigos: $('btn-amigos'),
+    aviso: $('aviso'),
+    hudSala: $('hud-sala'),
+    hudSalaCodigo: $('hud-sala-codigo'),
     btnProxima: $('btn-proxima'),
     btnDeNovo: $('btn-de-novo'),
     btnPausa: $('btn-pausa'),
@@ -1873,7 +1884,8 @@
   /* Avisa quem estiver escutando. Os avisos de hoje:
        'moeda', 'bloco-quebrado', 'checkpoint', 'inimigo-derrotado', 'queda',
        'dano', 'vida-perdida', 'fase-reiniciada', 'fase-concluida',
-       'corrida-vencida', 'pausa', 'continuou'. */
+       'corrida-vencida', 'pausa', 'continuou', 'rede-ligada', 'sala-comecou',
+       'sala-terminou', 'sala-abortada', 'saiu-da-sala'. */
   function emitir(tipo) {
     var evento = { tipo: tipo, quadro: jogo.relogio };
     jogo.eventos.push(evento);
@@ -2255,9 +2267,10 @@
   }
 
   /* Comeca (ou recomeca) a corrida inteira: caderno em branco, fase 1. E o
-     que fazem tanto o "Jogar solo" do menu quanto o "Jogar novamente" da tela
-     de parabens. */
-  function comecarSolo() {
+     que fazem o "Jogar solo" do menu, o "Jogar novamente" da tela de parabens,
+     o "Recomecar" da pausa e o comeco de uma partida em grupo. Quem esta numa
+     sala continua nela - largar a sala e coisa do "Jogar solo". */
+  function comecarPartida() {
     definirPausa(false);                // recomecar pela pausa descongela tudo
     jogo.tela = 'jogando';
     jogo.relogio = 0;
@@ -2272,6 +2285,171 @@
     atualizarControles();
     ajustarPalco();
   }
+
+  /** "Jogar solo": larga qualquer sala e comeca a corrida sozinho. */
+  function comecarSolo() {
+    Rede.sairDaSala();
+    comecarPartida();
+  }
+
+  /* Volta para a tela inicial. So a rede precisa disto: quando a sala acaba ou
+     o anfitriao cai, ninguem pode ficar preso numa fase que nao existe mais. */
+  function voltarAoMenu() {
+    definirPausa(false);
+    jogo.tela = 'menu';
+    jogo.concluida = false;
+    entrada.esquerda = entrada.direita = entrada.pular = false;
+    esconderTelas();
+    el.hud.classList.add('hidden');
+    el.menu.classList.remove('hidden');
+  }
+
+  /* ==========================================================================
+     A REDE  -  o jogo em cima da Plataforma da Central
+     --------------------------------------------------------------------------
+     Todo o codigo de rede mora aqui dentro, e nada disto acontece se o
+     `window.Plataforma` nao existir (jogo aberto direto do disco, ou servidor
+     fora do ar): o botao "Jogar com amigos" continua escondido e o resto do
+     arquivo nem sabe que a rede existe.
+
+     Nesta fase do plano o lobby e o comeco da sala ja funcionam de ponta a
+     ponta: criar sala, entrar pelo codigo de 4 letras, marcar "pronto" e o
+     anfitriao apertar "comecar" - e todo mundo cai na tela do jogo, na fase 1,
+     com o codigo da sala no HUD. O que ainda NAO acontece e a sincronia: cada
+     aparelho roda o proprio mundo. O anfitriao so passa a simular para todos
+     na fase 9.
+     ========================================================================== */
+  var rede = {
+    ligada: false,        // o multijogador da plataforma respondeu "de pe"
+    sala: null,           // o instantaneo da sala, numa partida em grupo
+    papel: 'solo',        // 'solo' | 'anfitriao' | 'convidado'
+    recebidas: 0,         // pacotes que chegaram de outros jogadores
+    ultimaMensagem: null  // o ultimo deles (a fase 9 vai tratar de verdade)
+  };
+
+  var Rede = (function () {
+    var P = null;         // o SDK da Central, ja iniciado
+    var mj = null;        // P.multijogador
+
+    /* Liga o jogo na plataforma. Devolve `false` (e nao muda nada na tela)
+       quando o multijogador nao esta disponivel - e o caso do servidor fora do
+       ar, em que o jogo segue sendo o de sempre, so solo. */
+    function iniciar(plataforma) {
+      P = plataforma || null;
+      mj = P && P.multijogador;
+      if (!mj || !mj.disponivel) return false;
+
+      rede.ligada = true;
+      mj.em('erro', function (texto) { avisar(texto); });
+
+      el.btnAmigos.classList.remove('hidden');
+      el.btnAmigos.addEventListener('click', abrirLobby);
+      emitir('rede-ligada');
+      return true;
+    }
+
+    /* O lobby e da plataforma, inteiro: nome do jogador, criar sala, entrar
+       com o codigo de 4 letras, lista de salas abertas na rede de casa, quem
+       ja chegou e o botao de comecar. O jogo so diz o que fazer nos quatro
+       momentos que interessam a ele. */
+    function abrirLobby() {
+      if (!mj) return;
+      definirPausa(false);
+      avisar('');
+      mj.abrirLobby({
+        aoComecar: comecar,
+        aoReceber: receber,
+        aoTerminar: terminar,
+        aoAbortar: abortar,
+        // Depois da partida quem manda na tela e o jogo (a tela de PARABENS);
+        // o lobby so volta quando a crianca clicar em "Jogar com amigos".
+        voltarAoLobby: false
+      });
+    }
+
+    /* A sala comecou: todo mundo cai na tela do jogo, na fase 1. O `indice` e
+       a `cor` de cada jogador ja vem em `sala.jogadores` - quem usa isso e a
+       fase 9, quando o anfitriao passar a simular o mundo para todos. */
+    function comecar(sala) {
+      rede.sala = sala;
+      rede.papel = sala.souAnfitriao ? 'anfitriao' : 'convidado';
+      rede.recebidas = 0;
+      rede.ultimaMensagem = null;
+      avisar('');
+      mostrarSala();
+      comecarPartida();
+      emitir('sala-comecou');
+    }
+
+    /* Chegou um pacote de outro jogador. O cano ja esta aberto dos dois lados;
+       quem vai entender o conteudo e a fase 9 (o estado do mundo, do
+       anfitriao) e a 10 (os comandos, dos convidados). */
+    function receber(msg) {
+      if (!rede.sala) return;         // pacote atrasado, de uma sala que acabou
+      rede.recebidas++;
+      rede.ultimaMensagem = msg;
+    }
+
+    /** A partida foi encerrada pela plataforma. */
+    function terminar() {
+      if (!rede.sala) return;
+      limparSala();
+      voltarAoMenu();
+      avisar('A partida da sala terminou.');
+      emitir('sala-terminou');
+    }
+
+    /** O anfitriao caiu (ou a sala se desfez) no meio da partida. */
+    function abortar(motivo) {
+      if (!rede.sala) return;
+      limparSala();
+      voltarAoMenu();
+      avisar((motivo && motivo.motivo) || 'A sala foi encerrada.');
+      emitir('sala-abortada');
+    }
+
+    /** Larga a sala e volta a ser um jogo de um jogador so. */
+    function sairDaSala() {
+      if (!rede.sala) return;
+      limparSala();
+      if (mj) mj.sair();
+      emitir('saiu-da-sala');
+    }
+
+    function limparSala() {
+      rede.sala = null;
+      rede.papel = 'solo';
+      mostrarSala();
+    }
+
+    /** O codigo da sala no HUD - so nas partidas em grupo. */
+    function mostrarSala() {
+      if (rede.sala) {
+        el.hudSalaCodigo.textContent = rede.sala.codigo;
+        el.hudSala.classList.remove('hidden');
+      } else {
+        el.hudSala.classList.add('hidden');
+      }
+    }
+
+    /** A tarja de recado do menu. Texto vazio apaga e esconde. */
+    function avisar(texto) {
+      el.aviso.textContent = texto || '';
+      if (texto) el.aviso.classList.remove('hidden');
+      else el.aviso.classList.add('hidden');
+    }
+
+    return {
+      iniciar: iniciar,
+      abrirLobby: abrirLobby,
+      sairDaSala: sairDaSala,
+      avisar: avisar
+    };
+  }());
+
+  window.SuperAdventure.rede = rede;
+  window.SuperAdventure.abrirLobby = function () { Rede.abrirLobby(); };
+  window.SuperAdventure.voltarAoMenu = function () { voltarAoMenu(); };
 
   // -------------------------------------------------------------- Teclado ---
   var TECLAS = {
@@ -2308,12 +2486,13 @@
 
   el.btnSolo.addEventListener('click', comecarSolo);
   el.btnProxima.addEventListener('click', avancarFase);
-  el.btnDeNovo.addEventListener('click', comecarSolo);
+  el.btnDeNovo.addEventListener('click', comecarPartida);
   el.btnPausa.addEventListener('click', alternarPausa);
   el.btnContinuar.addEventListener('click', function () { definirPausa(false); });
   // "Recomecar" e o mesmo caminho do "Jogar novamente": a corrida inteira do
-  // zero, da fase 1, com o placar e o caderno em branco.
-  el.btnRecomecar.addEventListener('click', comecarSolo);
+  // zero, da fase 1, com o placar e o caderno em branco. Nenhum dos dois larga
+  // a sala - quem quer voltar a jogar sozinho clica em "Jogar solo".
+  el.btnRecomecar.addEventListener('click', comecarPartida);
   el.btnTelaCheia.addEventListener('click', alternarTelaCheia);
 
   document.addEventListener('fullscreenchange', aoMudarTelaCheia);
@@ -2375,4 +2554,20 @@
   ajustarPalco();
   desenharCena();
   requestAnimationFrame(quadro);
+
+  /* --------------------------------------------------------- A Plataforma --
+     O SDK so existe quando o jogo e servido pela Central (`/plataforma/sdk.js`
+     e um caminho absoluto: aberto direto do disco ele nem carrega). E mesmo
+     tendo o SDK, `iniciar()` pode voltar dizendo que o multijogador nao esta
+     de pe - e ai tambem fica so o "Jogar solo". Nos dois casos o jogo inteiro
+     continua funcionando; e por isso que este pedaco e o ultimo do arquivo e
+     nao segura nada. */
+  window.SuperAdventure.pronta = window.Plataforma
+    ? window.Plataforma.iniciar({ jogo: 'super_adventure' })
+        .then(function (P) { Rede.iniciar(P); return P; })
+        ['catch'](function (erro) {
+          console.warn('[super adventure] plataforma fora do ar:', erro);
+          return null;
+        })
+    : null;
 }());

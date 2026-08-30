@@ -29,6 +29,14 @@
       <strong id="hud-fase">1 / 3</strong>
     </div>
 
+    <!-- Só existe nas partidas em grupo: o código da sala em que você está,
+         para quem chegou depois conseguir digitar o mesmo. No solo esta caixa
+         nem aparece. -->
+    <div id="hud-sala" class="hud-box hidden">
+      <span class="hud-label">Sala</span>
+      <strong id="hud-sala-codigo">----</strong>
+    </div>
+
     <!-- Os dois botões da partida. Eles moram no HUD, então só aparecem com o
          jogo em andamento — no menu não há nada para pausar. -->
     <div class="hud-botoes">
@@ -73,7 +81,18 @@
         <h1 class="titulo">SUPER<br><span class="destaque">ADVENTURE</span></h1>
         <p class="subtitulo">Três fases, uma bandeira em cada uma</p>
 
-        <button id="btn-solo" type="button" class="botao">JOGAR SOLO</button>
+        <div class="botoes">
+          <button id="btn-solo" type="button" class="botao">JOGAR SOLO</button>
+          <!-- Só aparece quando a Central está no ar e o multijogador da
+               plataforma está de pé. Aberto direto do disco (sem servidor), o
+               /plataforma/sdk.js não carrega, este botão continua escondido e
+               o jogo inteiro funciona no solo. -->
+          <button id="btn-amigos" type="button" class="botao botao-claro hidden">JOGAR COM AMIGOS</button>
+        </div>
+
+        <!-- Os recados da sala (a partida acabou, o anfitrião caiu, deu erro
+             na hora de entrar). Fica vazio e escondido no dia a dia. -->
+        <p id="aviso" class="aviso hidden"></p>
 
         <ul class="ajuda">
           <li><b>&larr; &rarr;</b> ou <b>A / D</b> — andar</li>
@@ -123,6 +142,11 @@
   <footer id="rodape">Três fases: junte as moedas, acenda os checkpoints e corra até a bandeira!</footer>
 </div>
 
+<!-- O SDK da Central: dá o lobby pronto (criar sala, código de 4 letras, lista
+     de salas abertas, "pronto" e "começar"). O caminho é absoluto de propósito:
+     abrindo o index.html direto do disco ele simplesmente não carrega, o
+     `window.Plataforma` não existe e o jogo segue 100% solo. -->
+<script src="/plataforma/sdk.js" charset="utf-8"></script>
 <script src="game.js" charset="utf-8"></script>
 </body>
 </html>

@@ -21,5 +21,11 @@ sem abrir navegador.
     node testes/super_adventure/fase6b.test.mjs      a corrida das 3 fases e o bonus
     node testes/super_adventure/fase6b-tela.test.mjs uma partida inteira, 1 -> 2 -> 3
     node testes/super_adventure/fase7-tela.test.mjs  pausa, recomecar, tela cheia
+    node testes/super_adventure/fase8.test.mjs       o jogo sem a Central no ar
+    node testes/super_adventure/fase8-tela.test.mjs  3 abas numa sala, por WebSocket
 
-O harness.mjs de cada pasta tem o carregador e o corredor de testes.
+O harness.mjs de cada pasta tem o carregador e o corredor de testes. O do
+super_adventure tambem sabe subir o servidor das salas de verdade numa porta
+sorteada (subirPlataforma) e criar "abas" que falam com ele por WebSocket
+(criarAbaDaPlataforma) - e assim da para testar o multijogador inteiro sem
+abrir navegador nenhum.

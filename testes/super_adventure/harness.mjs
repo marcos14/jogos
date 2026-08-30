@@ -14,6 +14,7 @@
    ========================================================================== */
 
 import fs from 'node:fs';
+import http from 'node:http';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
@@ -91,8 +92,14 @@ function criarElemento(id) {
   };
 }
 
-/** Carrega o jogo com uma tela de mentira e devolve as pecas para dirigi-lo. */
-export function carregarJogoComTela(slug = 'super_adventure') {
+/**
+ * Carrega o jogo com uma tela de mentira e devolve as pecas para dirigi-lo.
+ *
+ * `opcoes.plataforma` entra no contexto como `window.Plataforma` - e o lugar
+ * do SDK da Central. Sem ela (o padrao), o jogo roda como se tivesse sido
+ * aberto direto do disco: nada de rede, so o solo.
+ */
+export function carregarJogoComTela(slug = 'super_adventure', opcoes = {}) {
   const codigo = fs.readFileSync(path.join(RAIZ, 'jogos', slug, 'game.js'), 'utf8');
 
   const pintados = [];
@@ -105,8 +112,9 @@ export function carregarJogoComTela(slug = 'super_adventure') {
   const elementos = {};
   for (const id of ['app', 'palco', 'hud', 'tela-menu', 'tela-fase', 'tela-fim',
                     'tela-pausa', 'controles',
-                    'btn-solo', 'btn-proxima', 'btn-de-novo',
+                    'btn-solo', 'btn-amigos', 'btn-proxima', 'btn-de-novo',
                     'btn-pausa', 'btn-tela-cheia', 'btn-continuar', 'btn-recomecar',
+                    'aviso', 'hud-sala', 'hud-sala-codigo',
                     'hud-pontos', 'hud-vidas', 'hud-fase',
                     'fase-numero', 'fase-pontos', 'fase-bonus', 'fase-proxima',
                     'fim-fase-1', 'fim-fase-2', 'fim-fase-3', 'fim-total']) {
@@ -120,6 +128,11 @@ export function carregarJogoComTela(slug = 'super_adventure') {
   elementos['tela-fim'].classes.add('hidden');
   elementos['tela-pausa'].classes.add('hidden');
   elementos.controles.classes.add('hidden');
+  // O botao "Jogar com amigos", a tarja de recado e a caixa do codigo da sala
+  // tambem nascem escondidos: eles so entram com a Central no ar.
+  elementos['btn-amigos'].classes.add('hidden');
+  elementos.aviso.classes.add('hidden');
+  elementos['hud-sala'].classes.add('hidden');
 
   elementos.tela = criarElemento('tela');
   elementos.tela.classList.dono = elementos.tela;
@@ -164,6 +177,9 @@ export function carregarJogoComTela(slug = 'super_adventure') {
   };
   janela.window = janela;
   janela.document = documento;
+  // O SDK da Central, quando o teste quer um. Sem ele o jogo se comporta como
+  // se tivesse sido aberto direto do disco.
+  if (opcoes.plataforma) janela.Plataforma = opcoes.plataforma;
 
   const contexto = vm.createContext({
     window: janela,
@@ -375,6 +391,195 @@ export function criarPiloto(dom) {
     ['ArrowLeft', 'ArrowRight', ' '].forEach((t) => dom.tecla(t, false));
     return quadros;
   };
+}
+
+/* --------------------------------------------------------------------------
+   A PLATAFORMA DE VERDADE, DENTRO DO TESTE
+   --------------------------------------------------------------------------
+   `subirPlataforma()` levanta o servidor das salas de verdade - o mesmo
+   `montarWebSocket()` do `server/src/plataforma/`, com o mesmo `salas.js` -
+   numa porta sorteada, mais as duas rotas que o SDK consulta. Nada de express:
+   um `http.createServer` basta e o teste sobe em milissegundos.
+   -------------------------------------------------------------------------- */
+export async function subirPlataforma() {
+  process.env.PASTA_JOGOS = process.env.PASTA_JOGOS || path.join(RAIZ, 'jogos');
+
+  const { capacidades, montarWebSocket } = await import('../../server/src/plataforma/index.js');
+  const { VERSAO_PLATAFORMA } = await import('../../server/src/plataforma/manifesto.js');
+  const { listarSalas, estatisticas } = await import('../../server/src/plataforma/salas.js');
+
+  const servidor = http.createServer((req, res) => {
+    const url = new URL(req.url, 'http://interno');
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+
+    if (url.pathname === '/api/plataforma') {
+      res.end(JSON.stringify({ versao: VERSAO_PLATAFORMA, capacidades, ...estatisticas() }));
+      return;
+    }
+    if (url.pathname === '/api/plataforma/salas') {
+      res.end(JSON.stringify({ salas: listarSalas(url.searchParams.get('jogo') || '') }));
+      return;
+    }
+    res.statusCode = 404;
+    res.end('{}');
+  });
+
+  montarWebSocket(servidor);
+  await new Promise((pronto) => servidor.listen(0, '127.0.0.1', pronto));
+
+  const { port } = servidor.address();
+  return {
+    porta: port,
+    url: `http://127.0.0.1:${port}`,
+    ws: `ws://127.0.0.1:${port}/plataforma/ws`,
+    capacidades,
+    async fechar() {
+      servidor.closeAllConnections();
+      await new Promise((pronto) => servidor.close(pronto));
+    },
+  };
+}
+
+/* --------------------------------------------------------------------------
+   UMA "ABA" DO NAVEGADOR
+   --------------------------------------------------------------------------
+   O `/plataforma/sdk.js` de verdade desenha o lobby inteiro em HTML, e um DOM
+   de mentira nao da conta disso. Entao aqui vai o MIOLO dele: o mesmo canal
+   WebSocket, falando com o servidor de verdade, e a mesma cara publica que o
+   jogo usa (`iniciar()`, `multijogador.disponivel`, `abrirLobby()`, `criar()`,
+   `entrar()`, `pronto()`, `comecar()`, `enviar()`...). Os quatro ganchos sao
+   ligados exatamente como o SDK liga: `inicio` -> `aoComecar`, `msg` ->
+   `aoReceber`, `fim` -> `aoTerminar`, `abortou` -> `aoAbortar`.
+
+   Uma aba dessas + `carregarJogoComTela(slug, { plataforma: aba.plataforma })`
+   e uma aba de navegador inteira, sem navegador.
+   -------------------------------------------------------------------------- */
+export function criarAbaDaPlataforma(servidor, apelido = 'Jogador') {
+  const ouvintes = new Map();
+  let ws = null;
+  let sala = null;
+  let meuId = null;
+  let ganchos = {};
+  let lobbyAberto = false;
+
+  function em(nome, fn) {
+    if (!ouvintes.has(nome)) ouvintes.set(nome, []);
+    ouvintes.get(nome).push(fn);
+    return mj;
+  }
+  function fora(nome, fn) {
+    if (ouvintes.has(nome)) ouvintes.set(nome, ouvintes.get(nome).filter((f) => f !== fn));
+    return mj;
+  }
+  function solta(nome, dado) {
+    (ouvintes.get(nome) || []).slice().forEach((fn) => fn(dado));
+  }
+
+  function souAnfitriao() { return Boolean(sala && meuId && sala.anfitriao === meuId); }
+
+  function instantaneo() {
+    if (!sala) return null;
+    return {
+      codigo: sala.codigo, estado: sala.estado, modo: sala.modo,
+      max: sala.max, min: sala.min, taxaEstado: sala.taxaEstado,
+      eu: meuId, souAnfitriao: souAnfitriao(), anfitriao: sala.anfitriao,
+      jogadores: sala.jogadores.slice(), semente: sala.semente || 0,
+    };
+  }
+
+  // As mesmas traducoes de mensagem do SDK.
+  function tratar(m) {
+    if (m.t === 'entrei') { meuId = m.eu; sala = m.sala; solta('sala', instantaneo()); }
+    else if (m.t === 'sala') { sala = m.sala; solta('sala', instantaneo()); }
+    else if (m.t === 'anfitriao') { if (sala) sala.anfitriao = m.id; solta('sala', instantaneo()); }
+    else if (m.t === 'inicio') {
+      if (sala) { sala = m.sala; sala.semente = m.semente; }
+      solta('inicio', instantaneo());
+    } else if (m.t === 'fim') {
+      if (m.sala) sala = m.sala;
+      solta('fim', { placar: m.placar || [], sala: instantaneo() });
+    } else if (m.t === 'abortou') solta('abortou', { motivo: m.motivo, sala: instantaneo() });
+    else if (m.t === 'saiu') solta('saiu', m.jogador);
+    else if (m.t === 'msg') solta('msg', { de: m.de, d: m.d });
+    else if (m.t === 'erro') solta('erro', m.msg || 'Algo deu errado.');
+  }
+
+  function enviar(objeto) {
+    if (!ws || ws.readyState !== 1) return false;
+    ws.send(JSON.stringify(objeto));
+    return true;
+  }
+
+  const mj = {
+    disponivel: Boolean(servidor.capacidades?.multijogador?.disponivel),
+    max: servidor.capacidades?.multijogador?.maxJogadores || 0,
+    em, fora,
+    sala: instantaneo,
+    souAnfitriao,
+    eu: () => (sala && meuId ? sala.jogadores.find((j) => j.id === meuId) || null : null),
+    conectar: () => mj,
+    criar: (opcoes) => (enviar({ t: 'criar', jogo: 'super_adventure', apelido, opcoes: opcoes || {} }), mj),
+    entrar: (codigo) => (enviar({ t: 'entrar', codigo: String(codigo || '').toUpperCase().trim(), apelido }), mj),
+    pronto: (valor) => (enviar({ t: 'pronto', valor: valor !== false }), mj),
+    comecar: () => (enviar({ t: 'iniciar' }), mj),
+    terminar: (placar) => (enviar({ t: 'fim', placar }), mj),
+    sair: () => { enviar({ t: 'sair' }); sala = null; meuId = null; return mj; },
+    enviar: (d) => enviar({ t: 'msg', para: 'outros', d }),
+    paraAnfitriao: (d) => enviar({ t: 'msg', para: 'anfitriao', d }),
+    paraJogador: (id, d) => enviar({ t: 'msg', para: id, d }),
+    abrirLobby(opcoes) { ganchos = opcoes || {}; lobbyAberto = true; return mj; },
+    fecharLobby() { lobbyAberto = false; return mj; },
+  };
+
+  em('inicio', (s) => { lobbyAberto = false; if (ganchos.aoComecar) ganchos.aoComecar(s); });
+  em('msg', (m) => { if (ganchos.aoReceber) ganchos.aoReceber(m); });
+  em('fim', (f) => { if (ganchos.aoTerminar) ganchos.aoTerminar(f); });
+  em('abortou', (a) => { if (ganchos.aoAbortar) ganchos.aoAbortar(a); });
+
+  const plataforma = {
+    versao: 1,
+    perfil: { apelido, definirApelido: (nome) => (apelido = String(nome || '').slice(0, 14)) },
+    multijogador: mj,
+    iniciar: () => Promise.resolve(plataforma),
+  };
+
+  const aba = {
+    plataforma,
+    mj,
+    /** Abre o canal e espera o "ola" do servidor. */
+    abrir() {
+      return new Promise((pronto, falhou) => {
+        ws = new WebSocket(servidor.ws);
+        ws.onmessage = (ev) => {
+          let m;
+          try { m = JSON.parse(ev.data); } catch (e) { return; }
+          if (m && m.t === 'ola') return pronto(aba);
+          if (m && m.t) tratar(m);
+        };
+        ws.onerror = () => falhou(new Error('nao consegui abrir o canal da plataforma'));
+      });
+    },
+    fechar() { if (ws) { ws.close(); ws = null; } },
+    /** Espera o proximo evento com esse nome (ou desiste em `ms`). */
+    esperar(nome, ms = 3000) {
+      return new Promise((pronto, falhou) => {
+        const relogio = setTimeout(() => {
+          fora(nome, ouvinte);
+          falhou(new Error(`a plataforma nao mandou "${nome}" em ${ms}ms`));
+        }, ms);
+        function ouvinte(dado) {
+          clearTimeout(relogio);
+          fora(nome, ouvinte);
+          pronto(dado);
+        }
+        em(nome, ouvinte);
+      });
+    },
+    lobbyAberto: () => lobbyAberto,
+    ganchos: () => ganchos,
+    salaAgora: instantaneo,
+  };
+  return aba;
 }
 
 /** Le e devolve o jogo.json de um jogo. */
