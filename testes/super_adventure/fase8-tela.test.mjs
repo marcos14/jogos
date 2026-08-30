@@ -13,13 +13,14 @@
      - as tres abas caem na tela do jogo, na fase 1, com o codigo da sala no
        HUD e cada uma sabendo se e anfitria ou convidada
      - o cano de mensagens esta aberto nos dois sentidos (convidado -> anfitriao
-       e anfitriao -> todos); quem trata o conteudo e a fase 9
+       e anfitriao -> todos)
      - "Jogar solo" larga a sala e volta a ser um jogo de um jogador so
      - a anfitria fechando a aba no meio da partida devolve os outros ao menu
        com o recado, sem ninguem travado
 
-   O que este arquivo NAO testa (nao e desta fase): o mundo sincronizado. Nesta
-   etapa cada aparelho ainda roda a propria simulacao.
+   O que este arquivo NAO testa: o CONTEUDO dos pacotes e o mundo sincronizado
+   (o anfitriao simulando todo mundo) - isso e do fase9.test.mjs e do
+   fase9-tela.test.mjs.
    ========================================================================== */
 
 import assert from 'node:assert/strict';
@@ -175,37 +176,63 @@ teste('cada aba sabe se e anfitria ou convidada, e mostra o codigo no HUD', () =
   }
 });
 
-teste('e da para jogar normalmente em cada uma delas', () => {
+teste('a fase corre na anfitria e e desenhada nas tres abas', () => {
+  const x0 = ana.jogo.heroi.x;
+  ana.dom.tecla('ArrowRight', true);
+  ana.dom.avancarQuadros(30);
+  ana.dom.tecla('ArrowRight', false);
+  assert.ok(ana.jogo.heroi.x > x0, 'a anfitria anda com a seta - o mundo e dela');
+
   for (const aba of [ana, bento, caio]) {
-    const x0 = aba.jogo.heroi.x;
-    aba.dom.tecla('ArrowRight', true);
-    aba.dom.avancarQuadros(30);
-    aba.dom.tecla('ArrowRight', false);
-    assert.ok(aba.jogo.heroi.x > x0, `${aba.apelido} anda com a seta`);
-    assert.ok(aba.dom.pintados.length > 0, 'e a fase esta sendo desenhada');
+    aba.dom.avancarQuadros(5);
+    assert.ok(aba.dom.pintados.length > 0, `${aba.apelido} esta desenhando a fase`);
   }
 });
 
 // ---------------------------------------------------- O cano de mensagens --
-teste('o convidado consegue falar com o anfitriao', async () => {
-  const chegou = ana.rede.esperar('msg');
-  bento.rede.mj.paraAnfitriao({ k: 'i', d: 1 });
-  await chegou;
+/* Desde a fase 9 o cano vive cheio: a anfitria manda o mundo 20 vezes por
+   segundo e os convidados mandam as teclas na mesma taxa. O que interessa
+   aqui e so a DIRECAO de cada tipo de pacote - por isso cada aba anota TUDO o
+   que chega nela e o teste procura a marca no meio. Quem confere o conteudo
+   dos pacotes de verdade sao os testes da fase 9. */
+function anotarPacotes(aba) {
+  const caixa = [];
+  aba.rede.mj.em('msg', (m) => caixa.push(m.d));
+  return caixa;
+}
 
-  assert.equal(ana.dom.api.rede.recebidas, 1, 'a anfitria recebeu o pacote');
-  assert.deepEqual(ana.dom.api.rede.ultimaMensagem.d, { k: 'i', d: 1 });
-  assert.equal(caio.dom.api.rede.recebidas, 0, 'e so ela - o pacote era dela');
+const chegouMarca = (caixa, marca) => caixa.some((d) => d && d.marca === marca);
+
+async function esperarPacote(caixa, marca, ms = 3000) {
+  const limite = Date.now() + ms;
+  while (!chegouMarca(caixa, marca)) {
+    if (Date.now() > limite) throw new Error(`o pacote "${marca}" nunca chegou`);
+    await new Promise((segue) => setTimeout(segue, 10));
+  }
+}
+
+const naAna = anotarPacotes(ana);
+const naBento = anotarPacotes(bento);
+const naCaio = anotarPacotes(caio);
+
+teste('o convidado consegue falar com o anfitriao (e so com ele)', async () => {
+  bento.rede.mj.paraAnfitriao({ k: 'x', marca: 'so-para-a-anfitria' });
+  await esperarPacote(naAna, 'so-para-a-anfitria');
+
+  assert.ok(chegouMarca(naAna, 'so-para-a-anfitria'), 'a anfitria recebeu o pacote');
+  assert.ok(!chegouMarca(naCaio, 'so-para-a-anfitria'),
+    'e Caio nao viu nada: o pacote era so dela');
 });
 
 teste('e o anfitriao consegue falar com todos de uma vez', async () => {
-  const chegouB = bento.rede.esperar('msg');
-  const chegouC = caio.rede.esperar('msg');
-  ana.rede.mj.enviar({ k: 'e', t: 7 });
-  await Promise.all([chegouB, chegouC]);
+  ana.rede.mj.enviar({ k: 'x', marca: 'para-a-sala-inteira' });
+  await Promise.all([
+    esperarPacote(naBento, 'para-a-sala-inteira'),
+    esperarPacote(naCaio, 'para-a-sala-inteira'),
+  ]);
 
-  for (const aba of [bento, caio]) {
-    assert.equal(aba.dom.api.rede.recebidas, 1, `${aba.apelido} recebeu o estado`);
-    assert.deepEqual(aba.dom.api.rede.ultimaMensagem.d, { k: 'e', t: 7 });
+  for (const [aba, caixa] of [[bento, naBento], [caio, naCaio]]) {
+    assert.ok(chegouMarca(caixa, 'para-a-sala-inteira'), `${aba.apelido} recebeu o recado`);
   }
 });
 

@@ -1,11 +1,11 @@
 /* ==========================================================================
    SUPER ADVENTURE  -  plataforma retro, no estilo dos consoles de 8 bits
    --------------------------------------------------------------------------
-   FASE 8 do plano: a ligacao com a Central - o menu ganha o "Jogar com
-   amigos", que abre o lobby pronto da plataforma (criar sala, codigo de 4
-   letras, lista de salas abertas, "pronto" e "comecar"). Quando a sala comeca,
-   todo mundo cai na tela do jogo. A sincronia do mundo em si ainda nao: ela
-   comeca na fase 9.
+   FASE 9 do plano: a sala passa a jogar A MESMA fase. O anfitriao roda a
+   simulacao unica do mundo - o mapa, as moedas, os bichos e TODOS os
+   personagens - e manda o retrato dele 20 vezes por segundo; o convidado manda
+   as teclas que apertou e desenha o que chega, cada jogador com a cor que a
+   sala deu a ele. A previsao local do convidado e a fase 10.
 
      - `Fisica`: as funcoes puras do movimento, com colisao AABB contra os
        blocos solidos do mapa (para em cima, nao atravessa, bate a cabeca).
@@ -27,6 +27,8 @@
      - `Camera`: side-scroll, seguindo o heroi sem sair das bordas do mundo.
      - `Corrida`: o caderninho da partida solo - quanto cada fase rendeu, o
        bonus de bandeira e qual e a proxima. So anda para a frente. Puro.
+     - `Pacote`: o tradutor da rede. Transforma o mundo do anfitriao num
+       punhado de numeros inteiros (e de volta, do lado do convidado). Puro.
      - As tres fases do PRD, cada uma um degrau mais dificil que a anterior:
 
          fase 1  facil   120 colunas, 100 moedas, 4 bichos a 2px/quadro
@@ -51,6 +53,15 @@
        index.html aberto direto do disco), o `/plataforma/sdk.js` nem carrega:
        o botao "Jogar com amigos" continua escondido e o jogo e o mesmo de
        sempre, do menu ao PARABENS.
+
+   Com uma sala aberta, o mundo passa a ser UM SO e quem manda nele e o
+   anfitriao: `jogo.jogadores` deixa de ter uma linha e passa a ter uma por
+   pessoa da sala, cada uma com o seu corpo, os seus pontos, as suas vidas e os
+   seus checkpoints. O anfitriao anda com todos eles no mesmo mapa (as mesmas
+   moedas, os mesmos bichos, as mesmas plataformas) e manda o retrato pronto; o
+   convidado nao simula nada nesta fase - ele manda as teclas e copia o que
+   chega. O jogador local continua sendo `jogo.heroi` para o resto do arquivo,
+   e sozinho a lista tem uma linha so: o solo nao muda em nada.
 
    Nada disto usa imagem: tudo e retangulo pintado no Canvas 2D.
    ========================================================================== */
@@ -1173,6 +1184,257 @@
     };
   }());
 
+  // -------------------------------------------------------- O pacote da rede -
+  /* Numa partida em grupo existe UM mundo so, e quem roda ele e o anfitriao.
+     Vinte vezes por segundo ele manda para todos um retrato desse mundo; este
+     modulo e o tradutor dos dois lados - `montar()` faz o retrato, `aplicar()`
+     copia o retrato recebido por cima do mundo do convidado.
+
+     O retrato e pequeno de proposito (a plataforma corta em 64 KB e 90
+     mensagens por segundo): campos de uma letra e arrays de numeros inteiros,
+     do jeito que a Galinha Feliz faz.
+
+         { k: 'e',                 // "e" de estado (o convidado manda "i")
+           n: 173,                 // numero de ordem; pacote velho e ignorado
+           f: 2,                   // a fase em jogo
+           t: 940,                 // o relogio do anfitriao
+           q: 0,                   // 1 = a bandeira ja foi tocada
+           j: [[i, x, y, dir, sinais, pontos, vidas, checkpoints], ...],
+           m: [ ... ],             // as moedas que ainda existem, em bits
+           b: [ ... ],             // idem para os blocos quebraveis
+           i: [[x, y, vx, estado], ...],    // os bichos
+           v: [[x, y], ...] }               // as plataformas moveis
+
+     `sinais` sao os dois bits que o desenho precisa (1 = com os pes no chao,
+     2 = andando) e `checkpoints` e a lista de acesos daquele jogador cabendo
+     num numero so. Cem moedas viram quatro numeros: cada um carrega 30 bits.
+
+     Tudo aqui e funcao pura de conversao: `aplicar()` mexe no mundo que
+     recebe, mas nao sabe desenhar nem tocar em tela nenhuma - o que ele
+     devolve e a lista do que MUDOU, para quem chamou soltar as faiscas. */
+  var Pacote = (function () {
+
+    var BITS = 30;                       // bits por numero (cabe num int de JS)
+    var ESTADOS = ['vivo', 'casco', 'morto'];
+
+    /** Uma lista de booleanos virando um numero so (ate 30 posicoes). */
+    function bitsDe(lista) {
+      var n = 0;
+      for (var i = 0; i < lista.length && i < BITS; i++) if (lista[i]) n |= 1 << i;
+      return n;
+    }
+
+    /** O caminho de volta: o numero virando `quantos` booleanos. */
+    function deBits(numero, quantos) {
+      var lista = [];
+      for (var i = 0; i < quantos; i++) lista.push(((numero >> i) & 1) === 1);
+      return lista;
+    }
+
+    /** Uma lista comprida de booleanos virando um array de numeros. */
+    function empacotar(lista) {
+      var saida = [];
+      for (var i = 0; i < lista.length; i++) {
+        var caixa = (i / BITS) | 0;
+        while (saida.length <= caixa) saida.push(0);
+        if (lista[i]) saida[caixa] |= 1 << (i % BITS);
+      }
+      return saida;
+    }
+
+    /** E a volta: `quantos` booleanos lidos de um array de numeros. */
+    function desempacotar(numeros, quantos) {
+      var lista = [], caixas = numeros || [];
+      for (var i = 0; i < quantos; i++) {
+        var n = caixas[(i / BITS) | 0] || 0;
+        lista.push(((n >> (i % BITS)) & 1) === 1);
+      }
+      return lista;
+    }
+
+    /** Os indices que existiam em `antes` e nao existem mais em `agora`. */
+    function sumiram(antes, agora) {
+      var lista = [];
+      for (var i = 0; i < agora.length; i++) {
+        if (antes[i] && !agora[i]) lista.push(i);
+      }
+      return lista;
+    }
+
+    /** O ultimo checkpoint aceso da lista (-1 se nenhum). */
+    function ultimoAceso(ativos) {
+      var atual = -1;
+      for (var i = 0; i < ativos.length; i++) if (ativos[i]) atual = i;
+      return atual;
+    }
+
+    function porIndice(jogadores, indice) {
+      for (var i = 0; i < jogadores.length; i++) {
+        if (jogadores[i].indice === indice) return jogadores[i];
+      }
+      return null;
+    }
+
+    /** Um jogador em oito numeros. */
+    function linhaJogador(j) {
+      var c = j.corpo;
+      return [
+        j.indice, c.x | 0, c.y | 0, c.direcao,
+        (c.noChao ? 1 : 0) | (c.andando ? 2 : 0),
+        j.pontos | 0, j.vidas | 0, bitsDe(j.progresso.ativos)
+      ];
+    }
+
+    /** O corpo que o convidado desenha: so o que se ve, sem fisica nenhuma. */
+    function corpoDaLinha(linha) {
+      var sinais = linha[4];
+      return {
+        x: linha[1], y: linha[2], vx: 0, vy: 0,
+        noChao: (sinais & 1) === 1,
+        subida: 0, pularPreso: false,
+        direcao: linha[3] < 0 ? -1 : 1,
+        andando: (sinais & 2) === 2,
+        apoio: -1
+      };
+    }
+
+    /** O mundo do anfitriao num pacote. `numero` e a ordem do pacote. */
+    function montar(estado, numero) {
+      var jogadores = [], bichos = [], moveis = [], i;
+
+      for (i = 0; i < estado.jogadores.length; i++) {
+        jogadores.push(linhaJogador(estado.jogadores[i]));
+      }
+      for (i = 0; i < estado.inimigos.lista.length; i++) {
+        var b = estado.inimigos.lista[i];
+        bichos.push([b.x | 0, b.y | 0, b.vx, ESTADOS.indexOf(b.estado)]);
+      }
+      for (i = 0; i < estado.moveis.lista.length; i++) {
+        var m = estado.moveis.lista[i];
+        moveis.push([m.x | 0, m.y | 0]);
+      }
+
+      return {
+        k: 'e', n: numero | 0,
+        f: estado.fase, t: estado.relogio | 0,
+        q: estado.concluida ? 1 : 0,
+        j: jogadores,
+        m: empacotar(estado.itens.moedas),
+        b: empacotar(estado.itens.blocos),
+        i: bichos,
+        v: moveis
+      };
+    }
+
+    /** O que o convidado manda de volta: as tres teclas dele. */
+    function entrada(numero, teclas) {
+      return {
+        k: 'i', n: numero | 0,
+        e: teclas.esquerda ? 1 : 0,
+        d: teclas.direita ? 1 : 0,
+        p: teclas.pular ? 1 : 0
+      };
+    }
+
+    /** O pacote parece mesmo um retrato do mundo? */
+    function ehEstado(d) { return !!d && d.k === 'e' && !!d.j; }
+
+    /** E um pacote de teclas de convidado? */
+    function ehEntrada(d) { return !!d && d.k === 'i'; }
+
+    /**
+     * Copia o retrato recebido por cima do mundo `alvo` (o `jogo` do
+     * convidado). Devolve o que mudou desde o pacote anterior:
+     *
+     *     { moedas: [i], blocos: [i], inimigos: [i], checkpoints: [i] }
+     *
+     * E com essa lista que o convidado solta as mesmas faiscas que o
+     * anfitriao viu, sem precisar receber um pixel sequer.
+     */
+    function aplicar(d, alvo, mapa) {
+      var novidades = { moedas: [], blocos: [], inimigos: [], checkpoints: [] };
+      var i, linha;
+
+      // --- os jogadores: onde estao, quanto fizeram, quantas vidas tem ------
+      for (i = 0; i < d.j.length; i++) {
+        linha = d.j[i];
+        var j = porIndice(alvo.jogadores, linha[0]);
+        if (!j) continue;
+        j.corpo = corpoDaLinha(linha);
+        j.pontos = linha[5];
+        j.vidas = linha[6];
+        var ativos = deBits(linha[7], mapa.checkpoints.length);
+        // As faiscas do checkpoint sao so de quem acendeu ele.
+        if (j.local) {
+          for (var c = 0; c < ativos.length; c++) {
+            if (ativos[c] && !j.progresso.ativos[c]) novidades.checkpoints.push(c);
+          }
+        }
+        j.progresso = { vidas: linha[6], ativos: ativos, atual: ultimoAceso(ativos) };
+      }
+
+      // --- moedas e blocos: o mundo e um so, quem pegou tirou de todos ------
+      var moedas = desempacotar(d.m, mapa.moedas.length);
+      var blocos = desempacotar(d.b, mapa.quebraveis.length);
+      novidades.moedas = sumiram(alvo.itens.moedas, moedas);
+      novidades.blocos = sumiram(alvo.itens.blocos, blocos);
+      alvo.itens = {
+        moedas: moedas, blocos: blocos,
+        // O bloco que caiu deixa de ser solido: a lista precisa ser remontada.
+        limites: novidades.blocos.length ? Mapa.limitesCom(mapa, blocos)
+                                         : alvo.itens.limites
+      };
+
+      // --- os bichos --------------------------------------------------------
+      var bichos = [], antes = alvo.inimigos.lista;
+      for (i = 0; i < (d.i || []).length; i++) {
+        linha = d.i[i];
+        var velho = antes[i] || mapa.inimigos[i] || { tipo: 'goomba' };
+        var situacao = ESTADOS[linha[3]] || 'vivo';
+        if (velho.estado === 'vivo' && situacao !== 'vivo') novidades.inimigos.push(i);
+        bichos.push({
+          tipo: velho.tipo, x: linha[0], y: linha[1],
+          vx: linha[2], vy: 0, estado: situacao
+        });
+      }
+      alvo.inimigos = { lista: bichos };
+
+      // --- as plataformas moveis: so a posicao viaja, o trilho ja e sabido --
+      var pontes = [];
+      for (i = 0; i < alvo.moveis.lista.length; i++) {
+        var ponte = alvo.moveis.lista[i], onde = (d.v || [])[i];
+        pontes.push(!onde ? ponte : {
+          eixo: ponte.eixo, x: onde[0], y: onde[1],
+          l: ponte.l, a: ponte.a, min: ponte.min, max: ponte.max,
+          passo: ponte.passo, espera: ponte.espera
+        });
+      }
+      alvo.moveis = { lista: pontes };
+      alvo.limites = Moveis.limitesCom(alvo.itens.limites, alvo.moveis);
+      alvo.relogio = d.t | 0;
+
+      return novidades;
+    }
+
+    return {
+      montar: montar,
+      aplicar: aplicar,
+      entrada: entrada,
+      ehEstado: ehEstado,
+      ehEntrada: ehEntrada,
+      linhaJogador: linhaJogador,
+      corpoDaLinha: corpoDaLinha,
+      bitsDe: bitsDe,
+      deBits: deBits,
+      empacotar: empacotar,
+      desempacotar: desempacotar,
+      sumiram: sumiram,
+      porIndice: porIndice,
+      BITS: BITS,
+      ESTADOS: ESTADOS
+    };
+  }());
+
   // ------------------------------------------------------ O mapa da fase 1 --
   // Facil: chao quase todo continuo, buracos de 2 quadrados, degraus de 2 e
   // algumas plataformas soltas para quem quiser subir. A bandeira fica no fim.
@@ -1299,6 +1561,7 @@
       Moveis: Moveis,
       Camera: Camera,
       Corrida: Corrida,
+      Pacote: Pacote,
       FASE_1: FASE_1,
       FASE_2: FASE_2,
       FASE_3: FASE_3,
@@ -1542,13 +1805,18 @@
     ctx.fillRect(x | 0, y | 0, l | 0, a | 0);
   }
 
-  /** Desenha um sprite de texto; `virado` espelha na horizontal. */
-  function sprite(linhas, x, y, escala, virado) {
+  /**
+   * Desenha um sprite de texto; `virado` espelha na horizontal.
+   * `corDoTime` troca o azul do macacao (`b`) pela cor que a sala deu ao
+   * jogador - e assim que, numa partida em grupo, da para saber quem e quem.
+   */
+  function sprite(linhas, x, y, escala, virado, corDoTime) {
     var colunas = linhas[0].length;
     for (var r = 0; r < linhas.length; r++) {
       var linha = linhas[r];
       for (var c = 0; c < linha.length; c++) {
-        var cor = PALETA[linha.charAt(c)];
+        var ch = linha.charAt(c);
+        var cor = (corDoTime && ch === 'b') ? corDoTime : PALETA[ch];
         if (!cor) continue;
         var cc = virado ? (colunas - 1 - c) : c;
         bloco(x + cc * escala, y + r * escala, escala, escala, cor);
@@ -1835,6 +2103,30 @@
     bloco(x + 3, y + b.a - 10, 26, 10, '#0d0d17');       // base
   }
 
+  // ----- Os jogadores. Sozinho e um so, com o macacao azul de sempre; numa
+  // sala sao todos os que estao na fase, cada um com a cor que a sala deu -
+  // e o de casa e pintado por ultimo, para nunca ficar escondido atras de
+  // outro.
+  function desenharJogador(j, cam) {
+    var c = j.corpo;
+    if (!c) return;
+    if (!naTela({ x: c.x, y: c.y, l: HEROI_L, a: HEROI_A }, cam)) return;
+
+    var arte;
+    if (!c.noChao) arte = HEROI_PULANDO;
+    else if (c.andando) arte = ((jogo.relogio / 8) | 0) % 2 ? HEROI_ANDANDO : HEROI_PARADO;
+    else arte = HEROI_PARADO;
+
+    sprite(arte, c.x - cam, c.y, 2, c.direcao < 0, j.cor);
+  }
+
+  function desenharJogadores(cam) {
+    for (var i = 0; i < jogo.jogadores.length; i++) {
+      if (jogo.jogadores[i] !== jogo.eu) desenharJogador(jogo.jogadores[i], cam);
+    }
+    desenharJogador(jogo.eu, cam);
+  }
+
   function desenharCena() {
     var cam = jogo.camera;
     desenharFundo(cam);
@@ -1844,33 +2136,59 @@
     desenharCheckpoints(cam);
     desenharBandeira(cam);
     desenharInimigos(cam);
-
-    var arte;
-    if (!jogo.heroi.noChao) arte = HEROI_PULANDO;
-    else if (jogo.heroi.andando) {
-      arte = ((jogo.relogio / 8) | 0) % 2 ? HEROI_ANDANDO : HEROI_PARADO;
-    } else arte = HEROI_PARADO;
-
-    sprite(arte, jogo.heroi.x - cam, jogo.heroi.y, 2, jogo.heroi.direcao < 0);
+    desenharJogadores(cam);
     desenharEfeitos(cam);
   }
 
   // -------------------------------------------------------------- O jogo ----
+  /* O mundo e um so, e dentro dele mora uma lista de jogadores. Sozinho a
+     lista tem uma linha; numa sala, uma por pessoa. Cada linha guarda o que e
+     DAQUELE jogador (o corpo, os pontos, as vidas, os checkpoints acesos e as
+     teclas que ele esta apertando) - o resto (mapa, moedas, bichos,
+     plataformas) e do mundo, e por isso fica solto no `jogo`. */
+  var COR_SOLO = '#0058f8';               // o azul do macacao, jogando sozinho
+  var VAO_NASCIMENTO = 10;                // um respiro entre quem nasce junto
+
+  var entrada = { esquerda: false, direita: false, pular: false };
+
+  /** So aceita cor de verdade; qualquer outra coisa vira o azul de sempre. */
+  function corSegura(cor) {
+    return /^#[0-9a-fA-F]{3,8}$/.test(String(cor || '')) ? cor : COR_SOLO;
+  }
+
+  /* Um jogador novinho. O de casa (`local`) usa o MESMO objeto de entrada que
+     o teclado escreve; os outros tem o deles, preenchido pelos pacotes que
+     chegam. `seq` e o numero do ultimo comando aceito - comando atrasado nao
+     manda no personagem. */
+  function novoJogador(dados) {
+    return {
+      id: dados.id || 'eu',
+      indice: dados.indice || 0,
+      apelido: dados.apelido || '',
+      cor: corSegura(dados.cor),
+      local: !!dados.local,
+      entrada: dados.local ? entrada : { esquerda: false, direita: false, pular: false },
+      seq: 0,
+      corpo: Fisica.novoCorpo(fase.spawn.x, fase.spawn.y),
+      pontos: 0,
+      vidas: VIDAS_INICIAIS,
+      progresso: Progresso.novoEstado(fase),
+      quedas: 0
+    };
+  }
+
   var jogo = {
     tela: 'menu',                       // 'menu' | 'jogando'
     pausado: false,                     // pausa: o mundo congela, a tela nao
     relogio: 0,                         // quadros desde o inicio da partida
-    quedas: 0,                          // quantas vezes caiu num buraco
     tentativas: 1,                      // sobe toda vez que as vidas acabam
     concluida: false,                   // ja tocou a bandeira?
     camera: 0,
-    pontos: 0,                          // o placar que aparece no HUD
-    vidas: VIDAS_INICIAIS,              // copia de `progresso.vidas`, para o HUD
     fase: 1,                            // a fase 1 de 3
     corrida: Corrida.novoEstado(),      // o caderninho das tres fases
-    heroi: Fisica.novoCorpo(fase.spawn.x, fase.spawn.y),
+    jogadores: [],                      // uma linha por pessoa na fase
+    eu: null,                           // a linha do jogador deste aparelho
     itens: Itens.novoEstado(fase),      // quais moedas/blocos ainda existem
-    progresso: Progresso.novoEstado(fase),   // vidas e checkpoints ligados
     inimigos: Inimigos.novoEstado(fase),     // onde os bichos estao e como estao
     moveis: Moveis.novoEstado(fase),         // onde estao as plataformas moveis
     limites: fase.limites,              // os solidos deste quadro (com as moveis)
@@ -1878,14 +2196,46 @@
     eventos: []                         // os ultimos avisos (para os testes)
   };
 
-  var entrada = { esquerda: false, direita: false, pular: false };
+  jogo.eu = novoJogador({ local: true, cor: COR_SOLO });
+  jogo.jogadores = [jogo.eu];
+
+  /* `jogo.heroi`, `jogo.pontos`, `jogo.vidas`, `jogo.progresso` e `jogo.quedas`
+     sao atalhos para o jogador deste aparelho: quem guarda de verdade e a
+     linha dele em `jogo.jogadores`. Assim o HUD, o desenho e os testes
+     continuam falando de "o heroi" como sempre falaram, e o mundo em grupo
+     nao precisa de nenhuma copia paralela. */
+  function atalho(nome, campo) {
+    Object.defineProperty(jogo, nome, {
+      enumerable: true, configurable: true,
+      get: function () { return jogo.eu[campo]; },
+      set: function (valor) { jogo.eu[campo] = valor; }
+    });
+  }
+  atalho('heroi', 'corpo');
+  atalho('pontos', 'pontos');
+  atalho('vidas', 'vidas');
+  atalho('progresso', 'progresso');
+  atalho('quedas', 'quedas');
+
+  /** Estamos numa partida com mais gente (e nao sozinhos)? */
+  function emGrupo() { return jogo.jogadores.length > 1; }
+
+  /** A linha de quem tem aquele id na sala (null se ja saiu). */
+  function jogadorPorId(id) {
+    for (var i = 0; i < jogo.jogadores.length; i++) {
+      if (jogo.jogadores[i].id === id) return jogo.jogadores[i];
+    }
+    return null;
+  }
+
   var ouvintes = [];
 
   /* Avisa quem estiver escutando. Os avisos de hoje:
        'moeda', 'bloco-quebrado', 'checkpoint', 'inimigo-derrotado', 'queda',
-       'dano', 'vida-perdida', 'fase-reiniciada', 'fase-concluida',
-       'corrida-vencida', 'pausa', 'continuou', 'rede-ligada', 'sala-comecou',
-       'sala-terminou', 'sala-abortada', 'saiu-da-sala'. */
+       'dano', 'vida-perdida', 'jogador-recomecou', 'fase-reiniciada',
+       'fase-concluida', 'corrida-vencida', 'pausa', 'continuou',
+       'rede-ligada', 'sala-comecou', 'sala-terminou', 'sala-abortada',
+       'saiu-da-sala'. */
   function emitir(tipo) {
     var evento = { tipo: tipo, quadro: jogo.relogio };
     jogo.eventos.push(evento);
@@ -1903,6 +2253,12 @@
   window.SuperAdventure.alternarTelaCheia = function () { alternarTelaCheia(); };
 
   function centroDoHeroi() { return jogo.heroi.x + HEROI_L / 2; }
+
+  /* A camera e de cada aparelho: ela segue o jogador de casa, no mundo que e
+     de todos. */
+  function seguirCamera() {
+    jogo.camera = Camera.seguir(centroDoHeroi(), fase.largura, LARGURA);
+  }
 
   // ----------------------------------------------------------------- HUD ----
   /* Pontos, vidas e fase ficam no HTML (fora do canvas): assim eles crescem
@@ -1932,34 +2288,62 @@
     }
   }
 
-  /** Guarda o progresso novo; `jogo.vidas` e a copia que o HUD le. */
-  function aplicarProgresso(novo) {
-    jogo.progresso = novo;
-    jogo.vidas = novo.vidas;
+  /** Guarda o progresso novo do jogador; `vidas` e a copia que o HUD le. */
+  function aplicarProgresso(j, novo) {
+    j.progresso = novo;
+    j.vidas = novo.vidas;
+    if (j.local) atualizarHud();
   }
 
-  /* Poe o heroi de pe onde ele deve nascer agora - no ultimo checkpoint ligado
-     ou no comeco da fase - com a camera junto. As moedas e os blocos NAO sao
-     mexidos: o que ja foi pego continua pego. */
-  function nascer() {
-    var onde = Progresso.nascedouro(fase, jogo.progresso);
-    jogo.heroi = Fisica.novoCorpo(onde.x, onde.y);
-    jogo.moveis = Moveis.novoEstado(fase);     // as plataformas voltam ao lugar
-    jogo.limites = Moveis.limitesCom(jogo.itens.limites, jogo.moveis);
-    jogo.efeitos.length = 0;
-    jogo.camera = Camera.seguir(centroDoHeroi(), fase.largura, LARGURA);
+  /* Onde este jogador nasce agora: no ultimo checkpoint que ELE acendeu ou no
+     comeco da fase. Nascendo no comeco, cada um ganha um passinho de folga na
+     horizontal - com oito pessoas na sala, todo mundo em cima do mesmo pixel
+     viraria uma bola de macacoes. */
+  function nascedouroDe(j) {
+    var onde = Progresso.nascedouro(fase, j.progresso);
+    if (j.progresso.atual >= 0) return onde;
+    return {
+      x: Fisica.limitar(onde.x + j.indice * VAO_NASCIMENTO, 0, fase.largura - HEROI_L),
+      y: onde.y
+    };
   }
 
-  /* Volta a fase inteira ao comeco de uma tentativa nova: heroi no spawn,
-     moedas e blocos de volta no lugar, checkpoints apagados, vidas cheias e o
-     placar zerado (senao daria para juntar as mesmas moedas de novo). */
+  /* Poe um jogador de pe onde ele deve nascer agora. As moedas e os blocos NAO
+     sao mexidos: o que ja foi pego continua pego. Sozinho, as plataformas
+     moveis voltam para o lugar e as faiscas somem junto; numa sala elas sao do
+     mundo inteiro e ninguem para o mundo dos outros por ter caido num buraco. */
+  function nascer(j) {
+    var onde = nascedouroDe(j);
+    j.corpo = Fisica.novoCorpo(onde.x, onde.y);
+    if (!emGrupo()) {
+      jogo.moveis = Moveis.novoEstado(fase);
+      jogo.limites = Moveis.limitesCom(jogo.itens.limites, jogo.moveis);
+      jogo.efeitos.length = 0;
+    }
+    if (j.local) seguirCamera();
+  }
+
+  /* Volta a fase inteira ao comeco de uma tentativa nova: todo mundo no spawn,
+     moedas e blocos de volta no lugar, checkpoints apagados, vidas cheias e os
+     placares zerados (senao daria para juntar as mesmas moedas de novo). */
   function reiniciarFase() {
-    aplicarProgresso(Progresso.novoEstado(fase));
     jogo.itens = Itens.novoEstado(fase);
     jogo.inimigos = Inimigos.novoEstado(fase);
-    jogo.pontos = 0;
+    jogo.moveis = Moveis.novoEstado(fase);
+    jogo.limites = Moveis.limitesCom(jogo.itens.limites, jogo.moveis);
+    jogo.efeitos.length = 0;
     jogo.concluida = false;
-    nascer();
+
+    for (var i = 0; i < jogo.jogadores.length; i++) {
+      var j = jogo.jogadores[i];
+      j.pontos = 0;
+      j.progresso = Progresso.novoEstado(fase);
+      j.vidas = j.progresso.vidas;
+      var onde = nascedouroDe(j);
+      j.corpo = Fisica.novoCorpo(onde.x, onde.y);
+    }
+
+    seguirCamera();
     esconderTelas();
     atualizarHud();
   }
@@ -1995,15 +2379,17 @@
     }
   }
 
-  /* Passa o mundo dos itens um quadro para a frente: soma os pontos das moedas
-     pegas, tira do mapa o bloco quebrado e solta os efeitos na tela. */
-  function atualizarItens(antes) {
-    var r = Itens.passo(jogo.itens, fase, antes, jogo.heroi);
+  /* Passa o mundo dos itens um quadro para a frente para UM jogador: soma os
+     pontos das moedas que ele pegou, tira do mapa o bloco que ele quebrou e
+     solta os efeitos na tela. As moedas e os blocos sao do mundo: quem pega,
+     pega de todos. */
+  function atualizarItens(j, antes) {
+    var r = Itens.passo(jogo.itens, fase, antes, j.corpo);
     if (r.estado === jogo.itens) return;
 
     jogo.itens = r.estado;
     jogo.limites = Moveis.limitesCom(r.estado.limites, jogo.moveis);
-    jogo.pontos += r.pontos;
+    j.pontos += r.pontos;
 
     for (var i = 0; i < r.pegou.length; i++) {
       soltarEfeito('moeda', fase.moedas[r.pegou[i]], EFEITO_MOEDA);
@@ -2013,7 +2399,7 @@
       soltarEfeito('cristal', fase.quebraveis[r.quebrou], EFEITO_CRISTAL);
       emitir('bloco-quebrado');
     }
-    atualizarHud();
+    if (j.local) atualizarHud();
   }
 
   /* Perder um coracao - seja caindo num buraco, seja esbarrando de frente num
@@ -2021,28 +2407,42 @@
      moedas que ja juntou (e os bichos que ainda estao vivos voltam para onde
      nasceram); sem nenhuma, a tentativa acaba e a fase inteira recomeca do
      zero. `motivo` e so o aviso que sai antes: 'queda' ou 'dano'. */
-  function perderVida(motivo) {
+  function perderVida(j, motivo) {
     emitir(motivo);
 
-    var r = Progresso.perderVida(jogo.progresso, fase);
+    var r = Progresso.perderVida(j.progresso, fase);
     if (r.tipo === 'reinicio') {
+      if (emGrupo()) { recomecarJogador(j); return; }
       jogo.tentativas++;
       reiniciarFase();
       emitir('fase-reiniciada');
       return;
     }
 
-    aplicarProgresso(r.estado);
-    jogo.inimigos = Inimigos.reposicionar(jogo.inimigos, fase);
-    nascer();                                  // e as moveis voltam com ele
-    atualizarHud();
+    aplicarProgresso(j, r.estado);
+    // Sozinho, os bichos vivos voltam para onde nasceram (senao o heroi
+    // renasceria com um deles no colo). Numa sala eles sao de todo mundo:
+    // reposicionar os bichos porque UM jogador caiu bagunçaria a fase dos
+    // outros - e por isso os checkpoints do mapa ficam longe deles.
+    if (!emGrupo()) jogo.inimigos = Inimigos.reposicionar(jogo.inimigos, fase);
+    nascer(j);                                 // e as moveis voltam com ele
     emitir('vida-perdida');
   }
 
+  /* Numa partida em grupo, quem fica sem coracoes volta sozinho para o comeco
+     da fase - vidas cheias e checkpoints apagados de novo. O mundo NAO
+     recomeca (as moedas e os bichos sao de todos), e por isso os pontos que
+     ele ja fez continuam com ele: aquelas moedas nao voltaram para o mapa. */
+  function recomecarJogador(j) {
+    aplicarProgresso(j, Progresso.novoEstado(fase));
+    nascer(j);
+    emitir('jogador-recomecou');
+  }
+
   /** Cair num buraco: conta a queda e cobra o coracao. */
-  function cair() {
-    jogo.quedas++;
-    perderVida('queda');
+  function cair(j) {
+    j.quedas++;
+    perderVida(j, 'queda');
   }
 
   /* O troco do pisao: o heroi sobe uns 60px, bem menos que o pulo inteiro. O
@@ -2061,35 +2461,59 @@
     };
   }
 
-  /* Um quadro dos inimigos: eles patrulham e, se encostaram no heroi, o
-     resultado sai daqui. Devolve `true` quando o contato custou uma vida - o
-     `atualizar()` para o quadro por ali, porque o mundo ja mudou de lugar. */
-  function atualizarInimigos(antes) {
-    var r = Inimigos.passo(jogo.inimigos, jogo.limites, antes, jogo.heroi);
+  /* A patrulha dos bichos, UMA vez por quadro - eles sao do mundo, nao de cada
+     jogador. O bicho esperto da fase 3 vai atras de quem estiver mais perto
+     dele; sozinho, esse alguem e sempre o heroi de casa, e nada muda. */
+  function corpoMaisPertoDe(ini) {
+    var perto = null, menor = Infinity;
+    for (var i = 0; i < jogo.jogadores.length; i++) {
+      var c = jogo.jogadores[i].corpo;
+      if (!c) continue;
+      var d = Math.abs(c.x - ini.x) + Math.abs(c.y - ini.y);
+      if (d < menor) { menor = d; perto = c; }
+    }
+    return perto;
+  }
+
+  function andarInimigos() {
+    var lista = [];
+    for (var i = 0; i < jogo.inimigos.lista.length; i++) {
+      var ini = jogo.inimigos.lista[i];
+      lista.push(Inimigos.andarUm(ini, jogo.limites, corpoMaisPertoDe(ini)));
+    }
+    jogo.inimigos = { lista: lista };
+  }
+
+  /* O contato de UM jogador com os bichos que ja andaram neste quadro.
+     Devolve `true` quando o contato custou uma vida - o jogador para o quadro
+     por ali, porque ele ja mudou de lugar. */
+  function atualizarInimigos(j, antes) {
+    var r = Inimigos.contato(jogo.inimigos, antes, j.corpo);
     jogo.inimigos = r.estado;
 
     if (r.derrotados.length) {
-      jogo.pontos += r.pontos;
+      j.pontos += r.pontos;
       for (var i = 0; i < r.derrotados.length; i++) {
         var ini = r.estado.lista[r.derrotados[i]];
         soltarEfeito('inimigo', Inimigos.retangulo(ini), EFEITO_INIMIGO);
         emitir('inimigo-derrotado');
       }
-      jogo.heroi = quicar(jogo.heroi);
-      atualizarHud();
+      j.corpo = quicar(j.corpo);
+      if (j.local) atualizarHud();
     }
 
     if (!r.dano) return false;
-    perderVida('dano');
+    perderVida(j, 'dano');
     return true;
   }
 
   /* Encostou num checkpoint apagado? Ele acende - e fica aceso ate o fim da
-     tentativa, mesmo depois de o heroi passar direto por ele. */
-  function atualizarCheckpoints() {
-    var r = Progresso.tocar(jogo.progresso, fase, jogo.heroi);
+     tentativa, mesmo depois de o jogador passar direto por ele. Nesta fase
+     cada um tem os seus; o checkpoint do grupo e a fase 12. */
+  function atualizarCheckpoints(j) {
+    var r = Progresso.tocar(j.progresso, fase, j.corpo);
     if (r.ativou < 0) return;
-    aplicarProgresso(r.estado);
+    aplicarProgresso(j, r.estado);
     soltarEfeito('checkpoint', fase.checkpoints[r.ativou], EFEITO_CHECKPOINT);
     emitir('checkpoint');
   }
@@ -2120,6 +2544,10 @@
 
     jogo.pausado = pausado;
     entrada.esquerda = entrada.direita = entrada.pular = false;
+    // Pausado, o convidado para de mandar teclas - e o anfitriao continuaria
+    // com as ultimas que recebeu, correndo sozinho. Este ultimo pacote e o que
+    // solta as teclas la do outro lado tambem.
+    Rede.mandarEntrada();
 
     if (pausado) el.telaPausa.classList.remove('hidden');
     else el.telaPausa.classList.add('hidden');
@@ -2198,6 +2626,12 @@
     el.fasePontos.textContent = String(linha.pontos);
     el.faseBonus.textContent = '+' + linha.bonus;
     el.faseProxima.textContent = String(linha.numero + 1);
+    // Numa sala quem vira a pagina e o anfitriao: o convidado ve o mesmo
+    // quadro, mas com o botao desligado - ele vai junto quando o pacote
+    // chegar com a fase nova.
+    var convidado = rede.papel === 'convidado';
+    el.btnProxima.disabled = convidado;
+    el.btnProxima.title = convidado ? 'O anfitrião leva todo mundo para a próxima fase' : '';
     el.telaFase.classList.remove('hidden');
   }
 
@@ -2215,9 +2649,11 @@
   }
 
   /* O botao "Proxima fase". A corrida so anda para a frente e so depois de uma
-     bandeira - clicar fora disso nao faz nada. */
+     bandeira - clicar fora disso nao faz nada. Numa sala, quem anda a fase e o
+     anfitriao: o convidado troca de fase quando o pacote dele disser. */
   function avancarFase() {
     if (!jogo.concluida || jogo.corrida.terminada) return;
+    if (rede.papel === 'convidado') return;
     irParaFase(jogo.corrida.fase);
   }
 
@@ -2237,33 +2673,67 @@
     mostrarFimDeFase(jogo.corrida.fases[jogo.corrida.fases.length - 1]);
   }
 
-  function atualizar() {
-    if (jogo.concluida) return;
+  /* Um quadro do mundo inteiro - e o que o anfitriao (ou quem esta sozinho)
+     roda. A ordem importa:
 
-    jogo.relogio++;
+       1. as plataformas moveis andam;
+       2. cada jogador e levado por ela, da o passo dele e junta o que
+          encostou (quem caiu num buraco sai do quadro por aqui);
+       3. os bichos patrulham UMA vez, ja com todo mundo no lugar novo;
+       4. e so entao vem o contato com os bichos, os checkpoints e a bandeira.
 
-    /* Primeiro as plataformas moveis andam; depois quem estava em cima e
-       levado junto; so entao o heroi da o passo dele, ja com as plataformas na
-       posicao nova. Nessa ordem o chao nunca escapa debaixo dos pes. */
+     Sozinho, isso e exatamente o que o jogo sempre fez: a lista de jogadores
+     tem uma linha so. */
+  function simularMundo() {
     var passoMoveis = Moveis.andar(jogo.moveis);
     jogo.moveis = passoMoveis.estado;
     jogo.limites = Moveis.limitesCom(jogo.itens.limites, jogo.moveis);
-
-    var antes = Moveis.carregar(jogo.heroi, passoMoveis.deltas);
-    jogo.heroi = Fisica.passo(antes, entrada, jogo.limites);
-    jogo.camera = Camera.seguir(centroDoHeroi(), fase.largura, LARGURA);
     envelhecerEfeitos();
 
-    if (Fisica.caiu(jogo.heroi, fase.fundo)) {          // caiu num buraco
-      cair();
-      return;
+    var seguem = [], antes = [], i, j, deAntes;
+
+    for (i = 0; i < jogo.jogadores.length; i++) {
+      j = jogo.jogadores[i];
+      deAntes = Moveis.carregar(j.corpo, passoMoveis.deltas);
+      j.corpo = Fisica.passo(deAntes, j.entrada, jogo.limites);
+
+      if (Fisica.caiu(j.corpo, fase.fundo)) {          // caiu num buraco
+        cair(j);
+        continue;
+      }
+      atualizarItens(j, deAntes);
+      seguem.push(j);
+      antes.push(deAntes);
     }
 
-    atualizarItens(antes);
-    if (atualizarInimigos(antes)) return;              // o contato custou uma vida
-    atualizarCheckpoints();
+    andarInimigos();
 
-    if (Fisica.tocandoCorpo(jogo.heroi, fase.bandeira)) concluirFase();
+    for (i = 0; i < seguem.length; i++) {
+      j = seguem[i];
+      if (atualizarInimigos(j, antes[i])) continue;    // o contato custou uma vida
+      atualizarCheckpoints(j);
+      // Nesta fase quem fecha a fase e o jogador de casa; a bandeira valendo
+      // para a sala inteira e a fase 12.
+      if (j.local && Fisica.tocandoCorpo(j.corpo, fase.bandeira)) {
+        concluirFase();
+        return;
+      }
+    }
+  }
+
+  function atualizar() {
+    if (!jogo.concluida) {
+      jogo.relogio++;
+      // O convidado nao simula nada nesta fase: ele so envelhece as faiscas
+      // que ja estao na tela e espera o proximo retrato do anfitriao.
+      if (rede.papel === 'convidado') envelhecerEfeitos();
+      else simularMundo();
+      seguirCamera();
+    }
+    // Depois da bandeira o mundo para, mas a rede nao: e por esses pacotes que
+    // os convidados ficam sabendo que a fase acabou (e, logo depois, qual e a
+    // proxima).
+    Rede.passo();
   }
 
   /* Comeca (ou recomeca) a corrida inteira: caderno em branco, fase 1. E o
@@ -2312,24 +2782,34 @@
      fora do ar): o botao "Jogar com amigos" continua escondido e o resto do
      arquivo nem sabe que a rede existe.
 
-     Nesta fase do plano o lobby e o comeco da sala ja funcionam de ponta a
-     ponta: criar sala, entrar pelo codigo de 4 letras, marcar "pronto" e o
-     anfitriao apertar "comecar" - e todo mundo cai na tela do jogo, na fase 1,
-     com o codigo da sala no HUD. O que ainda NAO acontece e a sincronia: cada
-     aparelho roda o proprio mundo. O anfitriao so passa a simular para todos
-     na fase 9.
+     Comecada a sala, existe UM mundo so e ele e o do anfitriao:
+
+         CONVIDADO                 ANFITRIAO                  CONVIDADO
+         teclas  ───────────────▶  simula o mundo  ─────────▶  desenha
+         (20x/s)                   inteiro, com todos          (20x/s)
+
+     O anfitriao roda `simularMundo()` com a lista inteira de jogadores e manda
+     o retrato pronto (`Pacote.montar`) na taxa que o manifesto pediu; o
+     convidado manda so as tres teclas dele e copia o retrato que chega
+     (`Pacote.aplicar`). Nesta fase o convidado nao adivinha nada - a previsao
+     local dele e a fase 10.
      ========================================================================== */
   var rede = {
     ligada: false,        // o multijogador da plataforma respondeu "de pe"
     sala: null,           // o instantaneo da sala, numa partida em grupo
     papel: 'solo',        // 'solo' | 'anfitriao' | 'convidado'
     recebidas: 0,         // pacotes que chegaram de outros jogadores
-    ultimaMensagem: null  // o ultimo deles (a fase 9 vai tratar de verdade)
+    ultimaMensagem: null, // o ultimo deles, cru
+    enviados: 0,          // pacotes que este aparelho mandou
+    seq: 0,               // o numero do ultimo pacote que ele montou
+    ultimoRecebido: 0,    // o numero do ultimo retrato aplicado
+    atrasados: 0          // retratos que chegaram velhos e foram para o lixo
   };
 
   var Rede = (function () {
     var P = null;         // o SDK da Central, ja iniciado
     var mj = null;        // P.multijogador
+    var quadrosDesdeEnvio = 0;   // para mandar na taxa certa, nao a cada quadro
 
     /* Liga o jogo na plataforma. Devolve `false` (e nao muda nada na tela)
        quando o multijogador nao esta disponivel - e o caso do servidor fora do
@@ -2367,27 +2847,149 @@
       });
     }
 
-    /* A sala comecou: todo mundo cai na tela do jogo, na fase 1. O `indice` e
-       a `cor` de cada jogador ja vem em `sala.jogadores` - quem usa isso e a
-       fase 9, quando o anfitriao passar a simular o mundo para todos. */
+    /* A sala comecou: todo mundo cai na tela do jogo, na fase 1, e a lista de
+       jogadores do mundo passa a ser a lista da sala - cada um com o seu
+       `indice` (a identidade dele na partida) e a sua `cor`. */
     function comecar(sala) {
       rede.sala = sala;
       rede.papel = sala.souAnfitriao ? 'anfitriao' : 'convidado';
       rede.recebidas = 0;
       rede.ultimaMensagem = null;
+      rede.enviados = 0;
+      rede.seq = 0;
+      rede.ultimoRecebido = 0;
+      rede.atrasados = 0;
+      quadrosDesdeEnvio = 0;
+      montarJogadores(sala);
       avisar('');
       mostrarSala();
       comecarPartida();
       emitir('sala-comecou');
     }
 
-    /* Chegou um pacote de outro jogador. O cano ja esta aberto dos dois lados;
-       quem vai entender o conteudo e a fase 9 (o estado do mundo, do
-       anfitriao) e a 10 (os comandos, dos convidados). */
+    /* A sala vira a lista de jogadores do mundo, na ordem do `indice`. O
+       jogador deste aparelho e o que tem o id de `sala.eu` - e e ele que
+       continua sendo `jogo.heroi` para o resto do arquivo. */
+    function montarJogadores(sala) {
+      var todos = (sala && sala.jogadores) || [];
+      var lista = [], eu = null, i;
+
+      for (i = 0; i < todos.length; i++) {
+        var p = todos[i];
+        var j = novoJogador({
+          id: p.id, indice: p.indice, apelido: p.apelido, cor: p.cor,
+          local: p.id === sala.eu
+        });
+        if (j.local) eu = j;
+        lista.push(j);
+      }
+      if (!eu) return;                // sala sem mim: nao mexe em nada
+
+      lista.sort(function (a, b) { return a.indice - b.indice; });
+      jogo.jogadores = lista;
+      jogo.eu = eu;
+    }
+
+    /** De volta a ser um jogo de um jogador so. */
+    function jogarSozinho() {
+      jogo.eu = novoJogador({ local: true, cor: COR_SOLO });
+      jogo.jogadores = [jogo.eu];
+    }
+
+    /* Chegou um pacote de outro jogador: ou sao as teclas de um convidado
+       (e quem trata e o anfitriao), ou e o retrato do mundo (e quem copia sao
+       os convidados). Qualquer outra coisa e ignorada sem barulho. */
     function receber(msg) {
       if (!rede.sala) return;         // pacote atrasado, de uma sala que acabou
       rede.recebidas++;
       rede.ultimaMensagem = msg;
+
+      var d = msg && msg.d;
+      if (Pacote.ehEntrada(d) && rede.papel === 'anfitriao') {
+        aplicarEntrada(msg.de, d);
+      } else if (Pacote.ehEstado(d) && rede.papel === 'convidado') {
+        aplicarEstado(d);
+      }
+    }
+
+    /* As teclas de um convidado, do lado do anfitriao. Elas ficam guardadas na
+       linha dele e sao usadas no proximo quadro, como se fossem o teclado
+       daqui. Comando atrasado (numero menor que o ultimo) e descartado. */
+    function aplicarEntrada(id, d) {
+      var j = jogadorPorId(id);
+      if (!j || j.local) return;
+      if (d.n && d.n <= j.seq) return;
+      j.seq = d.n || 0;
+      j.entrada.esquerda = d.e === 1;
+      j.entrada.direita = d.d === 1;
+      j.entrada.pular = d.p === 1;
+    }
+
+    /* O retrato do mundo, do lado do convidado: ele copia tudo por cima do que
+       tinha e refaz as faiscas do que mudou (a moeda que sumiu, o bloco que
+       caiu, o bicho que foi pisado) - efeito e local, nao viaja pela rede. */
+    function aplicarEstado(d) {
+      if (jogo.tela !== 'jogando') return;
+      if (d.n && d.n <= rede.ultimoRecebido) { rede.atrasados++; return; }
+      rede.ultimoRecebido = d.n || 0;
+
+      // O anfitriao virou a pagina: a fase nova entra antes de copiar o resto,
+      // senao as moedas e os bichos seriam lidos com o mapa errado.
+      if (d.f && d.f !== jogo.fase) irParaFase(d.f);
+
+      efeitosDoPacote(Pacote.aplicar(d, jogo, fase));
+      seguirCamera();
+      atualizarHud();
+
+      // A bandeira: o anfitriao ja chegou nela e o quadro de fim de fase sobe
+      // aqui tambem, com os pontos que ESTE jogador fez.
+      if (d.q && !jogo.concluida) concluirFase();
+    }
+
+    /** As faiscas do que mudou de um pacote para o outro. */
+    function efeitosDoPacote(n) {
+      var i;
+      for (i = 0; i < n.moedas.length; i++) {
+        soltarEfeito('moeda', fase.moedas[n.moedas[i]], EFEITO_MOEDA);
+      }
+      for (i = 0; i < n.blocos.length; i++) {
+        soltarEfeito('cristal', fase.quebraveis[n.blocos[i]], EFEITO_CRISTAL);
+      }
+      for (i = 0; i < n.inimigos.length; i++) {
+        soltarEfeito('inimigo',
+          Inimigos.retangulo(jogo.inimigos.lista[n.inimigos[i]]), EFEITO_INIMIGO);
+      }
+      for (i = 0; i < n.checkpoints.length; i++) {
+        soltarEfeito('checkpoint', fase.checkpoints[n.checkpoints[i]], EFEITO_CHECKPOINT);
+      }
+    }
+
+    /* O quadro da rede. O anfitriao manda o mundo, o convidado manda as
+       teclas - os dois na taxa que o manifesto pediu (20 por segundo), que num
+       relogio de 60 quadros da um pacote a cada tres. Bem dentro dos freios da
+       plataforma: 64 KB e 90 mensagens por segundo. */
+    function passo() {
+      if (!rede.sala || jogo.tela !== 'jogando') return;
+
+      var taxa = rede.sala.taxaEstado || 15;
+      var cada = Math.max(1, Math.round(60 / taxa));
+      if (++quadrosDesdeEnvio < cada) return;
+      quadrosDesdeEnvio = 0;
+
+      if (rede.papel === 'anfitriao') mandarEstado();
+      else mandarEntrada();
+    }
+
+    function mandarEstado() {
+      if (!mj || rede.papel !== 'anfitriao') return;
+      rede.enviados++;
+      mj.enviar(Pacote.montar(jogo, ++rede.seq));
+    }
+
+    function mandarEntrada() {
+      if (!mj || rede.papel !== 'convidado') return;
+      rede.enviados++;
+      mj.paraAnfitriao(Pacote.entrada(++rede.seq, entrada));
     }
 
     /** A partida foi encerrada pela plataforma. */
@@ -2419,6 +3021,7 @@
     function limparSala() {
       rede.sala = null;
       rede.papel = 'solo';
+      jogarSozinho();
       mostrarSala();
     }
 
@@ -2443,6 +3046,9 @@
       iniciar: iniciar,
       abrirLobby: abrirLobby,
       sairDaSala: sairDaSala,
+      passo: passo,
+      mandarEstado: mandarEstado,
+      mandarEntrada: mandarEntrada,
       avisar: avisar
     };
   }());
@@ -2450,6 +3056,8 @@
   window.SuperAdventure.rede = rede;
   window.SuperAdventure.abrirLobby = function () { Rede.abrirLobby(); };
   window.SuperAdventure.voltarAoMenu = function () { voltarAoMenu(); };
+  window.SuperAdventure.mandarEstado = function () { Rede.mandarEstado(); };
+  window.SuperAdventure.mandarEntrada = function () { Rede.mandarEntrada(); };
 
   // -------------------------------------------------------------- Teclado ---
   var TECLAS = {
