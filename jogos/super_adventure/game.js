@@ -1,12 +1,15 @@
 /* ==========================================================================
    SUPER ADVENTURE  -  plataforma retro, no estilo dos consoles de 8 bits
    --------------------------------------------------------------------------
-   FASE 10 do plano: o controle do convidado deixa de ser "molenga". O
-   anfitriao continua rodando a simulacao unica do mundo - o mapa, as moedas,
-   os bichos e TODOS os personagens - e mandando o retrato dele 20 vezes por
-   segundo; o convidado manda as teclas, mas agora ADIVINHA o proprio corpo com
-   a mesma fisica pura da fase 1 e corrige de leve (25% do erro por retrato, ou
-   de uma vez quando o erro passa de 90px) quando o pacote chega.
+   FASE 11 do plano: o mundo da sala e UM SO e a camera e de cada um. As
+   moedas, os blocos quebraveis e os bichos sao entidades do MUNDO do anfitriao
+   (nao de cada jogador): quem pega tira de todo mundo, e os pontos ficam so
+   com quem pegou. A geometria e a mesma para todos - a do anfitriao -, mas
+   cada aparelho olha a fase pela sua propria janela, centrada no personagem de
+   casa: os outros jogadores aparecem, cada um com a sua cor, quando entram no
+   campo de visao. O convidado continua adivinhando so o proprio corpo (fase
+   10) e corrigindo de leve (25% do erro por retrato, ou de uma vez quando o
+   erro passa de 90px) com o retrato que chega 20 vezes por segundo.
 
      - `Fisica`: as funcoes puras do movimento, com colisao AABB contra os
        blocos solidos do mapa (para em cima, nao atravessa, bate a cabeca).
@@ -26,6 +29,8 @@
        desenhado no tilemap, param um instante em cada ponta e CARREGAM quem
        estiver em cima. Pura tambem.
      - `Camera`: side-scroll, seguindo o heroi sem sair das bordas do mundo.
+       Ela e de cada APARELHO: numa sala, o mundo e um so, mas cada tela olha
+       para o proprio personagem.
      - `Corrida`: o caderninho da partida solo - quanto cada fase rendeu, o
        bonus de bandeira e qual e a proxima. So anda para a frente. Puro.
      - `Previsao`: como a posicao que o convidado adivinhou e casada com a que
@@ -67,6 +72,20 @@
    propria um corpo so - o dele. O jogador local continua sendo `jogo.heroi`
    para o resto do arquivo, e sozinho a lista tem uma linha so: o solo nao
    muda em nada.
+
+   O que e do MUNDO fica solto no `jogo` (`itens`, `inimigos`, `moveis`,
+   `limites`) e o que e de cada um fica na linha dele (`corpo`, `pontos`,
+   `vidas`, `progresso`, `entrada`). Dai sai a regra do mundo compartilhado:
+   moeda pega some para todos, bloco quebrado cai para todos, bicho pisado nao
+   volta para ninguem - e so o placar de quem fez e que sobe. Cair num buraco,
+   ao contrario, e problema de quem caiu: o mundo dos outros nao e mexido (e
+   por isso `reiniciarFase()` e `Inimigos.reposicionar()` so acontecem sozinho,
+   nunca numa sala).
+
+   A camera, essa, e de cada aparelho: `seguirCamera()` centra a janela no
+   personagem de casa, dentro da MESMA geometria que o anfitriao esta usando -
+   o canvas tem sempre 960x540 por dentro, em qualquer tela, entao as posicoes
+   batem em todos os aparelhos (regra 4 do PLATAFORMA.md).
 
    Nada disto usa imagem: tudo e retangulo pintado no Canvas 2D.
    ========================================================================== */
@@ -1126,7 +1145,12 @@
 
   // ------------------------------------------------------------- A camera ---
   /* Side-scroll: a camera anda so na horizontal, centrada no heroi, e trava
-     nas duas pontas do mundo para nunca mostrar o lado de fora do mapa. */
+     nas duas pontas do mundo para nunca mostrar o lado de fora do mapa.
+
+     Numa sala, cada aparelho chama isto com o SEU heroi e com a largura do
+     mesmo mapa: o mundo e um so, as janelas e que sao diferentes. Por ser
+     funcao pura de tres numeros, a conta do convidado da exatamente a mesma
+     coisa que a do anfitriao daria - o que muda e so quem esta no meio dela. */
   var Camera = (function () {
     function seguir(centroX, larguraMundo, larguraTela) {
       var tela = larguraTela || LARGURA;

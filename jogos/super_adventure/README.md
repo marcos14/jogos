@@ -4,14 +4,16 @@ Um platformer retrô, de 8 bits, para as crianças: corra, pule, junte moedas e
 chegue na bandeira. São 3 fases fixas e dá para jogar sozinho ou com até 8
 amigos na mesma fase, cada um no seu aparelho.
 
-> **Estado: em construção.** Esta é a **fase 8** do plano — o jogo solo está
+> **Estado: em construção.** Esta é a **fase 11** do plano — o jogo solo está
 > completo (as três fases em ordem fixa, o bônus da bandeira, a tela de
 > **PARABÉNS** e a interface inteira: pausa, recomeçar, tela cheia e a caixa de
-> controles) e o menu já tem o **JOGAR COM AMIGOS**, que abre o lobby da
-> Central: criar sala, código de 4 letras, lista de salas abertas, "pronto" e
-> "começar" — e todo mundo cai na tela do jogo. O que ainda **não** acontece é a
-> sincronia: nesta etapa cada aparelho roda o próprio mundo. O anfitrião passa a
-> simular a fase para todos na etapa seguinte.
+> controles) e o multijogador já joga de verdade: o **JOGAR COM AMIGOS** abre o
+> lobby da Central, o anfitrião simula **um mundo só** para a sala inteira, o
+> convidado adivinha o próprio corpo para o controle não ficar molenga, as
+> moedas/blocos/bichos são de todos (quem pega, tira dos outros) e **cada
+> aparelho tem a sua câmera**, centrada no próprio personagem. O que ainda
+> **não** acontece: a bandeira e os checkpoints valendo para a sala inteira, o
+> placar de todos no HUD e a tela de ranking no fim — são as etapas seguintes.
 
 ## Como jogar
 
@@ -111,7 +113,10 @@ O que muda entre os dois é o que acontece com quem leva o pisão:
 
 Nenhum dos dois volta durante a partida. Quando o herói perde uma vida, os
 bichos **ainda vivos** voltam para onde nasceram (senão ele renasceria com um
-deles no colo), mas quem já foi derrotado continua derrotado. Só o reinício da
+deles no colo), mas quem já foi derrotado continua derrotado. Isso é regra de
+quem joga **sozinho**: numa sala os bichos são de todos e ninguém os move de
+lugar por causa do tombo de um jogador — veja *Um mundo só, uma câmera para
+cada um*. Só o reinício da
 fase inteira — quando os ❤️ acabam — põe os quatro de pé outra vez.
 
 Se no mesmo quadro o herói pisa num bicho e esbarra noutro, o **pisão ganha**:
@@ -254,9 +259,43 @@ O que o convidado **não** adivinha: moeda, bloco quebrado, pisão em bicho,
 checkpoint aceso e coração perdido. Isso daria ponto que o anfitrião não deu —
 ele só fica sabendo pelo retrato, e é do retrato que saem as faíscas na tela.
 
-> **Ainda não nesta etapa:** a câmera de cada jogador dentro do mesmo mundo, a
-> bandeira valendo para a sala inteira e o placar de todos no HUD entram nas
-> etapas seguintes do plano.
+### Um mundo só, uma câmera para cada um
+
+As moedas, os blocos quebráveis e os bichos **não são de cada jogador: são do
+mundo**. Quem encosta numa moeda tira ela da fase de todo mundo — na tela dos
+outros ela some no retrato seguinte, com a mesma faísca — e os **+10 ficam só
+com quem pegou**. Vale igual para o bloco que alguém quebra (some da tela de
+todos e deixa de ser sólido para todos) e para o bicho que alguém pisa (some ou
+vira casco para todos, e os +20 são de quem pulou em cima).
+
+O que é de cada um continua sendo de cada um: os **pontos**, os **corações** e
+os **checkpoints acesos**. Cair num buraco é problema de quem caiu — perde um
+coração e volta ao próprio checkpoint, e o mundo dos outros não é mexido: as
+moedas já pegas continuam pegas e os bichos não voltam para o ninho. Quem fica
+sem corações, numa sala, **recomeça sozinho** do início da fase, com os
+corações cheios: a fase inteira não recomeça, senão um tropeço de um jogador
+estragaria a partida dos outros.
+
+| Sozinho | Numa sala |
+|---|---|
+| Sem corações, a fase inteira recomeça (placar zerado) | Sem corações, só ele volta ao começo, com o placar dele |
+| Ao renascer, os bichos vivos voltam ao ninho | Os bichos são de todos: ninguém os move de lugar |
+
+A **câmera é de cada aparelho**. O mundo é um só — o mapa, as posições e as
+medidas são as do anfitrião, e o canvas tem sempre 960×540 por dentro em
+qualquer tela, então as contas batem em todos os aparelhos —, mas cada um olha
+a fase pela sua janela, **centrada no próprio personagem**. Quem está no meio
+do mapa se vê no meio da tela; nas pontas a câmera trava para não mostrar o
+lado de fora.
+
+Os **outros jogadores aparecem quando entram no campo de visão**, cada um com a
+**cor que a sala deu** (o macacão muda de cor; o resto do herói é igual). Quem
+está longe demais simplesmente não é desenhado — e o jogador de casa é pintado
+por último, para nunca ficar escondido atrás de outro.
+
+> **Ainda não nesta etapa:** a bandeira e o checkpoint valendo para a sala
+> inteira, o placar de todos numa mini-lista no HUD e o ranking da sala no fim
+> das três fases entram nas etapas seguintes do plano.
 
 ## As plataformas móveis (fase 3)
 
@@ -474,6 +513,7 @@ node testes/super_adventure/fase8.test.mjs         # o jogo sem a Central (e a f
 node testes/super_adventure/fase8-tela.test.mjs    # 3 abas numa sala, por WebSocket de verdade
 node testes/super_adventure/fase9.test.mjs         # o mundo único do anfitrião, com 3 jogadores
 node testes/super_adventure/fase10.test.mjs        # a previsão do convidado, com latência
+node testes/super_adventure/fase11.test.mjs        # o mundo compartilhado e a câmera de cada um
 ```
 
 O `fase8-tela.test.mjs` sobe o **servidor das salas de verdade** dentro do teste
@@ -483,6 +523,14 @@ sua cópia do jogo rodando no DOM de mentira. Uma cria a sala, as outras entram
 pelo código, todas marcam pronto, a anfitriã começa — e as três caem na tela do
 jogo. O lobby em si (que é HTML desenhado pelo SDK) fica de fora: o que o teste
 usa é o miolo do SDK, com as mesmas mensagens e os mesmos ganchos.
+
+O `fase11.test.mjs` põe três abas no mesmo mundo e confere as duas metades da
+etapa: a moeda que um convidado pega some para todos (e os +10 são só dele), o
+bloco que ele quebra sai dos sólidos de todo mundo, o bicho pisado não volta
+para ninguém, um tombo não mexe no mundo dos outros — e, do outro lado, cada aba
+tem a **sua** câmera: a geometria comparada é idêntica nas três, mas cada uma
+pinta o pedaço do mapa que está debaixo do seu jogador, com os vizinhos
+aparecendo (na cor da sala) só quando entram no campo de visão.
 
 O `fase10.test.mjs` põe uma Central de mentira **com latência** entre as abas —
 cada mensagem fica seis quadros na fila antes de ser entregue, nos dois
