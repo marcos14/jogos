@@ -20,10 +20,10 @@
    ========================================================================== */
 
 import assert from 'node:assert/strict';
-import { carregarJogoComTela, teste, fim } from './harness.mjs';
+import { carregarJogoComTela, criarPiloto, teste, fim } from './harness.mjs';
 
 const dom = carregarJogoComTela('super_adventure');
-const { Fisica, Mapa, Itens, fase, mundo } = dom.api;
+const { Fisica, Itens, fase, mundo } = dom.api;
 const M = Fisica.medidas;
 const T = M.TILE;
 
@@ -59,34 +59,10 @@ function andarAte(x, maxQuadros = 400) {
 /** Quantos retangulos daquela cor foram pintados no ultimo quadro. */
 const pintadosDaCor = (cor) => dom.pintados.filter((p) => p.cor === cor).length;
 
-/** O mesmo piloto automatico do teste da fase 2. */
-function jogarSozinho(maxQuadros) {
-  let quadros = 0, xAnterior = -1, pulando = false;
-  dom.tecla('ArrowRight', true);
-
-  while (!jogo.concluida && quadros < maxQuadros) {
-    const h = heroi();
-    const colunaAFrente = Math.floor((h.x + M.HEROI_L) / T);
-    const linhaDosPes = Math.round((h.y + M.HEROI_A) / T);
-    const buracoAFrente = !Mapa.solido(fase, colunaAFrente, linhaDosPes);
-    const parede = h.x === xAnterior;
-
-    if (h.noChao && (buracoAFrente || parede) && !pulando) {
-      dom.tecla(' ', true);
-      pulando = true;
-    } else if (pulando) {
-      dom.tecla(' ', false);
-      pulando = false;
-    }
-
-    xAnterior = h.x;
-    dom.avancarQuadros(1);
-    quadros++;
-  }
-
-  soltarTudo();
-  return quadros;
-}
+/* O piloto automatico do harness, o mesmo do teste da fase 2: segura a
+   direita e pula na parede, no buraco e nos inimigos. */
+const correrAte = criarPiloto(dom);
+const jogarSozinho = (maxQuadros) => correrAte(() => jogo.concluida, maxQuadros);
 
 // O bloco quebravel da coluna 15, linha 11: o primeiro que da para alcancar
 // vindo do comeco da fase.
@@ -217,11 +193,16 @@ teste('o piloto automatico chega na bandeira com moedas no bolso', () => {
   dom.clicar('btn-solo');                  // partida limpa
   const quadros = jogarSozinho(4000);
 
+  // Desde a fase 5 o placar tem duas fontes: as moedas (10 cada) e os bichos
+  // pisados no caminho (20 cada). A soma das duas tem que fechar exata.
+  const moedas = 100 - Itens.quantos(jogo.itens.moedas);
+  const bichos = jogo.inimigos.lista.filter((i) => i.estado !== 'vivo').length;
+
   assert.equal(jogo.concluida, true, `nao chegou na bandeira em ${quadros} quadros`);
   assert.ok(jogo.pontos >= 100, `juntou so ${jogo.pontos} pontos no caminho`);
-  assert.equal(jogo.pontos % 10, 0, 'todo ponto veio de moeda (10 em 10)');
-  assert.equal(jogo.pontos / 10, 100 - Itens.quantos(jogo.itens.moedas),
-    'os pontos batem com as moedas que sumiram do mapa');
+  assert.equal(jogo.pontos,
+    moedas * mundo.PONTOS_MOEDA + bichos * mundo.PONTOS_INIMIGO,
+    'os pontos batem com as moedas que sumiram e os bichos derrotados');
 });
 
 teste('a tela de fim mostra o mesmo placar do HUD', () => {

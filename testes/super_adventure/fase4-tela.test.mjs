@@ -20,10 +20,10 @@
    ========================================================================== */
 
 import assert from 'node:assert/strict';
-import { carregarJogoComTela, teste, fim } from './harness.mjs';
+import { carregarJogoComTela, criarPiloto, teste, fim } from './harness.mjs';
 
 const dom = carregarJogoComTela('super_adventure');
-const { Fisica, Mapa, Itens, Progresso, fase, mundo } = dom.api;
+const { Fisica, Itens, Progresso, fase, mundo } = dom.api;
 const M = Fisica.medidas;
 const T = M.TILE;
 
@@ -46,36 +46,9 @@ function soltarTudo() {
 /** Quantos retangulos daquela cor foram pintados no ultimo quadro. */
 const pintadosDaCor = (cor) => dom.pintados.filter((p) => p.cor === cor).length;
 
-/**
- * O piloto automatico dos testes das fases 2 e 3 (segura a direita e pula na
- * parede ou no buraco), so que parando quando `pronto()` diz que chegou.
- */
-function correrAte(pronto, maxQuadros = 3000) {
-  let quadros = 0, xAnterior = -1, pulando = false;
-  dom.tecla('ArrowRight', true);
-
-  while (!pronto() && quadros < maxQuadros) {
-    const h = heroi();
-    const colunaAFrente = Math.floor((h.x + M.HEROI_L) / T);
-    const linhaDosPes = Math.round((h.y + M.HEROI_A) / T);
-    const buracoAFrente = !Mapa.solido(fase, colunaAFrente, linhaDosPes);
-
-    if (h.noChao && (buracoAFrente || h.x === xAnterior) && !pulando) {
-      dom.tecla(' ', true);
-      pulando = true;
-    } else if (pulando) {
-      dom.tecla(' ', false);
-      pulando = false;
-    }
-
-    xAnterior = h.x;
-    dom.avancarQuadros(1);
-    quadros++;
-  }
-
-  soltarTudo();
-  return quadros;
-}
+/* O piloto automatico do harness (segura a direita e pula na parede, no
+   buraco e nos inimigos), parando quando `pronto()` diz que chegou. */
+const correrAte = criarPiloto(dom);
 
 /** Segura uma tecla enquanto `enquanto()` for verdade (ou desistir). */
 function andarEnquanto(tecla, enquanto, maxQuadros = 200) {

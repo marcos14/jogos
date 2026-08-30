@@ -4,10 +4,10 @@ Um platformer retrô, de 8 bits, para as crianças: corra, pule, junte moedas e
 chegue na bandeira. São 3 fases fixas e dá para jogar sozinho ou com até 8
 amigos na mesma fase, cada um no seu aparelho.
 
-> **Estado: em construção.** Esta é a **fase 4** do plano — já dá para
+> **Estado: em construção.** Esta é a **fase 5** do plano — já dá para
 > atravessar a fase 1 inteira juntando as 100 moedas, quebrando os blocos,
-> acendendo os checkpoints e perdendo vidas de verdade. Os inimigos, as fases 2
-> e 3 e o multijogador chegam nas próximas etapas.
+> acendendo os checkpoints, perdendo vidas de verdade e enfrentando os dois
+> tipos de bicho. As fases 2 e 3 e o multijogador chegam nas próximas etapas.
 
 ## Como jogar
 
@@ -17,23 +17,26 @@ amigos na mesma fase, cada um no seu aparelho.
 | **ESPAÇO** (ou **↑** / **W**) | pular |
 
 Clique em **JOGAR SOLO**, corra para a direita, junte moedas, acenda os
-checkpoints e chegue na bandeira.
+checkpoints, pule em cima dos bichos e chegue na bandeira.
 
 ## Pontuação
 
 | O que | Vale |
 |---|---|
 | Encostar numa moeda | **+10** pontos |
+| Pular em cima de um inimigo | **+20** pontos |
 | Quebrar um bloco | solta o cristal (enfeite); pontos, só os das moedas |
 
-A fase 1 tem **100 moedas** — 1000 pontos se você pegar todas. Cada moeda some
+A fase 1 tem **100 moedas** — 1000 pontos se você pegar todas — mais os 4
+bichos, que valem 20 cada. Cada moeda some
 de vez: uma vez pega, não volta mais durante a tentativa. O HUD no topo mostra
 os pontos, os ❤️ e em que fase você está, e o número dos pontos sobe na hora em
 que a moeda é encostada.
 
 ## Vidas e checkpoints
 
-Cada tentativa começa com **3 ❤️**. Cair num buraco custa **um coração** e o
+Cada tentativa começa com **3 ❤️**. Cair num buraco (ou esbarrar de frente num
+bicho) custa **um coração** e o
 herói reaparece **no último checkpoint aceso** — as moedas que ele já juntou
 continuam juntadas e o placar não é mexido. Quando os corações acabam, a
 **tentativa termina**: a fase inteira volta ao começo (moedas e blocos de volta
@@ -48,11 +51,14 @@ fica verde e solta faíscas. Uma vez aceso, o checkpoint **não expira** — val
 até o fim da tentativa, mesmo que o herói volte atrás ou caia várias vezes. O
 que vale para renascer é sempre o **mais recente** que foi aceso.
 
-| Quedas na tentativa | O que acontece |
+| Tombos na tentativa | O que acontece |
 |---|---|
-| 1ª | −1 ❤️, volta ao último checkpoint (ou ao começo, se nenhum acendeu) |
-| 2ª | −1 ❤️, mesma coisa |
-| 3ª | acabaram os ❤️: a fase inteira recomeça do zero |
+| 1º | −1 ❤️, volta ao último checkpoint (ou ao começo, se nenhum acendeu) |
+| 2º | −1 ❤️, mesma coisa |
+| 3º | acabaram os ❤️: a fase inteira recomeça do zero |
+
+*Tombo* aqui é cair num buraco **ou** encostar de frente num inimigo: as duas
+coisas custam o mesmo coração e usam o mesmo caminho de volta.
 
 ## Os blocos quebráveis
 
@@ -62,6 +68,42 @@ Bater por baixo (ou pousar em cima) quebra o bloco — o cristal sai voando junt
 com os cacos e o caminho abre, porque o bloco sai da lista de sólidos na mesma
 hora. Vários deles têm uma moeda escondida logo abaixo: a cabeçada pega as duas
 coisas de uma vez.
+
+## Os inimigos
+
+São dois tipos, os do PRD, e na fase 1 são **quatro bichos**: dois goombas
+(cogumelos emburrados, marrons) e duas turtles (casco verde com a cabeça de
+fora). Os dois patrulham do mesmo jeito.
+
+| Coisa | Valor |
+|---|---|
+| Velocidade da patrulha | 2 px por quadro, sempre a mesma |
+| Onde eles viram | na parede, na beirada da plataforma e na ponta do mundo |
+| Pular em cima | **+20** pontos, e o herói quica ~60 px |
+| Encostar de qualquer outro jeito | **−1 ❤️** e de volta ao checkpoint |
+
+A patrulha é ida e volta: o bicho anda para um lado até achar uma parede, o fim
+da plataforma ou a ponta do mapa, e aí vira — gastando um quadro parado na
+virada. Ele **não cai de bobeira**, mas tem gravidade: se o chão sumir debaixo
+dele (um bloco quebrável quebrado, por exemplo), ele despenca até pousar no
+próximo sólido.
+
+O que muda entre os dois é o que acontece com quem leva o pisão:
+
+- **Goomba:** some de vez. Não é desenhado nem colide mais.
+- **Turtle:** vira **casco** — o mesmo casco verde, sem cabeça nem patas,
+  mais baixinho (20 px em vez de 32), parado no lugar onde ela estava. O casco
+  continua na tela como enfeite: dá para andar por cima dele, e ele não machuca
+  nem rende pontos de novo.
+
+Nenhum dos dois volta durante a partida. Quando o herói perde uma vida, os
+bichos **ainda vivos** voltam para onde nasceram (senão ele renasceria com um
+deles no colo), mas quem já foi derrotado continua derrotado. Só o reinício da
+fase inteira — quando os ❤️ acabam — põe os quatro de pé outra vez.
+
+Se no mesmo quadro o herói pisa num bicho e esbarra noutro, o **pisão ganha**:
+quem estava no ataque não leva dano, do jeito que os platformers antigos sempre
+fizeram.
 
 ## Como o herói se move
 
@@ -96,6 +138,8 @@ O mapa é um tilemap: quadrados de 32×32 px escritos como texto dentro do
 | `o` | moeda (fica no meio do quadrado, 16×24 px) |
 | `?` | bloco quebrável (tem um cristal dentro) |
 | `C` | checkpoint (o herói renasce nele depois de aceso) |
+| `g` | goomba (patrulha a plataforma abaixo da letra) |
+| `t` | turtle (mesma coisa, mas vira casco quando é pisada) |
 | `P` | onde o herói nasce |
 | `F` | a bandeira do fim |
 
@@ -139,6 +183,15 @@ câmera, para dar sensação de distância.
   resumo do que aconteceu (moedas pegas, bloco quebrado, pontos). Quando nada
   acontece devolve o mesmo objeto, sem alocar nada. É esse desenho que vai
   deixar o anfitrião mandar o mundo pronto para os convidados no multijogador.
+- **Os inimigos são mais um estado puro** (`Inimigos`), no mesmo molde: o mapa
+  diz onde cada bicho nasceu, o estado diz onde ele está agora e como está
+  (`vivo`, `casco` ou `morto`). `Inimigos.passo()` faz a patrulha e resolve o
+  contato de uma vez, devolvendo um estado novo mais o resumo (quem foi
+  derrotado, quantos pontos, se houve dano, se o herói quica).
+- **Pisão é decidido pela altura dos pés, não pela direção da colisão:** vale
+  como pisão quando o herói vinha descendo *e* os pés dele estavam, no quadro
+  anterior, acima da metade do bicho. É a regra clássica, e é ela que evita o
+  caso chato de "matei o goomba encostando de lado".
 - **As vidas e os checkpoints também são um estado à parte** (`Progresso`), com
   as mesmas regras: `tocar()` acende o checkpoint em que o herói encostou e
   `perderVida()` diz se é para renascer no checkpoint ou recomeçar a fase. Puras
@@ -171,4 +224,6 @@ node testes/super_adventure/fase3.test.mjs          # moedas, blocos quebráveis
 node testes/super_adventure/fase3-tela.test.mjs     # o placar e o HUD em tempo real
 node testes/super_adventure/fase4.test.mjs          # checkpoints e vidas
 node testes/super_adventure/fase4-tela.test.mjs     # cair, perder vida, voltar ao checkpoint
+node testes/super_adventure/fase5.test.mjs          # patrulha, pisão e dano dos bichos
+node testes/super_adventure/fase5-tela.test.mjs     # os inimigos dentro da partida
 ```

@@ -1,25 +1,29 @@
 /* ==========================================================================
    SUPER ADVENTURE  -  plataforma retro, no estilo dos consoles de 8 bits
    --------------------------------------------------------------------------
-   FASE 4 do plano: checkpoints, vidas e reinicio da fase.
+   FASE 5 do plano: inimigos (goomba e turtle) patrulhando a fase.
 
      - `Fisica`: as funcoes puras do movimento, com colisao AABB contra os
        blocos solidos do mapa (para em cima, nao atravessa, bate a cabeca).
      - `Mapa`: le um tilemap escrito como texto e devolve os retangulos
-       solidos, as moedas, os blocos quebraveis, os checkpoints, o ponto de
-       nascimento e a bandeira. Tambem e funcao pura.
+       solidos, as moedas, os blocos quebraveis, os checkpoints, os inimigos,
+       o ponto de nascimento e a bandeira. Tambem e funcao pura.
      - `Itens`: o que o heroi encosta e o que ele quebra. Tambem puro: recebe
        o estado dos itens e devolve um estado NOVO, com o que aconteceu.
      - `Progresso`: as vidas e os checkpoints. Cair custa uma vida e devolve o
        heroi ao ultimo checkpoint ligado; sem vidas, a fase inteira recomeca.
        Puro tambem.
+     - `Inimigos`: a patrulha do goomba e da turtle (ida e volta na plataforma,
+       2px por quadro) e o que acontece no contato: pisar em cima derrota
+       (+20 pontos; a turtle vira casco), encostar de frente custa uma vida.
+       Puro do mesmo jeito.
      - `Camera`: side-scroll, seguindo o heroi sem sair das bordas do mundo.
      - A fase 1 do jogo ja e um percurso de verdade: 120 colunas de 32px, com
        buracos, degraus, plataformas soltas, 100 moedas, 10 blocos quebraveis,
-       3 checkpoints e a bandeira no fim.
+       3 checkpoints, 4 inimigos e a bandeira no fim.
 
-   Nada disto usa imagem: tudo e retangulo pintado no Canvas 2D. Os inimigos,
-   as fases 2 e 3 e a rede chegam nas fases seguintes do plano.
+   Nada disto usa imagem: tudo e retangulo pintado no Canvas 2D. As fases 2 e 3
+   e a rede chegam nas fases seguintes do plano.
    ========================================================================== */
 
 (function () {
@@ -33,6 +37,7 @@
 
   // ---------------------------------------------------------- A pontuacao ---
   var PONTOS_MOEDA = 10;                  // cada moeda vale 10 pontos
+  var PONTOS_INIMIGO = 20;                // pisar num inimigo vale 20 pontos
   var VIDAS_INICIAIS = 3;                 // cada tentativa comeca com 3 vidas
   var TOTAL_FASES = 3;                    // o jogo completo tem 3 fases
 
@@ -246,6 +251,7 @@
          =  plataforma     P  onde o heroi nasce      F  a bandeira do fim
          o  moeda          ?  bloco quebravel (tem um cristal dentro)
          C  checkpoint (o heroi renasce nele depois de ligado)
+         g  goomba         t  turtle  (os dois patrulham a plataforma abaixo)
 
      `Mapa.ler()` transforma esse desenho nos retangulos solidos que a fisica
      usa. Blocos vizinhos de uma mesma linha viram UM retangulo so, o que deixa
@@ -321,6 +327,7 @@
         moedas: [],
         quebraveis: [],
         checkpoints: [],
+        inimigos: [],
         spawn: null,
         bandeira: null
       };
@@ -348,13 +355,21 @@
           if (ch === 'P') mapa.spawn = { x: c * TILE, y: r * TILE };
           if (ch === 'C') mapa.checkpoints.push(mastro(mapa, c, r));
           if (ch === 'F') mapa.bandeira = mastro(mapa, c, r);
+          if (ch === 'g' || ch === 't') {
+            mapa.inimigos.push({
+              tipo: ch === 'g' ? 'goomba' : 'turtle',
+              x: c * TILE, y: r * TILE
+            });
+          }
         }
       }
 
       // Na ordem do percurso: o checkpoint 0 e o primeiro que o heroi encontra
       // andando para a direita (o desenho e lido linha a linha, nao coluna a
-      // coluna, entao eles nao saem prontos da leitura).
+      // coluna, entao eles nao saem prontos da leitura). O mesmo vale para os
+      // inimigos, que ficam em linhas diferentes conforme a plataforma.
       mapa.checkpoints.sort(function (a, b) { return a.x - b.x; });
+      mapa.inimigos.sort(function (a, b) { return a.x - b.x; });
 
       // Os limites do mapa inteirinho, com todos os blocos quebraveis de pe.
       mapa.limites = limitesCom(mapa, null);
@@ -607,6 +622,223 @@
     };
   }());
 
+  // ----------------------------------------------------------- Os inimigos --
+  /* Os dois bichos do PRD, e o que acontece quando o heroi esbarra neles.
+
+     O mapa diz ONDE cada inimigo nasce (a letra `g` ou `t`); o "estado dos
+     inimigos" diz onde eles estao agora e como estao:
+
+         { lista: [ { tipo: 'goomba'|'turtle',
+                      x, y, vx, vy,
+                      estado: 'vivo' | 'casco' | 'morto' } ] }
+
+     A patrulha e simples e sempre na mesma velocidade (2px por quadro): o
+     bicho anda para um lado ate achar uma parede, a beirada da plataforma ou a
+     ponta do mundo, e ai vira. Ele nao cai de bobeira, mas TEM gravidade - se
+     o chao sumir debaixo dele (um bloco quebravel, por exemplo), ele despenca
+     ate pousar no proximo solido.
+
+     No contato valem as duas regras do PRD:
+
+       - pisar em cima (o heroi vinha descendo e os pes estavam acima da
+         metade do bicho) DERROTA: +20 pontos e o heroi quica. O goomba some
+         de vez ('morto'); a turtle vira 'casco' - fica no lugar, virou
+         enfeite, nao anda nem machuca mais. Nenhum dos dois volta na partida.
+       - encostar de qualquer outro jeito custa uma vida.
+
+     Se no mesmo quadro o heroi pisa num bicho e encosta noutro, o pisao ganha:
+     quem estava no ataque nao leva dano - do jeito que os platformers antigos
+     sempre fizeram.
+
+     Como todo o resto por aqui, nada disto mexe no estado recebido. */
+  var Inimigos = (function () {
+
+    var LARG = 32, ALT = 32;              // goomba e turtle ocupam um quadrado
+    var CASCO_A = 20;                     // o casco e mais baixo que a turtle
+    var VEL = 2;                          // 2px por quadro, para sempre
+    var NADA = [];
+
+    /** O retangulo que o inimigo ocupa no mundo (o casco e mais baixinho). */
+    function retangulo(ini) {
+      var a = ini.estado === 'casco' ? CASCO_A : ALT;
+      return { x: ini.x, y: ini.y + (ALT - a), l: LARG, a: a };
+    }
+
+    /** Um bicho novinho, no lugar em que o mapa plantou ele, andando para a
+        esquerda (e como os platformers de 8 bits sempre soltaram os seus). */
+    function novo(molde) {
+      return {
+        tipo: molde.tipo, x: molde.x, y: molde.y,
+        vx: -VEL, vy: 0, estado: 'vivo'
+      };
+    }
+
+    /** O estado do comeco da fase: todos vivos, cada um no seu lugar. */
+    function novoEstado(mapa) {
+      var lista = [];
+      for (var i = 0; i < mapa.inimigos.length; i++) lista.push(novo(mapa.inimigos[i]));
+      return { lista: lista };
+    }
+
+    /** Quantos inimigos estao naquela situacao ('vivo' se nao disser outra). */
+    function quantos(estado, situacao) {
+      var alvo = situacao || 'vivo', n = 0;
+      for (var i = 0; i < estado.lista.length; i++) {
+        if (estado.lista[i].estado === alvo) n++;
+      }
+      return n;
+    }
+
+    /** Andar para `x` esbarraria num solido? */
+    function parede(x, y, solidos) {
+      for (var i = 0; i < solidos.length; i++) {
+        var s = solidos[i];
+        if (y + ALT <= s.y || y >= s.y + s.a) continue;      // outra altura
+        if (x + LARG <= s.x || x >= s.x + s.l) continue;     // nao encostou
+        return true;
+      }
+      return false;
+    }
+
+    /** Tem chao debaixo da ponta da frente, ou o proximo passo e no vazio? */
+    function chaoAFrente(x, y, vx, solidos) {
+      var ponta = vx > 0 ? x + LARG - 1 : x;
+      var pes = y + ALT;
+      for (var i = 0; i < solidos.length; i++) {
+        var s = solidos[i];
+        if (ponta < s.x || ponta >= s.x + s.l) continue;
+        if (Math.abs(pes - s.y) > 0.5) continue;             // nao e o piso dele
+        return true;
+      }
+      return false;
+    }
+
+    /** A superficie mais alta que os pes cruzaram indo de `yAntes` a `y`. */
+    function pouso(x, yAntes, y, solidos) {
+      var achado = Infinity;
+      for (var i = 0; i < solidos.length; i++) {
+        var s = solidos[i];
+        if (x + LARG <= s.x || x >= s.x + s.l) continue;
+        if (yAntes + ALT > s.y) continue;                    // ja estava abaixo
+        if (y + ALT < s.y) continue;                         // ainda nao chegou
+        achado = Math.min(achado, s.y - ALT);
+      }
+      return achado;
+    }
+
+    /** Um quadro de patrulha de um bicho so. Funcao pura. */
+    function andarUm(ini, limites) {
+      if (ini.estado === 'morto') return ini;
+      var solidos = limites.solidos;
+      var vx = ini.estado === 'casco' ? 0 : ini.vx;          // casco nao anda
+      var x = ini.x;
+
+      if (vx !== 0) {
+        x = ini.x + vx;
+        var noChao = ini.vy === 0;
+        if (x < limites.esquerda || x + LARG > limites.direita) vx = -vx;
+        else if (parede(x, ini.y, solidos)) vx = -vx;
+        else if (noChao && !chaoAFrente(x, ini.y, vx, solidos)) vx = -vx;
+        if (vx !== ini.vx) x = ini.x;                        // vira sem sair do lugar
+      }
+
+      var y = ini.y + ini.vy;
+      var vy = Math.min(ini.vy + GRAVIDADE, VEL_Y_MAX);
+      if (ini.vy >= 0) {
+        var chao = pouso(x, ini.y, y, solidos);
+        if (chao < Infinity) { y = chao; vy = 0; }
+      }
+
+      return { tipo: ini.tipo, x: x, y: y, vx: vx, vy: vy, estado: ini.estado };
+    }
+
+    /** Um quadro de patrulha de todos eles. */
+    function andar(estado, limites) {
+      var lista = [];
+      for (var i = 0; i < estado.lista.length; i++) {
+        lista.push(andarUm(estado.lista[i], limites));
+      }
+      return { lista: lista };
+    }
+
+    /** O heroi caiu em cima deste bicho neste quadro? */
+    function pisou(antes, depois, ini) {
+      if (depois.y <= antes.y) return false;                 // nao vinha descendo
+      var alvo = retangulo(ini);
+      return antes.y + HEROI_A <= alvo.y + alvo.a / 2;       // os pes vinham de cima
+    }
+
+    /**
+     * O contato do heroi com os bichos, entre o corpo do quadro passado
+     * (`antes`) e o deste quadro (`depois`). Devolve:
+     *   { estado, derrotados: [indices], pontos, dano, quique }
+     * Sem contato nenhum, devolve o MESMO estado.
+     */
+    function contato(estado, antes, depois) {
+      var eu = Fisica.retangulo(depois);
+      var lista = null, derrotados = null, pontos = 0, dano = false;
+
+      for (var i = 0; i < estado.lista.length; i++) {
+        var ini = estado.lista[i];
+        if (ini.estado !== 'vivo') continue;                 // casco/morto nao contam
+        if (!Fisica.tocando(eu, retangulo(ini))) continue;
+
+        if (!pisou(antes, depois, ini)) { dano = true; continue; }
+
+        lista = lista || estado.lista.slice();
+        lista[i] = {
+          tipo: ini.tipo, x: ini.x, y: ini.y, vx: 0, vy: ini.vy,
+          estado: ini.tipo === 'turtle' ? 'casco' : 'morto'
+        };
+        (derrotados = derrotados || []).push(i);
+        pontos += PONTOS_INIMIGO;
+      }
+
+      if (!lista) {
+        return { estado: estado, derrotados: NADA, pontos: 0, dano: dano, quique: false };
+      }
+      // Quem pisou nao leva dano no mesmo quadro.
+      return {
+        estado: { lista: lista }, derrotados: derrotados,
+        pontos: pontos, dano: false, quique: true
+      };
+    }
+
+    /** Patrulha + contato, o passo que o jogo chama a cada quadro. */
+    function passo(estado, limites, antes, depois) {
+      return contato(andar(estado, limites), antes, depois);
+    }
+
+    /**
+     * O heroi voltou ao checkpoint: os bichos ainda vivos voltam para onde
+     * nasceram (senao o heroi renasceria com um deles no colo). Quem ja foi
+     * derrotado continua derrotado - isso nao volta atras na partida.
+     */
+    function reposicionar(estado, mapa) {
+      var lista = [];
+      for (var i = 0; i < estado.lista.length; i++) {
+        var ini = estado.lista[i];
+        lista.push(ini.estado === 'vivo' ? novo(mapa.inimigos[i]) : ini);
+      }
+      return { lista: lista };
+    }
+
+    return {
+      novoEstado: novoEstado,
+      retangulo: retangulo,
+      quantos: quantos,
+      andar: andar,
+      contato: contato,
+      passo: passo,
+      pisou: pisou,
+      reposicionar: reposicionar,
+      medidas: {
+        LARG: LARG, ALT: ALT, CASCO_A: CASCO_A,
+        VEL: VEL, PONTOS: PONTOS_INIMIGO
+      }
+    };
+  }());
+
   // ------------------------------------------------------------- A camera ---
   /* Side-scroll: a camera anda so na horizontal, centrada no heroi, e trava
      nas duas pontas do mundo para nunca mostrar o lado de fora do mapa. */
@@ -626,6 +858,13 @@
   // coluna 29 (passado o primeiro buraco), coluna 63 (do outro lado do vao do
   // planalto) e coluna 87 (passado o buraco das colunas 84-85). Assim quem cai
   // volta perto de onde errou, sem refazer a fase inteira.
+  //
+  // Os quatro inimigos ficam cada um no seu trecho, longe dos checkpoints (para
+  // ninguem renascer com um bicho no colo) e longe do comeco (a primeira parte
+  // da fase e so de aquecimento): goomba na coluna 47 (o pedacinho de chao
+  // entre o buraco e o planalto), turtle na coluna 50 (em cima do planalto),
+  // goomba na coluna 74 e turtle na coluna 102. Cada um patrulha o trecho
+  // inteiro em que nasceu, virando na parede ou na beirada.
   var FASE_1 = [
     '........................................................................................................................',
     '........................................................................................................................',
@@ -638,9 +877,9 @@
     '........................................................................................................................',
     '......................................................???..........................................................F....',
     '................................oooo..........ooo.........oo.ooC..oo......oooo.............ooo..........ooo.............',
-    '..............???.........oo....====.....oo...===..ooooooooo....ooooo..??.====......oo.....===..oo..??..===.............',
+    '..............???.........oo....====.....oo...===.tooooooooo....ooooo..??.====......oo.....===..oo..??..===.............',
     '.........ooo..ooo........o..oC...oo.....o..o..ooo.###########..#######.oo..........o..oC.......o..o.oo..........oo..oo..',
-    '..P..ooo..........ooo.oo......oo.....ooo....oo....###########..#######.........ooo......ooo.................oooo....ooo.',
+    '..P..ooo..........ooo.oo......oo.....ooo....oo.g..###########..#######....g....ooo......ooo...........t.....oooo....ooo.',
     '##########################..#############..##################..#####################..##########..######################',
     '##########################..#############..##################..#####################..##########..######################',
     '##########################..#############..##################..#####################..##########..######################'
@@ -656,13 +895,15 @@
       Mapa: Mapa,
       Itens: Itens,
       Progresso: Progresso,
+      Inimigos: Inimigos,
       Camera: Camera,
       FASE_1: FASE_1,
       fase: fase,
       mundo: {
         LARGURA: LARGURA, ALTURA: ALTURA, CHAO_Y: CHAO_Y, TILE: TILE,
         LARGURA_MUNDO: fase.largura, PASSO_MS: PASSO_MS,
-        PONTOS_MOEDA: PONTOS_MOEDA, VIDAS_INICIAIS: VIDAS_INICIAIS,
+        PONTOS_MOEDA: PONTOS_MOEDA, PONTOS_INIMIGO: PONTOS_INIMIGO,
+        VIDAS_INICIAIS: VIDAS_INICIAIS,
         TOTAL_FASES: TOTAL_FASES
       },
       LIMITES_PADRAO: LIMITES_PADRAO
@@ -682,7 +923,14 @@
     m: '#a02000',   // boca
     b: '#0058f8',   // macacao
     y: '#fcd800',   // fivela
-    k: '#503000'    // botas
+    k: '#503000',   // botas
+    n: '#8b4a10',   // goomba: contorno
+    f: '#c07038',   // goomba: cogumelo
+    w: '#fcfcfc',   // o branco dos olhos
+    c: '#a85400',   // goomba: pes
+    v: '#189818',   // turtle: contorno do casco
+    l: '#58d854',   // turtle: casco
+    a: '#f8b800'    // turtle: cabeca e patas
   };
 
   // O heroi: 16x16 quadradinhos de 2px = 32x32 pixels na tela.
@@ -743,6 +991,106 @@
     '..kkkkk..kkkkk..',
     '..kkkkk..kkkkk..',
     '................'
+  ];
+
+  // ----- Os inimigos, tambem 16x16 quadradinhos de 2px. O goomba e um
+  // cogumelo emburrado; a turtle e um casco verde com a cabeca de fora. Os dois
+  // andam alternando dois quadros (o que muda e o pe que esta na frente), e o
+  // casco e o mesmo desenho do casco da turtle, sem cabeca e sem patas,
+  // encostado no chao (por isso ele comeca so na linha 6).
+  var GOOMBA_A = [
+    '................',
+    '................',
+    '.....nnnnnn.....',
+    '...nnffffffnn...',
+    '..nffffffffffn..',
+    '.nffffffffffffn.',
+    '.nffwwffffwwffn.',
+    '.nffweffffewffn.',
+    '.nffwwffffwwffn.',
+    '.nffffffffffffn.',
+    '.nnffffffffffnn.',
+    '..nnffffffffnn..',
+    '...nnnnnnnnnn...',
+    '..cc........cc..',
+    '.cccc......cccc.',
+    '.cccc......cccc.'
+  ];
+
+  var GOOMBA_B = [
+    '................',
+    '................',
+    '.....nnnnnn.....',
+    '...nnffffffnn...',
+    '..nffffffffffn..',
+    '.nffffffffffffn.',
+    '.nffwwffffwwffn.',
+    '.nffweffffewffn.',
+    '.nffwwffffwwffn.',
+    '.nffffffffffffn.',
+    '.nnffffffffffnn.',
+    '..nnffffffffnn..',
+    '...nnnnnnnnnn...',
+    '.cc..........cc.',
+    'cccc........cccc',
+    'cccc........cccc'
+  ];
+
+  var TURTLE_A = [
+    '................',
+    '.....vvvvvv.....',
+    '...vvllllllvv...',
+    '..vllllllllllv..',
+    '..vllvvllvvllv..',
+    '.vlllvllllvlllva',
+    '.vllllvvvvllllaa',
+    '.vllllllllllllae',
+    '..vllllllllllvaa',
+    '...vvllllllvv.a.',
+    '.....vvvvvv.....',
+    '................',
+    '................',
+    '................',
+    '..aaa......aaa..',
+    '..aaa......aaa..'
+  ];
+
+  var TURTLE_B = [
+    '................',
+    '.....vvvvvv.....',
+    '...vvllllllvv...',
+    '..vllllllllllv..',
+    '..vllvvllvvllv..',
+    '.vlllvllllvlllva',
+    '.vllllvvvvllllaa',
+    '.vllllllllllllae',
+    '..vllllllllllvaa',
+    '...vvllllllvv.a.',
+    '.....vvvvvv.....',
+    '................',
+    '................',
+    '................',
+    '.aaa........aaa.',
+    '.aaa........aaa.'
+  ];
+
+  var CASCO = [
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '.....vvvvvv.....',
+    '...vvllllllvv...',
+    '..vllllllllllv..',
+    '..vllvvllvvllv..',
+    '.vlllvllllvlllv.',
+    '.vllllvvvvllllv.',
+    '.vllllllllllllv.',
+    '..vllllllllllv..',
+    '...vvllllllvv...',
+    '.....vvvvvv.....'
   ];
 
   var $ = function (id) { return document.getElementById(id); };
@@ -936,8 +1284,32 @@
     }
   }
 
+  // ----- Os inimigos: quem foi derrotado nao e pintado (o goomba some; a
+  // turtle vira casco e continua na tela, so que quietinha). Os dois quadros da
+  // caminhada se alternam sozinhos com o relogio da partida.
+  function desenharInimigo(ini, cam, quadro) {
+    var alterna = ((quadro / 9) | 0) % 2;
+    var arte;
+    if (ini.estado === 'casco') arte = CASCO;
+    else if (ini.tipo === 'turtle') arte = alterna ? TURTLE_B : TURTLE_A;
+    else arte = alterna ? GOOMBA_B : GOOMBA_A;
+    // A turtle olha para onde anda; o goomba e simetrico, tanto faz.
+    sprite(arte, ini.x - cam, ini.y, 2, ini.vx > 0);
+  }
+
+  function desenharInimigos(cam) {
+    var lista = jogo.inimigos.lista;
+    for (var i = 0; i < lista.length; i++) {
+      var ini = lista[i];
+      if (ini.estado === 'morto') continue;
+      if (!naTela(Inimigos.retangulo(ini), cam)) continue;
+      desenharInimigo(ini, cam, jogo.relogio);
+    }
+  }
+
   // ----- Efeitos: duram poucos quadros e nao mexem em nada do mundo.
   var EFEITO_MOEDA = 20, EFEITO_CRISTAL = 34, EFEITO_CHECKPOINT = 30;
+  var EFEITO_INIMIGO = 24;
 
   function desenharEfeitoMoeda(x, y, t) {
     var d = 4 + t;                                   // as faiscas se abrindo
@@ -968,6 +1340,15 @@
     }
   }
 
+  function desenharEfeitoInimigo(x, y, t) {
+    for (var i = 0; i < 6; i++) {                    // a poeira do pisao subindo
+      var angulo = (i / 6) * Math.PI * 2 + t * 0.1;
+      var raio = 6 + t * 1.4;
+      bloco(x + Math.cos(angulo) * raio - 2, y + Math.sin(angulo) * raio * 0.5 - t,
+            4, 4, i % 2 ? '#fcfcfc' : '#f8b800');
+    }
+  }
+
   function desenharEfeitos(cam) {
     for (var i = 0; i < jogo.efeitos.length; i++) {
       var f = jogo.efeitos[i];
@@ -976,6 +1357,7 @@
       var t = f.total - f.vida;                      // quadros desde que nasceu
       if (f.tipo === 'moeda') desenharEfeitoMoeda(x, f.y, t);
       else if (f.tipo === 'checkpoint') desenharEfeitoCheckpoint(x, f.y, t);
+      else if (f.tipo === 'inimigo') desenharEfeitoInimigo(x, f.y, t);
       else desenharEfeitoCristal(x, f.y, t);
     }
   }
@@ -1002,6 +1384,7 @@
     desenharItens(cam);
     desenharCheckpoints(cam);
     desenharBandeira(cam);
+    desenharInimigos(cam);
 
     var arte;
     if (!jogo.heroi.noChao) arte = HEROI_PULANDO;
@@ -1027,6 +1410,7 @@
     heroi: Fisica.novoCorpo(fase.spawn.x, fase.spawn.y),
     itens: Itens.novoEstado(fase),      // quais moedas/blocos ainda existem
     progresso: Progresso.novoEstado(fase),   // vidas e checkpoints ligados
+    inimigos: Inimigos.novoEstado(fase),     // onde os bichos estao e como estao
     efeitos: [],                        // faiscas e cristais, so enfeite
     eventos: []                         // os ultimos avisos (para os testes)
   };
@@ -1035,8 +1419,8 @@
   var ouvintes = [];
 
   /* Avisa quem estiver escutando. Os avisos de hoje:
-       'moeda', 'bloco-quebrado', 'checkpoint', 'queda', 'vida-perdida',
-       'fase-reiniciada', 'fase-concluida'. */
+       'moeda', 'bloco-quebrado', 'checkpoint', 'inimigo-derrotado', 'queda',
+       'dano', 'vida-perdida', 'fase-reiniciada', 'fase-concluida'. */
   function emitir(tipo) {
     var evento = { tipo: tipo, quadro: jogo.relogio };
     jogo.eventos.push(evento);
@@ -1101,6 +1485,7 @@
   function reiniciarFase() {
     aplicarProgresso(Progresso.novoEstado(fase));
     jogo.itens = Itens.novoEstado(fase);
+    jogo.inimigos = Inimigos.novoEstado(fase);
     jogo.pontos = 0;
     jogo.concluida = false;
     nascer();
@@ -1146,12 +1531,13 @@
     atualizarHud();
   }
 
-  /* Cair num buraco custa um coracao. Sobrando vida, o heroi volta ao ultimo
-     checkpoint ligado com as moedas que ja juntou; sem nenhuma, a tentativa
-     acaba e a fase inteira recomeca do zero. */
-  function cair() {
-    jogo.quedas++;
-    emitir('queda');
+  /* Perder um coracao - seja caindo num buraco, seja esbarrando de frente num
+     inimigo. Sobrando vida, o heroi volta ao ultimo checkpoint ligado com as
+     moedas que ja juntou (e os bichos que ainda estao vivos voltam para onde
+     nasceram); sem nenhuma, a tentativa acaba e a fase inteira recomeca do
+     zero. `motivo` e so o aviso que sai antes: 'queda' ou 'dano'. */
+  function perderVida(motivo) {
+    emitir(motivo);
 
     var r = Progresso.perderVida(jogo.progresso, fase);
     if (r.tipo === 'reinicio') {
@@ -1162,9 +1548,54 @@
     }
 
     aplicarProgresso(r.estado);
+    jogo.inimigos = Inimigos.reposicionar(jogo.inimigos, fase);
     nascer();
     atualizarHud();
     emitir('vida-perdida');
+  }
+
+  /** Cair num buraco: conta a queda e cobra o coracao. */
+  function cair() {
+    jogo.quedas++;
+    perderVida('queda');
+  }
+
+  /* O troco do pisao: o heroi sobe uns 60px, bem menos que o pulo inteiro. O
+     `subida` ja sai gasto de proposito, e o que segura essa altura menor. */
+  var QUIQUE = 9, QUIQUE_ALTURA = 60;
+
+  function quicar(corpo) {
+    return {
+      x: corpo.x, y: corpo.y, vx: corpo.vx, vy: -QUIQUE,
+      noChao: false,
+      subida: ALTURA_MAX_PULO - QUIQUE_ALTURA,
+      pularPreso: corpo.pularPreso,
+      direcao: corpo.direcao,
+      andando: false
+    };
+  }
+
+  /* Um quadro dos inimigos: eles patrulham e, se encostaram no heroi, o
+     resultado sai daqui. Devolve `true` quando o contato custou uma vida - o
+     `atualizar()` para o quadro por ali, porque o mundo ja mudou de lugar. */
+  function atualizarInimigos(antes) {
+    var r = Inimigos.passo(jogo.inimigos, jogo.itens.limites, antes, jogo.heroi);
+    jogo.inimigos = r.estado;
+
+    if (r.derrotados.length) {
+      jogo.pontos += r.pontos;
+      for (var i = 0; i < r.derrotados.length; i++) {
+        var ini = r.estado.lista[r.derrotados[i]];
+        soltarEfeito('inimigo', Inimigos.retangulo(ini), EFEITO_INIMIGO);
+        emitir('inimigo-derrotado');
+      }
+      jogo.heroi = quicar(jogo.heroi);
+      atualizarHud();
+    }
+
+    if (!r.dano) return false;
+    perderVida('dano');
+    return true;
   }
 
   /* Encostou num checkpoint apagado? Ele acende - e fica aceso ate o fim da
@@ -1192,6 +1623,7 @@
     }
 
     atualizarItens(antes);
+    if (atualizarInimigos(antes)) return;              // o contato custou uma vida
     atualizarCheckpoints();
 
     if (Fisica.tocandoCorpo(jogo.heroi, fase.bandeira)) {

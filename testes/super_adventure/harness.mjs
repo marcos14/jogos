@@ -176,6 +176,83 @@ export function carregarJogoComTela(slug = 'super_adventure') {
   return dom;
 }
 
+/* --------------------------------------------------------------------------
+   O piloto automatico: um "jogador" de mentira que atravessa a fase 1 sozinho.
+   Ele segura a direita e pula quando bate numa parede ou quando o chao acaba
+   na coluna da frente.
+
+   Desde a fase 5 ele tambem sabe lidar com bicho: vendo um inimigo vivo a
+   frente, na mesma altura, ele PARA de andar e espera - e quando o bicho chega
+   perto, pula parado, caindo bem em cima dele (o pisao que vale 20 pontos).
+   Parar em vez de correr para cima e o que evita as duas maneiras bobas de
+   levar dano: esbarrar de lado num bicho que vem andando, e pular um buraco
+   para aterrissar bem ao lado de um que estava do outro lado.
+
+   Quem esta no ar nao muda de ideia: a decisao de andar so e revista com os
+   pes no chao, senao soltar a seta no meio do pulo derrubaria o heroi dentro
+   do buraco que ele estava justamente atravessando.
+   -------------------------------------------------------------------------- */
+export function criarPiloto(dom) {
+  const { Fisica, Mapa, Inimigos, fase } = dom.api;
+  const M = Fisica.medidas;
+  const T = M.TILE;
+  const jogo = dom.api.jogo;
+
+  const VISTA = 6 * T;        // ate onde o piloto repara num bicho
+  const PISAO = 1.5 * T;      // a distancia em que pular acerta o pisao
+
+  /** O bicho vivo mais proximo a frente, na mesma altura (ou `null`). */
+  function bichoAFrente() {
+    const h = jogo.heroi;
+    const lista = jogo.inimigos.lista;
+    let perto = null;
+
+    for (let i = 0; i < lista.length; i++) {
+      const ini = lista[i];
+      if (ini.estado !== 'vivo') continue;          // casco e morto nao mordem
+      const r = Inimigos.retangulo(ini);
+      const dx = r.x - (h.x + M.HEROI_L);
+      if (dx < -M.HEROI_L || dx > VISTA) continue;  // atras, ou longe demais
+      if (Math.abs(r.y - h.y) > T) continue;        // noutro andar da fase
+      if (!perto || dx < perto.dx) perto = { dx, ini };
+    }
+    return perto;
+  }
+
+  /** Corre para a direita ate `pronto()` dizer que chegou (ou desistir). */
+  return function correrAte(pronto, maxQuadros = 3000) {
+    let quadros = 0, xAnterior = -1, pulando = false, andando = true;
+
+    while (!pronto() && quadros < maxQuadros) {
+      const h = jogo.heroi;
+      let pular = false;
+
+      if (h.noChao) {
+        const bicho = bichoAFrente();
+        if (bicho) {
+          andando = false;                          // encara e espera ele vir
+          pular = bicho.dx <= PISAO;
+        } else {
+          const coluna = Math.floor((h.x + M.HEROI_L) / T);
+          const linha = Math.round((h.y + M.HEROI_A) / T);
+          andando = true;
+          pular = !Mapa.solido(fase, coluna, linha) || h.x === xAnterior;
+        }
+      }
+
+      dom.tecla('ArrowRight', andando);
+      dom.tecla(' ', pular && !pulando);
+      pulando = pular;
+      xAnterior = andando ? h.x : -1;               // parado nao conta parede
+      dom.avancarQuadros(1);
+      quadros++;
+    }
+
+    ['ArrowLeft', 'ArrowRight', ' '].forEach((t) => dom.tecla(t, false));
+    return quadros;
+  };
+}
+
 /** Le e devolve o jogo.json de um jogo. */
 export function lerJogoJson(slug = 'super_adventure') {
   return JSON.parse(

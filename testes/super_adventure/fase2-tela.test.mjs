@@ -16,10 +16,10 @@
    ========================================================================== */
 
 import assert from 'node:assert/strict';
-import { carregarJogoComTela, teste, fim } from './harness.mjs';
+import { carregarJogoComTela, criarPiloto, teste, fim } from './harness.mjs';
 
 const dom = carregarJogoComTela('super_adventure');
-const { Fisica, Mapa, Camera, fase, mundo } = dom.api;
+const { Fisica, Camera, fase, mundo } = dom.api;
 const M = Fisica.medidas;
 const T = M.TILE;
 
@@ -35,37 +35,10 @@ function soltarTudo() {
   ['ArrowLeft', 'ArrowRight', ' '].forEach((t) => dom.tecla(t, false));
 }
 
-/**
- * Piloto automatico: segura a direita e pula quando bate numa parede ou
- * quando o chao acaba na coluna da frente. Roda ate a bandeira (ou desistir).
- */
-function jogarSozinho(maxQuadros) {
-  let quadros = 0, xAnterior = -1, pulando = false;
-  dom.tecla('ArrowRight', true);
-
-  while (!jogo.concluida && quadros < maxQuadros) {
-    const h = heroi();
-    const colunaAFrente = Math.floor((h.x + M.HEROI_L) / T);
-    const linhaDosPes = Math.round((h.y + M.HEROI_A) / T);
-    const buracoAFrente = !Mapa.solido(fase, colunaAFrente, linhaDosPes);
-    const parede = h.x === xAnterior;
-
-    if (h.noChao && (buracoAFrente || parede) && !pulando) {
-      dom.tecla(' ', true);
-      pulando = true;
-    } else if (pulando) {
-      dom.tecla(' ', false);
-      pulando = false;
-    }
-
-    xAnterior = h.x;
-    dom.avancarQuadros(1);
-    quadros++;
-  }
-
-  soltarTudo();
-  return quadros;
-}
+/* O piloto automatico do harness: segura a direita e pula na parede, no
+   buraco e nos inimigos. Roda ate a bandeira (ou desistir). */
+const correrAte = criarPiloto(dom);
+const jogarSozinho = (maxQuadros) => correrAte(() => jogo.concluida, maxQuadros);
 
 console.log('Super Adventure - fase 2 (tela)\n');
 
