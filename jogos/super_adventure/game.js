@@ -1,7 +1,8 @@
 /* ==========================================================================
    SUPER ADVENTURE  -  plataforma retro, no estilo dos consoles de 8 bits
    --------------------------------------------------------------------------
-   FASE 6a do plano: as tres fases do PRD, com dificuldade progressiva.
+   FASE 6b do plano: a corrida completa - as tres fases em ordem fixa e a
+   tela de parabens no fim.
 
      - `Fisica`: as funcoes puras do movimento, com colisao AABB contra os
        blocos solidos do mapa (para em cima, nao atravessa, bate a cabeca).
@@ -21,6 +22,8 @@
        desenhado no tilemap, param um instante em cada ponta e CARREGAM quem
        estiver em cima. Pura tambem.
      - `Camera`: side-scroll, seguindo o heroi sem sair das bordas do mundo.
+     - `Corrida`: o caderninho da partida solo - quanto cada fase rendeu, o
+       bonus de bandeira e qual e a proxima. So anda para a frente. Puro.
      - As tres fases do PRD, cada uma um degrau mais dificil que a anterior:
 
          fase 1  facil   120 colunas, 100 moedas, 4 bichos a 2px/quadro
@@ -31,8 +34,13 @@
                          PERSEGUEM o heroi quando o veem, tres plataformas
                          moveis sobre vaos e um elevador
 
-   Nada disto usa imagem: tudo e retangulo pintado no Canvas 2D. A sequencia
-   das fases, a tela de parabens e a rede chegam nas fases seguintes do plano.
+   A partida solo e uma corrida fixa fase 1 -> 2 -> 3, sem volta: cada bandeira
+   fecha a fase (+50 pontos de bonus) e abre a proxima; a bandeira da fase 3
+   fecha a corrida e traz a tela de PARABENS, com os pontos fase a fase e o
+   total. "Jogar novamente" comeca tudo do zero, da fase 1.
+
+   Nada disto usa imagem: tudo e retangulo pintado no Canvas 2D. A pausa, a
+   tela cheia e a rede chegam nas fases seguintes do plano.
    ========================================================================== */
 
 (function () {
@@ -47,6 +55,7 @@
   // ---------------------------------------------------------- A pontuacao ---
   var PONTOS_MOEDA = 10;                  // cada moeda vale 10 pontos
   var PONTOS_INIMIGO = 20;                // pisar num inimigo vale 20 pontos
+  var PONTOS_BANDEIRA = 50;               // chegar na bandeira vale 50 de bonus
   var VIDAS_INICIAIS = 3;                 // cada tentativa comeca com 3 vidas
   var TOTAL_FASES = 3;                    // o jogo completo tem 3 fases
 
@@ -1098,6 +1107,60 @@
     return { seguir: seguir };
   }());
 
+  // ------------------------------------------------------------- A corrida --
+  /* Uma "corrida" e a partida solo inteira: as tres fases do PRD na ordem
+     fixa 1 -> 2 -> 3, sem volta (regra de negocio 4). Este modulo e so o
+     caderninho dela - nao sabe desenhar nem ouvir teclado:
+
+         { fase: 1,          // a fase que esta em jogo agora
+           fases: [],        // uma linha por fase ja concluida
+           total: 0,         // a soma de todas as linhas
+           terminada: false} // ja passou a bandeira da fase 3?
+
+     Cada linha guarda o que a fase rendeu:
+
+         { numero: 1, pontos: 430, bonus: 50, total: 480 }
+
+     `pontos` sao as moedas e os bichos daquela fase (o mesmo numero que estava
+     no HUD na hora da bandeira) e `bonus` e o premio fixo de chegar na
+     bandeira. Puro como o resto: `concluir()` devolve um estado NOVO. */
+  var Corrida = (function () {
+
+    /** O comeco de tudo: fase 1, caderno em branco. */
+    function novoEstado() {
+      return { fase: 1, fases: [], total: 0, terminada: false };
+    }
+
+    /**
+     * Fecha a fase `numero` com os `pontos` que ela rendeu e abre a proxima.
+     * Na fase 3 nao ha proxima: a corrida termina e a tela de parabens usa
+     * `fases` e `total` para montar o resumo.
+     */
+    function concluir(estado, numero, pontos) {
+      var linha = {
+        numero: numero,
+        pontos: pontos,
+        bonus: PONTOS_BANDEIRA,
+        total: pontos + PONTOS_BANDEIRA
+      };
+      var ultima = numero >= TOTAL_FASES;
+      return {
+        // Nunca para tras: ou anda uma fase, ou para na ultima.
+        fase: ultima ? TOTAL_FASES : numero + 1,
+        fases: estado.fases.concat([linha]),
+        total: estado.total + linha.total,
+        terminada: ultima
+      };
+    }
+
+    return {
+      novoEstado: novoEstado,
+      concluir: concluir,
+      PONTOS_BANDEIRA: PONTOS_BANDEIRA,
+      TOTAL_FASES: TOTAL_FASES
+    };
+  }());
+
   // ------------------------------------------------------ O mapa da fase 1 --
   // Facil: chao quase todo continuo, buracos de 2 quadrados, degraus de 2 e
   // algumas plataformas soltas para quem quiser subir. A bandeira fica no fim.
@@ -1223,6 +1286,7 @@
       Inimigos: Inimigos,
       Moveis: Moveis,
       Camera: Camera,
+      Corrida: Corrida,
       FASE_1: FASE_1,
       FASE_2: FASE_2,
       FASE_3: FASE_3,
@@ -1233,6 +1297,7 @@
         LARGURA: LARGURA, ALTURA: ALTURA, CHAO_Y: CHAO_Y, TILE: TILE,
         LARGURA_MUNDO: fase.largura, PASSO_MS: PASSO_MS,
         PONTOS_MOEDA: PONTOS_MOEDA, PONTOS_INIMIGO: PONTOS_INIMIGO,
+        PONTOS_BANDEIRA: PONTOS_BANDEIRA,
         VIDAS_INICIAIS: VIDAS_INICIAIS,
         TOTAL_FASES: TOTAL_FASES
       },
@@ -1434,13 +1499,20 @@
     palco: $('palco'),
     hud: $('hud'),
     menu: $('tela-menu'),
+    telaFase: $('tela-fase'),
     fim: $('tela-fim'),
     btnSolo: $('btn-solo'),
+    btnProxima: $('btn-proxima'),
     btnDeNovo: $('btn-de-novo'),
     pontos: $('hud-pontos'),
     vidas: $('hud-vidas'),
     fase: $('hud-fase'),
-    pontosFim: $('fim-pontos')
+    faseNumero: $('fase-numero'),
+    fasePontos: $('fase-pontos'),
+    faseBonus: $('fase-bonus'),
+    faseProxima: $('fase-proxima'),
+    fimLinhas: [$('fim-fase-1'), $('fim-fase-2'), $('fim-fase-3')],
+    fimTotal: $('fim-total')
   };
 
   function bloco(x, y, l, a, cor) {
@@ -1772,6 +1844,7 @@
     pontos: 0,                          // o placar que aparece no HUD
     vidas: VIDAS_INICIAIS,              // copia de `progresso.vidas`, para o HUD
     fase: 1,                            // a fase 1 de 3
+    corrida: Corrida.novoEstado(),      // o caderninho das tres fases
     heroi: Fisica.novoCorpo(fase.spawn.x, fase.spawn.y),
     itens: Itens.novoEstado(fase),      // quais moedas/blocos ainda existem
     progresso: Progresso.novoEstado(fase),   // vidas e checkpoints ligados
@@ -1787,7 +1860,8 @@
 
   /* Avisa quem estiver escutando. Os avisos de hoje:
        'moeda', 'bloco-quebrado', 'checkpoint', 'inimigo-derrotado', 'queda',
-       'dano', 'vida-perdida', 'fase-reiniciada', 'fase-concluida'. */
+       'dano', 'vida-perdida', 'fase-reiniciada', 'fase-concluida',
+       'corrida-vencida'. */
   function emitir(tipo) {
     var evento = { tipo: tipo, quadro: jogo.relogio };
     jogo.eventos.push(evento);
@@ -1800,6 +1874,7 @@
   window.SuperAdventure.entrada = entrada;
   window.SuperAdventure.aoEvento = function (fn) { ouvintes.push(fn); };
   window.SuperAdventure.irParaFase = function (n) { irParaFase(n); };
+  window.SuperAdventure.avancarFase = function () { avancarFase(); };
 
   function centroDoHeroi() { return jogo.heroi.x + HEROI_L / 2; }
 
@@ -1859,14 +1934,14 @@
     jogo.pontos = 0;
     jogo.concluida = false;
     nascer();
-    el.fim.classList.add('hidden');
+    esconderTelas();
     atualizarHud();
   }
 
-  /* Troca a fase que esta em jogo (1, 2 ou 3) e comeca ela do zero. A ordem
-     fixa fase 1 -> 2 -> 3 e a tela de parabens chegam na fase 6b do plano;
-     por enquanto quem chama isto e o inicio da partida (sempre a fase 1) e os
-     testes, que precisam entrar nas fases novas para percorre-las. */
+  /* Carrega a fase 1, 2 ou 3 e comeca ela do zero. E o degrau de baixo: quem
+     manda na ORDEM e a corrida (`comecarSolo` abre na 1, `avancarFase` anda
+     uma), e ela nunca volta atras. Os testes chamam esta funcao direto para
+     entrar numa fase sem ter de jogar as anteriores. */
   function irParaFase(numero) {
     var n = Math.min(Math.max(numero | 0, 1), TOTAL_FASES);
     fase = mapas[n - 1];
@@ -1993,6 +2068,59 @@
     emitir('checkpoint');
   }
 
+  // --------------------------------------------------- As telas do fim -----
+  /* A bandeira fecha a fase. Nas fases 1 e 2 aparece o quadro "FASE N
+     CONCLUIDA", com o que ela rendeu e o botao que leva para a proxima; depois
+     da bandeira da fase 3 aparece o PARABENS, com a corrida fase a fase e o
+     total. As duas telas sao HTML por cima do canvas, como o menu. */
+  function esconderTelas() {
+    el.telaFase.classList.add('hidden');
+    el.fim.classList.add('hidden');
+  }
+
+  function mostrarFimDeFase(linha) {
+    el.faseNumero.textContent = String(linha.numero);
+    el.fasePontos.textContent = String(linha.pontos);
+    el.faseBonus.textContent = '+' + linha.bonus;
+    el.faseProxima.textContent = String(linha.numero + 1);
+    el.telaFase.classList.remove('hidden');
+  }
+
+  function mostrarParabens() {
+    var linhas = jogo.corrida.fases;
+    for (var i = 0; i < el.fimLinhas.length; i++) {
+      var linha = linhas[i];
+      el.fimLinhas[i].textContent = linha
+        ? linha.pontos + ' + ' + linha.bonus + ' = ' + linha.total
+        : '—';
+    }
+    el.fimTotal.textContent = String(jogo.corrida.total);
+    el.fim.classList.remove('hidden');
+  }
+
+  /* O botao "Proxima fase". A corrida so anda para a frente e so depois de uma
+     bandeira - clicar fora disso nao faz nada. */
+  function avancarFase() {
+    if (!jogo.concluida || jogo.corrida.terminada) return;
+    irParaFase(jogo.corrida.fase);
+  }
+
+  /* Encostou na bandeira: a fase entra no caderno com o bonus de +50 e o jogo
+     para (o `atualizar()` volta na primeira linha enquanto `concluida` for
+     verdade), esperando o clique que leva para a fase seguinte. */
+  function concluirFase() {
+    jogo.concluida = true;
+    jogo.corrida = Corrida.concluir(jogo.corrida, jogo.fase, jogo.pontos);
+    emitir('fase-concluida');
+
+    if (jogo.corrida.terminada) {
+      mostrarParabens();
+      emitir('corrida-vencida');
+      return;
+    }
+    mostrarFimDeFase(jogo.corrida.fases[jogo.corrida.fases.length - 1]);
+  }
+
   function atualizar() {
     if (jogo.concluida) return;
 
@@ -2019,20 +2147,19 @@
     if (atualizarInimigos(antes)) return;              // o contato custou uma vida
     atualizarCheckpoints();
 
-    if (Fisica.tocandoCorpo(jogo.heroi, fase.bandeira)) {
-      jogo.concluida = true;
-      emitir('fase-concluida');
-      el.pontosFim.textContent = String(jogo.pontos);
-      el.fim.classList.remove('hidden');
-    }
+    if (Fisica.tocandoCorpo(jogo.heroi, fase.bandeira)) concluirFase();
   }
 
+  /* Comeca (ou recomeca) a corrida inteira: caderno em branco, fase 1. E o
+     que fazem tanto o "Jogar solo" do menu quanto o "Jogar novamente" da tela
+     de parabens. */
   function comecarSolo() {
     jogo.tela = 'jogando';
     jogo.relogio = 0;
     jogo.quedas = 0;
     jogo.tentativas = 1;
     jogo.eventos.length = 0;
+    jogo.corrida = Corrida.novoEstado();
     entrada.esquerda = entrada.direita = entrada.pular = false;
     irParaFase(1);
     el.menu.classList.add('hidden');
@@ -2061,6 +2188,7 @@
   });
 
   el.btnSolo.addEventListener('click', comecarSolo);
+  el.btnProxima.addEventListener('click', avancarFase);
   el.btnDeNovo.addEventListener('click', comecarSolo);
 
   // ------------------------------------------------------- Tamanho da tela --

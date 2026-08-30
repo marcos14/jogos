@@ -271,7 +271,7 @@ teste('sem coracoes, a fase recomeca com os quatro bichos de pe de novo', () => 
   });
 });
 
-teste('"Jogar de novo" tambem devolve os quatro bichos', () => {
+teste('"Jogar novamente" tambem devolve os quatro bichos', () => {
   pisarNoBicho(0);
   assert.equal(Inimigos.quantos(jogo.inimigos), 3, 'um foi derrotado');
 

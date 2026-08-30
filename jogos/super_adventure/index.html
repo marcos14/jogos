@@ -38,7 +38,7 @@
     <section id="tela-menu" class="tela">
       <div class="painel">
         <h1 class="titulo">SUPER<br><span class="destaque">ADVENTURE</span></h1>
-        <p class="subtitulo">Corra, pule e chegue na bandeira</p>
+        <p class="subtitulo">Três fases, uma bandeira em cada uma</p>
 
         <button id="btn-solo" type="button" class="botao">JOGAR SOLO</button>
 
@@ -50,21 +50,43 @@
       </div>
     </section>
 
-    <!-- Fim da fase: aparece quando alguém encosta na bandeira, mostrando os
-         pontos juntados. Avançar para a fase 2 é assunto de outra etapa do
-         plano; por enquanto dá para recomeçar a fase 1. -->
+    <!-- Fim de fase: aparece quando o herói encosta na bandeira das fases 1 e
+         2, com o que a fase rendeu e o bônus de chegar na bandeira. O único
+         caminho é para a frente — não dá para voltar a uma fase já vencida. -->
+    <section id="tela-fase" class="tela hidden">
+      <div class="painel">
+        <h1 class="titulo"><span class="destaque">FASE <b id="fase-numero">1</b></span><br>CONCLUÍDA!</h1>
+        <p class="subtitulo">Você chegou na bandeira 🚩</p>
+        <p class="placar">
+          Pontos da fase: <b id="fase-pontos">0</b><br>
+          Bônus da bandeira: <b id="fase-bonus">+50</b>
+        </p>
+
+        <button id="btn-proxima" type="button" class="botao">IR PARA A FASE <span id="fase-proxima">2</span></button>
+      </div>
+    </section>
+
+    <!-- Fim do jogo: só depois da bandeira da fase 3. Traz o resumo da corrida
+         inteira — quanto cada fase rendeu, com o bônus, e o total. -->
     <section id="tela-fim" class="tela hidden">
       <div class="painel">
-        <h1 class="titulo"><span class="destaque">FASE 1</span><br>CONCLUÍDA!</h1>
-        <p class="subtitulo">Você chegou na bandeira 🚩</p>
-        <p class="placar">Pontos: <b id="fim-pontos">0</b></p>
+        <h1 class="titulo"><span class="destaque">PARABÉNS!</span></h1>
+        <p class="subtitulo">Você venceu as três fases 🏆</p>
 
-        <button id="btn-de-novo" type="button" class="botao">JOGAR DE NOVO</button>
+        <ul class="resumo">
+          <li><span>Fase 1</span><b id="fim-fase-1">0</b></li>
+          <li><span>Fase 2</span><b id="fim-fase-2">0</b></li>
+          <li><span>Fase 3</span><b id="fim-fase-3">0</b></li>
+        </ul>
+        <p class="legenda">moedas e bichos + bônus da bandeira</p>
+        <p class="placar">Total: <b id="fim-total">0</b></p>
+
+        <button id="btn-de-novo" type="button" class="botao">JOGAR NOVAMENTE</button>
       </div>
     </section>
   </div>
 
-  <footer id="rodape">Junte as moedas, acenda os checkpoints e corra até a bandeira!</footer>
+  <footer id="rodape">Três fases: junte as moedas, acenda os checkpoints e corra até a bandeira!</footer>
 </div>
 
 <script src="game.js" charset="utf-8"></script>

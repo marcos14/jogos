@@ -12,7 +12,8 @@
        atravessa a fase inteira ate a bandeira sem cair nenhuma vez - ou seja,
        o percurso e possivel de verdade
      - encostar na bandeira dispara o evento 'fase-concluida', mostra a tela
-       de fim e para o mundo
+       de fim de fase (a fase 1 nao e o fim do jogo, entao o quadro que abre e
+       o "FASE 1 CONCLUIDA") e para o mundo
    ========================================================================== */
 
 import assert from 'node:assert/strict';
@@ -48,6 +49,7 @@ teste('a partida comeca no spawn do tilemap, com a camera no pe da esquerda', ()
   assert.equal(heroi().y, fase.spawn.y);
   assert.equal(jogo.camera, 0, 'no comeco do mundo a camera nao tem para onde ir');
   assert.equal(jogo.concluida, false);
+  assert.equal(dom.elementos['tela-fase'].classList.contains('hidden'), true);
   assert.equal(dom.elementos['tela-fim'].classList.contains('hidden'), true);
 });
 
@@ -113,10 +115,12 @@ teste('o piloto automatico atravessa a fase 1 inteira ate a bandeira', () => {
   assert.ok(quadros < 4000);
 });
 
-teste('encostar na bandeira dispara o evento e mostra a tela de fim', () => {
+teste('encostar na bandeira dispara o evento e mostra a tela de fim de fase', () => {
   assert.equal(avisos[avisos.length - 1], 'fase-concluida');
   assert.equal(contar('fase-concluida'), 1, 'so avisa uma vez');
-  assert.equal(dom.elementos['tela-fim'].classList.contains('hidden'), false);
+  assert.equal(dom.elementos['tela-fase'].classList.contains('hidden'), false);
+  assert.equal(dom.elementos['tela-fim'].classList.contains('hidden'), true,
+    'o PARABENS so aparece depois da fase 3');
 });
 
 teste('com a fase concluida o mundo para de andar', () => {
@@ -131,12 +135,13 @@ teste('com a fase concluida o mundo para de andar', () => {
   assert.ok(dom.pintados.length > 0, 'mas a cena continua sendo desenhada');
 });
 
-teste('"Jogar de novo" recomeca a fase do zero', () => {
+teste('"Jogar novamente" recomeca a fase 1 do zero', () => {
   dom.clicar('btn-de-novo');
   assert.equal(jogo.concluida, false);
   assert.equal(jogo.relogio, 0);
   assert.equal(jogo.quedas, 0);
   assert.equal(heroi().x, fase.spawn.x);
+  assert.equal(dom.elementos['tela-fase'].classList.contains('hidden'), true);
   assert.equal(dom.elementos['tela-fim'].classList.contains('hidden'), true);
   assert.equal(dom.elementos.hud.classList.contains('hidden'), false);
 });

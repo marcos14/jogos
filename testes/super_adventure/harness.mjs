@@ -98,14 +98,17 @@ export function carregarJogoComTela(slug = 'super_adventure') {
   };
 
   const elementos = {};
-  for (const id of ['app', 'palco', 'hud', 'tela-menu', 'tela-fim',
-                    'btn-solo', 'btn-de-novo',
-                    'hud-pontos', 'hud-vidas', 'hud-fase', 'fim-pontos']) {
+  for (const id of ['app', 'palco', 'hud', 'tela-menu', 'tela-fase', 'tela-fim',
+                    'btn-solo', 'btn-proxima', 'btn-de-novo',
+                    'hud-pontos', 'hud-vidas', 'hud-fase',
+                    'fase-numero', 'fase-pontos', 'fase-bonus', 'fase-proxima',
+                    'fim-fase-1', 'fim-fase-2', 'fim-fase-3', 'fim-total']) {
     elementos[id] = criarElemento(id);
     elementos[id].classList.dono = elementos[id];
   }
-  // No index.html o HUD e a tela de fim ja nascem escondidos.
+  // No index.html o HUD e as duas telas de fim ja nascem escondidos.
   elementos.hud.classes.add('hidden');
+  elementos['tela-fase'].classes.add('hidden');
   elementos['tela-fim'].classes.add('hidden');
 
   elementos.tela = criarElemento('tela');

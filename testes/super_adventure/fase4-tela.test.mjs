@@ -226,10 +226,10 @@ teste('depois do terceiro checkpoint, e nele que o heroi renasce', () => {
 teste('do terceiro checkpoint da para terminar a fase', () => {
   correrAte(() => jogo.concluida, 1500);
   assert.equal(jogo.concluida, true, 'chegou na bandeira');
-  assert.equal(dom.elementos['tela-fim'].classList.contains('hidden'), false);
+  assert.equal(dom.elementos['tela-fase'].classList.contains('hidden'), false);
 });
 
-teste('"Jogar de novo" devolve as 3 vidas e apaga os checkpoints', () => {
+teste('"Jogar novamente" devolve as 3 vidas e apaga os checkpoints', () => {
   dom.clicar('btn-de-novo');
 
   assert.equal(jogo.vidas, 3);

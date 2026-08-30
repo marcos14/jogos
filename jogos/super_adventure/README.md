@@ -4,11 +4,11 @@ Um platformer retrô, de 8 bits, para as crianças: corra, pule, junte moedas e
 chegue na bandeira. São 3 fases fixas e dá para jogar sozinho ou com até 8
 amigos na mesma fase, cada um no seu aparelho.
 
-> **Estado: em construção.** Esta é a **fase 6a** do plano — as **três fases**
-> já existem, com dificuldade progressiva: moedas, blocos, checkpoints, vidas,
-> os dois tipos de bicho e, na fase 3, plataformas móveis e bichos que
-> perseguem. O que falta é a sequência automática fase 1 → 2 → 3 com a tela de
-> parabéns (fase 6b) e o multijogador, nas etapas seguintes.
+> **Estado: em construção.** Esta é a **fase 6b** do plano — o jogo solo já é
+> uma partida inteira: as três fases em ordem fixa (1 → 2 → 3), o bônus de
+> chegar na bandeira e a tela de **PARABÉNS** com o placar fase a fase. O que
+> falta é a interface completa — pausa, tela cheia e caixa de controles (fase
+> 7) — e o multijogador, nas etapas seguintes.
 
 ## Como jogar
 
@@ -18,7 +18,9 @@ amigos na mesma fase, cada um no seu aparelho.
 | **ESPAÇO** (ou **↑** / **W**) | pular |
 
 Clique em **JOGAR SOLO**, corra para a direita, junte moedas, acenda os
-checkpoints, pule em cima dos bichos e chegue na bandeira.
+checkpoints, pule em cima dos bichos e chegue na bandeira. A bandeira fecha a
+fase e abre a próxima: são três, uma depois da outra, e a da fase 3 traz a tela
+de **PARABÉNS**.
 
 ## Pontuação
 
@@ -26,6 +28,7 @@ checkpoints, pule em cima dos bichos e chegue na bandeira.
 |---|---|
 | Encostar numa moeda | **+10** pontos |
 | Pular em cima de um inimigo | **+20** pontos |
+| Chegar na bandeira | **+50** pontos de bônus, no fim de cada fase |
 | Quebrar um bloco | solta o cristal (enfeite); pontos, só os das moedas |
 
 A fase 1 tem **100 moedas** — 1000 pontos se você pegar todas — mais os 4
@@ -124,8 +127,23 @@ param na beirada da plataforma.
 | 2 — Salto Alto | 128 colunas | 80 | 6 a 3 px/quadro | buracos por toda parte e uma ponte de plataformas soltas sobre um vão de 12 quadrados |
 | 3 — Torre Movediça | 140 colunas | 60 | 6 a 3 px/quadro, espertos | três **pontes móveis** sobre vãos de 8 quadrados, um **elevador** e blocos espalhados |
 
-Por enquanto a partida sempre começa na fase 1; a sequência automática
-1 → 2 → 3 com a tela de parabéns é a próxima etapa do plano.
+## A corrida: fase 1 → 2 → 3
+
+A partida solo é uma **corrida** pelas três fases, sempre nessa ordem e **sem
+volta**: cada bandeira fecha a fase que estava em jogo e abre a seguinte.
+
+1. A bandeira das fases 1 e 2 abre o quadro **"FASE N CONCLUÍDA"**, com o que a
+   fase rendeu, o bônus de **+50** da bandeira e o botão **IR PARA A FASE N+1**.
+2. A fase nova começa **do zero**: mundo novo, ❤️ cheios e o placar do HUD
+   zerado — o que já foi ganho fica guardado no caderno da corrida.
+3. A bandeira da **fase 3** termina a corrida e traz o **PARABÉNS!**, com uma
+   linha por fase (`moedas e bichos + bônus = total da fase`) e o **total** da
+   corrida inteira.
+4. **JOGAR NOVAMENTE** recomeça tudo da fase 1, com o caderno em branco.
+
+O HUD mostra sempre o placar **da fase** em jogo; o total das três fases só
+aparece no fim, na tela de parabéns. Quem perde as três vidas repete a fase
+inteira — mas nunca volta para uma fase que já venceu.
 
 ## As plataformas móveis (fase 3)
 
@@ -255,6 +273,13 @@ câmera, para dar sensação de distância.
 - **A dificuldade é tempero de fase, não código novo:** cada fase declara
   `velInimigo` e `espertos`, e é isso que muda a velocidade da patrulha e liga a
   perseguição. O mesmo `Inimigos` roda nas três.
+- **A corrida é mais um estado puro** (`Corrida`): um caderninho com uma linha
+  por fase concluída (`{ numero, pontos, bonus, total }`), o total e qual é a
+  próxima. Ele só anda para a frente — a regra "não dá para voltar de fase" mora
+  aí, numa função pura, e não espalhada pelos botões da tela.
+- **O bônus da bandeira é fixo (+50) e some do HUD:** o placar do HUD é o da
+  fase, o bônus entra na conta na hora em que a fase é fechada. Assim quem
+  repete uma fase depois de perder as vidas não acumula bônus de graça.
 - **O checkpoint e a bandeira são o mesmo formato de "mastro"**: um retângulo de
   uma coluna que vai da letra até o primeiro chão abaixo dela. Assim dá para
   encostar neles andando pelo chão ou passando por cima, sem casos especiais.
@@ -286,4 +311,6 @@ node testes/super_adventure/fase5.test.mjs          # patrulha, pisão e dano do
 node testes/super_adventure/fase5-tela.test.mjs     # os inimigos dentro da partida
 node testes/super_adventure/fase6a.test.mjs         # as 3 fases e as plataformas móveis
 node testes/super_adventure/fase6a-tela.test.mjs    # as fases 2 e 3 até a bandeira
+node testes/super_adventure/fase6b.test.mjs         # o caderno da corrida (pontos por fase)
+node testes/super_adventure/fase6b-tela.test.mjs    # uma corrida inteira, fase 1 → 2 → 3
 ```

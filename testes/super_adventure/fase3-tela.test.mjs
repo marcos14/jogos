@@ -205,13 +205,13 @@ teste('o piloto automatico chega na bandeira com moedas no bolso', () => {
     'os pontos batem com as moedas que sumiram e os bichos derrotados');
 });
 
-teste('a tela de fim mostra o mesmo placar do HUD', () => {
-  assert.equal(dom.elementos['tela-fim'].classList.contains('hidden'), false);
-  assert.equal(texto('fim-pontos'), String(jogo.pontos));
+teste('a tela de fim de fase mostra o mesmo placar do HUD', () => {
+  assert.equal(dom.elementos['tela-fase'].classList.contains('hidden'), false);
+  assert.equal(texto('fase-pontos'), String(jogo.pontos));
   assert.equal(texto('hud-pontos'), String(jogo.pontos));
 });
 
-teste('"Jogar de novo" devolve o mundo inteiro e zera o placar', () => {
+teste('"Jogar novamente" devolve o mundo inteiro e zera o placar', () => {
   dom.clicar('btn-de-novo');
   assert.equal(jogo.pontos, 0);
   assert.equal(texto('hud-pontos'), '0');

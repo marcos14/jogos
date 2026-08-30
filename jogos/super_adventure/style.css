@@ -101,6 +101,7 @@ body{
   line-height: 1.4;
   background: rgba(13, 13, 23, .82);
   padding: 12px;
+  overflow-y: auto;          /* painel alto em tela baixinha: rola, nao corta */
 }
 
 .tela.hidden, .hidden{ display: none !important; }
@@ -135,6 +136,34 @@ body{
 }
 
 .placar b{ color: var(--amarelo); }
+
+/* O resumo da tela de parabens: uma linha por fase, o nome de um lado e o
+   "moedas + bonus = total" do outro. */
+.resumo{
+  list-style: none;
+  margin: 0 auto 6px;
+  padding: 0;
+  max-width: 340px;
+  font-size: clamp(11px, 2.2vw, 15px);
+  letter-spacing: 1px;
+}
+
+.resumo li{
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 8px;
+  border-bottom: 3px solid var(--cinza);
+}
+
+.resumo b{ color: var(--amarelo); }
+
+.legenda{
+  margin: 0 0 14px;
+  font-size: clamp(9px, 1.8vw, 11px);
+  letter-spacing: 1px;
+  color: var(--cinza);
+}
 
 .botao{
   font-family: inherit;
@@ -174,8 +203,13 @@ body{
   opacity: .85;
 }
 
-/* Telas bem baixinhas (celular deitado): o rodape sai da frente. */
+/* Telas bem baixinhas (celular deitado): o rodape sai da frente e o resumo da
+   tela de parabens se aperta, para o botao nao ficar fora da tela. */
 @media (max-height: 420px){
   #rodape{ display: none; }
   .hud-label{ font-size: 9px; }
+  .subtitulo{ margin-bottom: 10px; }
+  .resumo li{ padding: 2px 8px; border-bottom-width: 2px; }
+  .legenda{ margin-bottom: 8px; }
+  .botao{ padding: 8px 18px; }
 }
