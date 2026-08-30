@@ -1,10 +1,10 @@
 /* ==========================================================================
    COME-COME  -  labirinto de fliperama, no clima dos consoles de 8 bits
    --------------------------------------------------------------------------
-   FASE 2 do plano: AS PASTILHAS, A PONTUACAO, O HUD E O LABIRINTO LIMPO. O
-   come-come agora COME: passar por cima de uma pastilha faz ela sumir e somar
-   pontos, o HUD mostra o placar, as vidas e a fase, e quando a ultima pastilha
-   some o labirinto e dado por limpo.
+   FASE 3a do plano: OS QUATRO FANTASMAS - CASA, SAIDA E MOVIMENTO EM GRADE. O
+   labirinto deixa de ser um passeio: no centro dele mora uma casa com quatro
+   fantasmas, cada um com a sua cor, e um a um eles abrem a porta (que so eles
+   atravessam) e saem a circular pelos corredores.
 
    O chao de tudo (fase 1) continua sendo o mesmo:
 
@@ -26,7 +26,7 @@
        RASTERIZADO na mao, linha por linha, com a boca abrindo e fechando na
        direcao em que ele anda.
 
-   E o que a fase 2 poe por cima:
+   O que a fase 2 pos por cima:
 
      - `Pastilhas`: o caderninho do labirinto - quais pastilhas ainda estao de
        pe, o que acontece quando o come-come passa por cima de uma (ela some e
@@ -38,16 +38,38 @@
        cresce junto com a tela e continua legivel no celular.
      - A ultima pastilha do labirinto fecha a fase.
 
+   E o que a fase 3a poe por cima:
+
+     - A CASA dos fantasmas sai do desenho sozinha: `Mapa.ler()` acha a porta
+       (`-`), descobre de que lado dela fica a rua e enche o miolo para saber o
+       retangulo da casa e os quatro lugares de dentro. Nenhum labirinto
+       precisa dizer isso a mao - o desenho ja conta.
+     - `Fantasmas`: quatro corpos, cada um com a sua cor e o seu tempo de
+       saida. Quem espera balanca na casa; chegada a hora, anda ate a coluna da
+       porta, sobe pela porta (a unica passagem que e deles) e cai na rua. Da
+       rua nao se volta para dentro: para o corpo livre a porta e parede como
+       qualquer outra.
+     - Na rua eles andam em grade como o come-come, com uma regra so: em cada
+       centro de quadrado olham as saidas, DESCARTAM a meia-volta e pegam a que
+       deixa o vizinho mais perto do ALVO que receberam. Empatou, vence a ordem
+       do fliperama: cima, esquerda, baixo, direita. Corredor comprido nao tem
+       escolha nenhuma - e por isso eles entram no tunel e saem do outro lado.
+     - O alvo chega de fora, e de proposito: quem calcula o alvo de cada
+       personalidade (e os ciclos dispersar/cacar) e a fase 3b. Hoje os quatro
+       recebem o quadrado do come-come.
+     - Desenho 8-bit de cada um: a cupula redonda rasterizada na mao, a saia
+       balancando em quatro pes e os olhos apontando para onde ele anda.
+
    O labirinto tem 28 colunas por 31 linhas de quadrados de 16px - 448 x 496
    pixels, que e o tamanho de dentro do canvas. O tamanho de FORA (o quanto ele
    aparece na tela) e escolhido pelo CSS, mantendo a proporcao: as contas do
    jogo acontecem sempre nos mesmos 448 x 496, em qualquer aparelho.
 
-   Os fantasmas ainda nao existem (fase 3), a pastilha de poder ainda so vale
-   pontos (fase 4), as vidas ainda nao caem porque nao ha de quem fugir (fase
-   5), o labirinto ainda e um so (fase 6a) e a tela entra direto no jogo, sem
-   menu (fase 7). O que da para fazer hoje e o que a fase 2 promete: correr
-   pelo labirinto comendo tudo, ver o placar subir e limpar o labirinto.
+   Os fantasmas ainda nao tem personalidade nem ciclo de dispersao (fase 3b), a
+   pastilha de poder ainda so vale pontos (fase 4), encostar num fantasma ainda
+   nao machuca (fase 5), o labirinto ainda e um so (fase 6a) e a tela entra
+   direto no jogo, sem menu (fase 7). O que da para fazer hoje e o que a fase
+   3a promete: ver os quatro sairem da casa, um a um, e correrem o labirinto.
    ========================================================================== */
 
 (function () {
@@ -66,6 +88,17 @@
      que ele decide se vira ou nao. Numero redondo e o que mantem a grade
      honesta - nada de meio pixel sobrando. */
   var VEL_COME = 2;
+
+  /* Os fantasmas correm no mesmo compasso, pelo mesmo motivo: a grade so fica
+     honesta com uma velocidade que divide os 16px do quadrado, e 1px por
+     quadro seria uma lesma. Quem afina isso fase a fase e a tabela de
+     dificuldade (fase 6a); ate la os quatro andam como o come-come. */
+  var VEL_FANTASMA = 2;
+
+  /* Quanto cada fantasma espera dentro da casa antes de abrir a porta, em
+     quadros (60 = 1 segundo). O primeiro ja nasce na rua; os outros tres saem
+     escalonados, para a crianca ter tempo de comecar a comer. */
+  var SAIDAS = [0, 120, 240, 360];
 
   // ------------------------------------------------------------ As regras ---
   var PONTOS_PASTILHA = 10;               // cada pastilha comum
@@ -185,6 +218,75 @@
     }
 
     /**
+     * A casa dos fantasmas, descoberta a partir do desenho - nenhum labirinto
+     * precisa dizer isto a mao. Anda assim:
+     *
+     *   1. a PORTA e o `-` mais em cima (e mais a esquerda, se houver dois);
+     *   2. de um lado dela ha rua e do outro o miolo da casa: o lado que e
+     *      chao andavel e o de FORA, e o oposto e o de DENTRO;
+     *   3. enchendo o miolo a partir de dentro (a porta nao e chao, entao a
+     *      agua nunca vaza para a rua) sai o retangulo da casa;
+     *   4. os quatro LUGARES sao a rua diante da porta - onde o primeiro
+     *      fantasma ja nasce, como no fliperama - e tres pontos na linha do
+     *      meio do miolo: a coluna da porta, a parede da esquerda e a da
+     *      direita.
+     *
+     * Devolve `null` num desenho sem porta nenhuma.
+     */
+    function acharCasa(mapa) {
+      if (!mapa.portas.length) return null;
+
+      var porta = mapa.portas[0], i;
+      for (i = 1; i < mapa.portas.length; i++) {
+        var p = mapa.portas[i];
+        if (p.l < porta.l || (p.l === porta.l && p.c < porta.c)) porta = p;
+      }
+
+      var acima = { c: porta.c, l: porta.l - 1 };
+      var abaixo = { c: porta.c, l: porta.l + 1 };
+      var foraEmCima = livre(mapa, acima.c, acima.l);
+      var fora = foraEmCima ? acima : abaixo;
+      var dentro = foraEmCima ? abaixo : acima;
+      if (!livre(mapa, dentro.c, dentro.l)) return null;
+
+      // Enchendo o miolo: so passa por chao, e a porta nao e chao.
+      var vistos = {}, fila = [dentro];
+      var c0 = dentro.c, c1 = dentro.c, l0 = dentro.l, l1 = dentro.l;
+      vistos[dentro.c + ',' + dentro.l] = true;
+      for (i = 0; i < fila.length; i++) {
+        var aqui = fila[i];
+        if (aqui.c < c0) c0 = aqui.c;
+        if (aqui.c > c1) c1 = aqui.c;
+        if (aqui.l < l0) l0 = aqui.l;
+        if (aqui.l > l1) l1 = aqui.l;
+        for (var d = 0; d < DIRECOES.length; d++) {
+          var v = VETORES[DIRECOES[d]];
+          var nc = aqui.c + v.dc, nl = aqui.l + v.dl;
+          if (!livre(mapa, nc, nl)) continue;
+          if (vistos[nc + ',' + nl]) continue;
+          vistos[nc + ',' + nl] = true;
+          fila.push({ c: nc, l: nl });
+        }
+      }
+
+      var meio = Math.floor((l0 + l1) / 2);
+      return {
+        porta: porta,
+        fora: fora,                    // o quadrado da rua, diante da porta
+        dentro: dentro,                // o quadrado do miolo colado na porta
+        c0: c0, c1: c1, l0: l0, l1: l1,
+        saidaX: centro(porta.c, porta.l).x,   // a coluna por onde eles sobem
+        saidaY: centro(fora.c, fora.l).y,     // a linha em que a rua comeca
+        lugares: [
+          { c: fora.c, l: fora.l },
+          { c: porta.c, l: meio },
+          { c: c0, l: meio },
+          { c: c1, l: meio }
+        ]
+      };
+    }
+
+    /**
      * Le o desenho e devolve o labirinto pronto para o jogo.
      * Nada aqui depende de tela: e so texto virando numeros.
      */
@@ -205,6 +307,7 @@
         portas: [],             // os quadrados da porta da casa
         tuneis: [],             // tuneis[linha] = true na linha do tunel
         nascimento: null,       // onde o come-come nasce
+        casa: null,             // a casa dos fantasmas (montada la embaixo)
         nome: op.nome || ''
       };
 
@@ -232,11 +335,13 @@
       }
 
       mapa.totalPastilhas = mapa.pastilhas.length;
+      mapa.casa = acharCasa(mapa);
       return mapa;
     }
 
     return {
       ler: ler,
+      acharCasa: acharCasa,
       letra: letra,
       livre: livre,
       parede: parede,
@@ -454,6 +559,234 @@
     };
   }());
 
+  // -------------------------------------------------------- Os fantasmas ----
+  /* Os quatro moradores da casa do centro. Cada um e um corpo igualzinho ao do
+     come-come (mesma grade, mesmo `Movimento.passo`) mais tres coisas: a cor,
+     o tempo que ele espera antes de sair e em que ETAPA da vida ele esta:
+
+         'casa'    esperando a vez, balancando no lugar
+         'saindo'  andando ate a coluna da porta e subindo por ela
+         'livre'   circulando pelo labirinto atras do alvo
+
+     A porta e o unico lugar do desenho que so eles atravessam - e mesmo assim
+     so de dentro para fora, na etapa 'saindo', que e uma rota escrita a mao
+     (ande ate a coluna da porta, depois suba ate a rua) e nao precisa perguntar
+     nada ao mapa. Ja livre na rua, o corpo usa as regras normais do labirinto,
+     e por isso a porta vira parede: ninguem volta para casa por vontade
+     propria. (Voltar comido, virado em olhos, e a fase 4.)
+
+     Na rua a decisao e a do fliperama, e cabe em tres linhas: em cada centro de
+     quadrado, olhe as saidas, JOGUE FORA a meia-volta e fique com a que deixa o
+     vizinho mais perto do alvo. Empate resolve na ordem cima, esquerda, baixo,
+     direita. Repare no que essa regra faz sozinha: num corredor comprido sobra
+     uma saida so, entao nao ha escolha nenhuma - e e assim que eles entram no
+     tunel e saem do outro lado sem uma linha de codigo a mais.
+
+     O ALVO vem de fora de proposito. Quem decide para onde cada personalidade
+     olha, e quando eles trocam de cacar para dispersar, e a fase 3b: aqui
+     dentro alvo e so um par de numeros. Puro como o resto - `passo()` devolve
+     um estado NOVO -, porque numa sala vai ser este mesmo passo, no aparelho do
+     anfitriao, que diz onde os quatro estao para todo mundo. */
+  var Fantasmas = (function () {
+
+    /* A ordem de desempate do fliperama: entre duas saidas que aproximam o
+       mesmo tanto, vence a primeira desta lista. */
+    var PREFERENCIA = ['cima', 'esquerda', 'baixo', 'direita'];
+
+    var TIPOS = [
+      { chave: 'perseguidor', nome: 'Vermelho', cor: '#ff3c28' },
+      { chave: 'emboscador',  nome: 'Rosa',     cor: '#ffb8ff' },
+      { chave: 'timido',      nome: 'Azul',     cor: '#28d8f8' },
+      { chave: 'aleatorio',   nome: 'Laranja',  cor: '#ffa030' }
+    ];
+
+    /* O sobe-e-desce de quem espera na casa: 16 quadros, 4px para cada lado.
+       E so enfeite - o quadrado da grade continua sendo o mesmo. */
+    var BALANCO = [0, 1, 2, 3, 4, 3, 2, 1, 0, -1, -2, -3, -4, -3, -2, -1];
+
+    /** Distancia (ao quadrado, que basta para comparar) entre dois quadrados. */
+    function distancia(c1, l1, c2, l2) {
+      var dc = c1 - c2, dl = l1 - l2;
+      return dc * dc + dl * dl;
+    }
+
+    /**
+     * A saida que um fantasma parado no centro de (c, l) escolheria para
+     * chegar em `alvo`, vindo na direcao `dir`. Sem meia-volta: e a regra que
+     * faz eles patrulharem em vez de ficarem indo e voltando na mesma esquina.
+     * Sem alvo, a ordem de preferencia decide sozinha.
+     */
+    function escolher(mapa, c, l, dir, alvo) {
+      var proibida = oposta(dir);
+      var melhor = null, melhorDist = -1, i;
+
+      for (i = 0; i < PREFERENCIA.length; i++) {
+        var d = PREFERENCIA[i];
+        if (d === proibida) continue;
+        if (!Mapa.podeIr(mapa, c, l, d)) continue;
+        var v = Mapa.vizinho(mapa, c, l, d);
+        var dist = alvo ? distancia(v.c, v.l, alvo.c, alvo.l) : 0;
+        if (melhor === null || dist < melhorDist) { melhor = d; melhorDist = dist; }
+      }
+      if (melhor) return melhor;
+
+      // Beco sem saida (nao existe nenhum nos labirintos do jogo, mas um
+      // desenho novo pode trazer um): so resta dar meia-volta.
+      return Mapa.podeIr(mapa, c, l, proibida) ? proibida : dir;
+    }
+
+    /** O alvo do fantasma `i`: um alvo para cada, ou o mesmo para todos. */
+    function alvoDe(alvos, i) {
+      if (!alvos) return null;
+      return alvos.length === undefined ? alvos : (alvos[i] || null);
+    }
+
+    /** Os quatro fantasmas no comeco de uma rodada, cada um no seu lugar. */
+    function novoEstado(mapa, opcoes) {
+      var op = opcoes || {};
+      var saidas = op.saidas || SAIDAS;
+      var lugares = (mapa.casa && mapa.casa.lugares) || [];
+      var lista = [];
+
+      for (var i = 0; i < TIPOS.length; i++) {
+        var lugar = lugares[i] || mapa.nascimento;
+        var corpo = Movimento.novoCorpo(lugar.c, lugar.l, i === 0 ? 'esquerda' : 'cima');
+        var espera = saidas[i] === undefined ? 0 : saidas[i];
+        lista.push({
+          indice: i,
+          chave: TIPOS[i].chave,
+          nome: TIPOS[i].nome,
+          cor: TIPOS[i].cor,
+          // Quem nao espera nada ja nasce na rua - e o caso do primeiro.
+          etapa: espera > 0 ? 'casa' : 'livre',
+          espera: espera,
+          casaY: corpo.y,
+          corpo: corpo
+        });
+      }
+      return { lista: lista, relogio: 0 };
+    }
+
+    /** Um quadro de um fantasma so. Devolve um fantasma NOVO. */
+    function passoDeUm(f, mapa, alvo, vel) {
+      var corpo = f.corpo;
+      var passos = corpo.passos + 1;
+
+      // ------------------------------------------------- esperando a vez ---
+      if (f.etapa === 'casa') {
+        var espera = f.espera - 1;
+        if (espera > 0) {
+          return copia(f, {
+            espera: espera,
+            corpo: junta(corpo, {
+              y: f.casaY + BALANCO[passos % BALANCO.length],
+              passos: passos
+            })
+          });
+        }
+        // Chegou a hora: para de balancar e comeca a rota da porta.
+        return copia(f, {
+          etapa: 'saindo',
+          espera: 0,
+          corpo: junta(corpo, {
+            y: f.casaY, dir: 'cima', desejada: 'cima', parado: false, passos: passos
+          })
+        });
+      }
+
+      // ----------------------------------------------- abrindo a portinha ---
+      /* Rota escrita a mao, e por isso nao pergunta nada ao mapa: primeiro
+         acerta a coluna da porta, depois sobe por ela ate a rua. E o unico
+         trecho do jogo em que alguem passa por cima de um `-`. */
+      if (f.etapa === 'saindo') {
+        var casa = mapa.casa;
+        var x = corpo.x, y = corpo.y, dir = corpo.dir;
+
+        if (x !== casa.saidaX) {
+          var paraDireita = x < casa.saidaX;
+          dir = paraDireita ? 'direita' : 'esquerda';
+          x += (paraDireita ? 1 : -1) * Math.min(vel, Math.abs(casa.saidaX - x));
+        } else if (y !== casa.saidaY) {
+          var paraBaixo = y < casa.saidaY;
+          dir = paraBaixo ? 'baixo' : 'cima';
+          y += (paraBaixo ? 1 : -1) * Math.min(vel, Math.abs(casa.saidaY - y));
+        }
+
+        var chegou = (x === casa.saidaX && y === casa.saidaY);
+        return copia(f, {
+          etapa: chegou ? 'livre' : 'saindo',
+          corpo: junta(corpo, {
+            x: x, y: y,
+            // Na rua ele vira para o lado, como no fliperama.
+            dir: chegou ? 'esquerda' : dir,
+            desejada: chegou ? 'esquerda' : dir,
+            parado: false,
+            passos: passos
+          })
+        });
+      }
+
+      // ------------------------------------------------- solto na cidade ---
+      var novo = corpo;
+      if (Movimento.noCentro(corpo)) {
+        var c = Mapa.coluna(corpo.x), l = Mapa.linha(corpo.y);
+        novo = junta(corpo, { desejada: escolher(mapa, c, l, corpo.dir, alvo) });
+      }
+      return copia(f, { corpo: Movimento.passo(novo, mapa, { velocidade: vel }) });
+    }
+
+    /** Um quadro dos quatro. `alvos` e um por fantasma, ou um so para todos. */
+    function passo(estado, mapa, alvos, opcoes) {
+      var vel = (opcoes && opcoes.velocidade) || VEL_FANTASMA;
+      var lista = [];
+      for (var i = 0; i < estado.lista.length; i++) {
+        lista.push(passoDeUm(estado.lista[i], mapa, alvoDe(alvos, i), vel));
+      }
+      return { lista: lista, relogio: estado.relogio + 1 };
+    }
+
+    /** Copia rasa com trocas - o jeito ES5 de "devolver um estado novo". */
+    function copia(f, trocas) {
+      var novo = {
+        indice: f.indice, chave: f.chave, nome: f.nome, cor: f.cor,
+        etapa: f.etapa, espera: f.espera, casaY: f.casaY, corpo: f.corpo
+      };
+      for (var k in trocas) if (trocas.hasOwnProperty(k)) novo[k] = trocas[k];
+      return novo;
+    }
+
+    function junta(corpo, trocas) {
+      var novo = {
+        x: corpo.x, y: corpo.y, dir: corpo.dir, desejada: corpo.desejada,
+        parado: corpo.parado, passos: corpo.passos
+      };
+      for (var k in trocas) if (trocas.hasOwnProperty(k)) novo[k] = trocas[k];
+      return novo;
+    }
+
+    /** Todos ja sairam da casa? (o teste e o desenho gostam de saber) */
+    function todosNaRua(estado) {
+      for (var i = 0; i < estado.lista.length; i++) {
+        if (estado.lista[i].etapa !== 'livre') return false;
+      }
+      return true;
+    }
+
+    return {
+      novoEstado: novoEstado,
+      passo: passo,
+      passoDeUm: passoDeUm,
+      escolher: escolher,
+      distancia: distancia,
+      todosNaRua: todosNaRua,
+      TIPOS: TIPOS,
+      SAIDAS: SAIDAS,
+      PREFERENCIA: PREFERENCIA,
+      BALANCO: BALANCO,
+      VELOCIDADE: VEL_FANTASMA
+    };
+  }());
+
   // ------------------------------------------------------- O labirinto 1 ----
   /* O primeiro dos tres labirintos do jogo: corredores largos, quatro
      pastilhas de poder nos cantos e um tunel na linha do meio. A casa dos
@@ -512,6 +845,7 @@
       Mapa: Mapa,
       Movimento: Movimento,
       Pastilhas: Pastilhas,
+      Fantasmas: Fantasmas,
       LABIRINTO_1: LABIRINTO_1,
       LABIRINTOS: LABIRINTOS,
       mapas: mapas,
@@ -519,7 +853,8 @@
       mundo: {
         TILE: TILE, COLUNAS: COLUNAS, LINHAS: LINHAS,
         LARGURA: LARGURA, ALTURA: ALTURA,
-        PASSO_MS: PASSO_MS, VEL_COME: VEL_COME,
+        PASSO_MS: PASSO_MS, VEL_COME: VEL_COME, VEL_FANTASMA: VEL_FANTASMA,
+        SAIDAS: SAIDAS,
         PONTOS_PASTILHA: PONTOS_PASTILHA, PONTOS_PODER: PONTOS_PODER,
         VIDAS_INICIAIS: VIDAS_INICIAIS, TOTAL_FASES: TOTAL_FASES
       }
@@ -540,6 +875,8 @@
   var COR_PASTILHA = '#fcd8a8';
   var COR_COME = '#fcd800';
   var COR_OLHO = '#0d0d17';
+  var COR_BRANCO_DO_OLHO = '#ffffff';   // os olhos dos fantasmas
+  var COR_PUPILA = '#2020c0';
 
   var BRILHO = 2;                    // a espessura do brilho das paredes
   var PASTILHA_L = 2;                // a pastilha comum e um quadradinho 2x2
@@ -557,6 +894,24 @@
     esquerda: { dx: -1, dy: -6 },
     cima:     { dx: -6, dy: -1 },
     baixo:    { dx: -6, dy: -1 }
+  };
+
+  /* A saia do fantasma, pixel a pixel: 1 e pe, 0 e o vao. Sao duas ondas, as
+     duas simetricas, e elas se revezam a cada 8 quadros - e esse revezamento
+     que faz o bicho parecer que flutua em vez de deslizar. Escrever a mascara
+     a mao (em vez de calcula-la) e o que garante a simetria: um recorte que
+     nao fecha nas duas beiradas deixa o fantasma torto.
+     `PUPILA` diz para que canto do olho a pupila corre. */
+  var SAIA = [
+    [1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1],
+    [0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0]
+  ];
+  var SAIA_ALTURA = 2, SAIA_CICLO = 8;
+  var PUPILA = {
+    direita:  { dx: 2, dy: 1 },
+    esquerda: { dx: 0, dy: 1 },
+    cima:     { dx: 1, dy: 0 },
+    baixo:    { dx: 1, dy: 2 }
   };
 
   var tela = document.getElementById('tela');
@@ -639,7 +994,10 @@
 
     ctx.fillStyle = COR_COME;
     for (var py = -raio; py < raio; py++) {
-      var inicio = -1;
+      /* `null` e nao -1: o comeco de uma faixa pode muito bem ser a coluna -8,
+         e um sentinela numerico se confundiria com ela - o que apagaria a
+         metade esquerda do bicho inteiro. */
+      var inicio = null;
       for (var px = -raio; px <= raio; px++) {
         var dentro = false;
         if (px < raio) {
@@ -652,10 +1010,10 @@
             if (Math.abs(d) < meiaBoca) dentro = false;      // isto e a boca
           }
         }
-        if (dentro && inicio < 0) inicio = px;
-        if (!dentro && inicio >= 0) {
+        if (dentro && inicio === null) inicio = px;
+        if (!dentro && inicio !== null) {
           ctx.fillRect(cx + inicio, cy + py, px - inicio, 1);
-          inicio = -1;
+          inicio = null;
         }
       }
     }
@@ -663,6 +1021,69 @@
     var olho = OLHO[dir] || OLHO.esquerda;
     ctx.fillStyle = COR_OLHO;
     ctx.fillRect(cx + olho.dx, cy + olho.dy, 2, 2);
+  }
+
+  /**
+   * Um fantasma: a cupula de cima rasterizada linha por linha (como o
+   * come-come), o corpo reto embaixo e, nas duas ultimas linhas, a saia
+   * recortada em quatro pes. Os olhos sao dois quadrados brancos com a pupila
+   * correndo para o lado em que ele anda - e o unico jeito de a crianca saber,
+   * de longe, para onde o fantasma vai.
+   *
+   * `onda` (0 ou 1) troca o recorte da saia de lugar.
+   */
+  function desenharFantasma(cx, cy, cor, dir, onda) {
+    var raio = TILE / 2;
+    var saiaAgora = SAIA[onda ? 1 : 0];
+    var px, py;
+
+    ctx.fillStyle = cor;
+    for (py = -raio; py < raio; py++) {
+      // A cupula: um quarto de circulo em cima, parede reta da metade para
+      // baixo. Arredondar aqui e o que da a beirada em degraus dos 8 bits.
+      var meia = py < 0 ? Math.round(Math.sqrt(raio * raio - py * py)) : raio;
+      var saia = py >= raio - SAIA_ALTURA;
+
+      // `null` e nao -1: a faixa pode comecar na coluna -8 (veja o come-come).
+      var inicio = null;
+      for (px = -raio; px <= raio; px++) {
+        var cheio = px >= -meia && px < meia;
+        if (cheio && saia) cheio = saiaAgora[px + raio] === 1;
+        if (cheio && inicio === null) inicio = px;
+        if (!cheio && inicio !== null) {
+          ctx.fillRect(cx + inicio, cy + py, px - inicio, 1);
+          inicio = null;
+        }
+      }
+    }
+
+    var pupila = PUPILA[dir] || PUPILA.esquerda;
+    var olhos = [-5, 1];
+    for (var i = 0; i < olhos.length; i++) {
+      var ox = cx + olhos[i], oy = cy - 4;
+      ctx.fillStyle = COR_BRANCO_DO_OLHO;
+      ctx.fillRect(ox, oy, 4, 4);
+      ctx.fillStyle = COR_PUPILA;
+      ctx.fillRect(ox + pupila.dx, oy + pupila.dy, 2, 2);
+    }
+  }
+
+  /**
+   * Os quatro no labirinto, com a mesma copia do outro lado que o come-come
+   * ganha na boca do tunel.
+   */
+  function desenharFantasmas(estado, relogio) {
+    var onda = Math.floor(relogio / SAIA_CICLO) % 2;
+    var meio = TILE / 2;
+    for (var i = 0; i < estado.lista.length; i++) {
+      var f = estado.lista[i];
+      var c = f.corpo;
+      desenharFantasma(c.x, c.y, f.cor, c.dir, onda);
+      if (c.x < meio) desenharFantasma(c.x + labirinto.largura, c.y, f.cor, c.dir, onda);
+      else if (c.x > labirinto.largura - meio) {
+        desenharFantasma(c.x - labirinto.largura, c.y, f.cor, c.dir, onda);
+      }
+    }
   }
 
   /** A cena inteira, do zero, uma vez por quadro. */
@@ -691,6 +1112,10 @@
     else if (come.x > labirinto.largura - meio) {
       desenharComeCome(come.x - labirinto.largura, come.y, come.dir, abertura);
     }
+
+    // Os fantasmas vem por ultimo: quando um passa por cima do come-come, e
+    // ele que aparece - e assim a crianca ve o perigo, nao o contrario.
+    desenharFantasmas(jogo.fantasmas, jogo.relogio);
   }
 
   // -------------------------------------------------------------- O jogo ----
@@ -706,7 +1131,8 @@
     pontos: 0,                       // o que a fase rendeu ate agora
     vidas: VIDAS_INICIAIS,           // ainda nao ha como perder (fase 5)
     come: Movimento.novoCorpo(labirinto.nascimento.c, labirinto.nascimento.l),
-    pastilhas: Pastilhas.novoEstado(labirinto)
+    pastilhas: Pastilhas.novoEstado(labirinto),
+    fantasmas: Fantasmas.novoEstado(labirinto)
   };
 
   // O estado vivo, para os testes dirigirem o jogo sem navegador.
@@ -727,6 +1153,13 @@
       jogo.pontos += mordida.pontos;
       if (mordida.limpou) concluirFase();
     }
+
+    /* Os quatro perseguem o quadrado em que o come-come esta. Isto e um alvo
+       PROVISORIO: quem calcula o alvo de cada personalidade - e quando eles
+       largam a caca para dispersar - e a fase 3b do plano. Encostar num deles
+       ainda nao machuca (fase 5). */
+    var alvo = { c: Mapa.coluna(jogo.come.x), l: Mapa.linha(jogo.come.y) };
+    jogo.fantasmas = Fantasmas.passo(jogo.fantasmas, labirinto, alvo);
   }
 
   /**

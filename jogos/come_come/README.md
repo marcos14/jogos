@@ -5,12 +5,14 @@ corredores, coma todas as pastilhas e escape dos quatro fantasmas. Três
 labirintos, cada um mais difícil que o anterior — sozinho ou com até 5 amigos
 na mesma sala.
 
-> **Estado de hoje: fase 2 do plano.** Já dá para correr pelo labirinto 1
+> **Estado de hoje: fase 3a do plano.** Já dá para correr pelo labirinto 1
 > comendo todas as pastilhas, ver o placar subir no HUD e limpar o labirinto —
-> a fase é dada por concluída quando a última pastilha some. Os fantasmas ainda
-> não existem (fase 3), a pastilha de poder ainda só vale pontos (fase 4), as
-> vidas ainda não caem porque não há de quem fugir (fase 5), o labirinto ainda
-> é um só (fase 6a) e a partida ainda entra direto no jogo, sem menu (fase 7).
+> e agora os **quatro fantasmas** moram na casa do centro, saem um a um pela
+> porta e circulam pelos corredores atrás do come-come. Eles ainda não têm
+> personalidade nem ciclo de dispersão (fase 3b), a pastilha de poder ainda só
+> vale pontos (fase 4), encostar num fantasma ainda não machuca (fase 5), o
+> labirinto ainda é um só (fase 6a) e a partida ainda entra direto no jogo, sem
+> menu (fase 7).
 
 ---
 
@@ -46,8 +48,8 @@ pés dele, ela some da tela e o quadrado fica limpo para sempre — voltar por
 cima não rende mais nada.
 
 A pastilha de poder já vale os 50 pontos, mas ainda **não faz mais nada**: o
-efeito dela (deixar os fantasmas azuis e comestíveis) chega junto com os
-fantasmas.
+efeito dela — deixar os fantasmas azuis e comestíveis — ainda vai ser escrito.
+Do mesmo jeito, encostar num fantasma ainda não custa vida nenhuma.
 
 O HUD, em cima do labirinto, mostra quatro números:
 
@@ -57,6 +59,44 @@ O HUD, em cima do labirinto, mostra quatro números:
 | **Vidas** | 🟡🟡🟡 — três, como no fliperama (ainda não há como perder) |
 | **Fase** | qual dos três labirintos está em jogo |
 | **Faltam** | quantas pastilhas ainda estão de pé; zerou, a fase acabou |
+
+---
+
+## Os quatro fantasmas
+
+No centro do labirinto há uma casa, e dentro dela moram quatro fantasmas — cada
+um com a sua cor e o seu tempo de espera:
+
+| Fantasma | Cor | Sai depois de |
+|---|---|---|
+| Vermelho (`perseguidor`) | 🔴 | já começa na rua |
+| Rosa (`emboscador`) | 🌸 | 2 segundos |
+| Azul (`tímido`) | 🔵 | 4 segundos |
+| Laranja (`aleatório`) | 🟠 | 6 segundos |
+
+Quem espera **balança no lugar**. Chegada a hora, o fantasma anda até a coluna
+da porta, sobe por ela e cai na rua. A porta é o **único lugar do desenho que
+só eles atravessam** — e mesmo assim só de dentro para fora: já solto no
+labirinto, ele usa as regras normais, e para elas a porta é parede como
+qualquer outra. Ninguém volta para casa por vontade própria.
+
+Na rua, a decisão é a do fliperama e cabe em três linhas: em **cada centro de
+quadrado**, olhe as saídas, **jogue fora a meia-volta** e fique com a que deixa
+o vizinho mais perto do **alvo**. Empatou, vence a ordem `cima`, `esquerda`,
+`baixo`, `direita`. Repare no que essa regra faz sozinha: num corredor comprido
+sobra uma saída só, então não há escolha nenhuma — e é assim que eles entram no
+túnel e saem do outro lado sem uma linha de código a mais.
+
+O **alvo chega de fora**, de propósito: hoje os quatro recebem o quadrado em
+que o come-come está. Quem calcula um alvo diferente para cada personalidade —
+e quando eles largam a caça para dispersar pelos cantos — ainda vai ser
+escrito.
+
+Cada um é desenhado com a cúpula redonda rasterizada na mão, a saia balançando
+em pés de 4px (a onda troca de lugar a cada 8 quadros, e é o que faz ele
+parecer que flutua) e dois olhos com a **pupila correndo para o lado em que ele
+anda** — que é o único jeito de a criança saber, de longe, para onde o fantasma
+vai.
 
 ---
 
@@ -87,6 +127,13 @@ A **linha do túnel** é a que começa e termina com `T`. Nela, o vizinho da pon
 esquerda é a ponta direita — e `Mapa.vizinho()` já devolve o vizinho com essa
 volta feita, de modo que o resto do jogo não precisa saber do assunto.
 
+A **casa dos fantasmas** também sai do desenho sozinha, e nenhum labirinto
+precisa apontá-la à mão: `Mapa.ler()` acha o `-` mais em cima, vê de que lado
+dele está a rua (o outro é o miolo), enche a casa a partir de dentro — a porta
+não é chão, então a água nunca vaza — e daí saem o retângulo da casa e os
+quatro lugares dos fantasmas: a rua diante da porta, onde o primeiro já nasce,
+e três pontos na linha do meio do miolo.
+
 Ler o desenho também monta a tabela `quadrado → pastilha dali`, que é o que
 `Mapa.pastilhaEm()` consulta. É a pergunta que o come-come faz **a cada
 quadro** ("tem comida debaixo dos meus pés?"), então ela é uma consulta direta,
@@ -111,6 +158,7 @@ apontando para onde ele anda.
 | `Mapa` | lê o desenho em texto e devolve a grade (paredes, pastilhas, poderes, porta da casa, nascimento e as linhas de túnel) |
 | `Movimento` | um quadro de movimento na grade: direção atual + direção desejada, parada na parede, alinhamento no meio do corredor e a volta do túnel |
 | `Pastilhas` | o caderninho do labirinto: quais pastilhas ainda estão de pé, o que rende comer a do quadrado em que o come-come está, e quantas faltam |
+| `Fantasmas` | os quatro corpos: a espera na casa, a rota da porta e, soltos no labirinto, a escolha da saída que mais aproxima do alvo recebido |
 
 Nenhum deles sabe o que é DOM, e todos são funções puras: recebem um estado e
 devolvem um estado **novo**, sem mexer no que receberam. Isso vale por dois
@@ -147,6 +195,8 @@ node testes/come_come/fase1.test.mjs        # o mapa e o movimento, puros
 node testes/come_come/fase1-tela.test.mjs   # o jogo ligado, sem navegador
 node testes/come_come/fase2.test.mjs        # as pastilhas e a pontuação, puras
 node testes/come_come/fase2-tela.test.mjs   # o labirinto percorrido até ficar limpo
+node testes/come_come/fase3a.test.mjs       # a casa, a saída e a escolha da esquina
+node testes/come_come/fase3a-tela.test.mjs  # os quatro fantasmas dentro da partida
 ```
 
 O `fase2-tela.test.mjs` põe um **piloto automático** no volante: a cada centro
@@ -154,3 +204,8 @@ de quadrado ele procura a pastilha inteira mais perto (uma busca em largura
 pelo labirinto, com o túnel e tudo) e aperta a seta daquele lado. Assim o
 labirinto inteiro é percorrido até ficar limpo, e o teste confere os 2 600
 pontos no HUD e a fase dada por concluída.
+
+O `fase3a.test.mjs` solta os quatro fantasmas por **6 000 quadros** com um alvo
+que passeia pelos cantos e confere, quadro a quadro, que nenhum deles entra
+numa parede, sai do alinhamento do corredor ou dá meia-volta; a escolha da
+esquina é conferida à mão no cruzamento `(6, 8)`, inclusive o empate.
