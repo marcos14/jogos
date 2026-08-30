@@ -4,10 +4,10 @@ Um platformer retrô, de 8 bits, para as crianças: corra, pule, junte moedas e
 chegue na bandeira. São 3 fases fixas e dá para jogar sozinho ou com até 8
 amigos na mesma fase, cada um no seu aparelho.
 
-> **Estado: em construção.** Esta é a **fase 3** do plano — já dá para
-> atravessar a fase 1 inteira juntando as 100 moedas e quebrando os blocos, com
-> o placar subindo no HUD. Checkpoints, vidas de verdade, inimigos, as fases 2 e
-> 3 e o multijogador chegam nas próximas etapas.
+> **Estado: em construção.** Esta é a **fase 4** do plano — já dá para
+> atravessar a fase 1 inteira juntando as 100 moedas, quebrando os blocos,
+> acendendo os checkpoints e perdendo vidas de verdade. Os inimigos, as fases 2
+> e 3 e o multijogador chegam nas próximas etapas.
 
 ## Como jogar
 
@@ -16,10 +16,8 @@ amigos na mesma fase, cada um no seu aparelho.
 | **←** **→** (ou **A** / **D**) | andar |
 | **ESPAÇO** (ou **↑** / **W**) | pular |
 
-Clique em **JOGAR SOLO**, corra para a direita, junte moedas e chegue na
-bandeira. Cair num buraco recomeça a fase do zero — herói no começo, moedas e
-blocos de volta no lugar e placar zerado (perder vida e voltar ao checkpoint é
-assunto da próxima etapa; por isso os ❤️ do HUD ficam sempre em 3).
+Clique em **JOGAR SOLO**, corra para a direita, junte moedas, acenda os
+checkpoints e chegue na bandeira.
 
 ## Pontuação
 
@@ -32,6 +30,29 @@ A fase 1 tem **100 moedas** — 1000 pontos se você pegar todas. Cada moeda som
 de vez: uma vez pega, não volta mais durante a tentativa. O HUD no topo mostra
 os pontos, os ❤️ e em que fase você está, e o número dos pontos sobe na hora em
 que a moeda é encostada.
+
+## Vidas e checkpoints
+
+Cada tentativa começa com **3 ❤️**. Cair num buraco custa **um coração** e o
+herói reaparece **no último checkpoint aceso** — as moedas que ele já juntou
+continuam juntadas e o placar não é mexido. Quando os corações acabam, a
+**tentativa termina**: a fase inteira volta ao começo (moedas e blocos de volta
+no lugar, checkpoints apagados, placar zerado e os 3 ❤️ cheios de novo). O
+placar zera junto justamente para ninguém juntar as mesmas 100 moedas duas
+vezes.
+
+Os checkpoints são três mastros com bandeirinha, plantados **logo depois dos
+lugares onde dá para cair** (colunas 29, 63 e 87 do tilemap). Apagados eles são
+cinza e a bandeirinha fica caída no pé; encostar acende: a bandeirinha sobe,
+fica verde e solta faíscas. Uma vez aceso, o checkpoint **não expira** — vale
+até o fim da tentativa, mesmo que o herói volte atrás ou caia várias vezes. O
+que vale para renascer é sempre o **mais recente** que foi aceso.
+
+| Quedas na tentativa | O que acontece |
+|---|---|
+| 1ª | −1 ❤️, volta ao último checkpoint (ou ao começo, se nenhum acendeu) |
+| 2ª | −1 ❤️, mesma coisa |
+| 3ª | acabaram os ❤️: a fase inteira recomeça do zero |
 
 ## Os blocos quebráveis
 
@@ -74,6 +95,7 @@ O mapa é um tilemap: quadrados de 32×32 px escritos como texto dentro do
 | `=` | plataforma solta |
 | `o` | moeda (fica no meio do quadrado, 16×24 px) |
 | `?` | bloco quebrável (tem um cristal dentro) |
+| `C` | checkpoint (o herói renasce nele depois de aceso) |
 | `P` | onde o herói nasce |
 | `F` | a bandeira do fim |
 
@@ -117,6 +139,14 @@ câmera, para dar sensação de distância.
   resumo do que aconteceu (moedas pegas, bloco quebrado, pontos). Quando nada
   acontece devolve o mesmo objeto, sem alocar nada. É esse desenho que vai
   deixar o anfitrião mandar o mundo pronto para os convidados no multijogador.
+- **As vidas e os checkpoints também são um estado à parte** (`Progresso`), com
+  as mesmas regras: `tocar()` acende o checkpoint em que o herói encostou e
+  `perderVida()` diz se é para renascer no checkpoint ou recomeçar a fase. Puras
+  as duas, e sem saber nada de tela — quando o anfitrião simular oito heróis de
+  uma vez, cada um vai ser só mais um desses estados.
+- **O checkpoint e a bandeira são o mesmo formato de "mastro"**: um retângulo de
+  uma coluna que vai da letra até o primeiro chão abaixo dela. Assim dá para
+  encostar neles andando pelo chão ou passando por cima, sem casos especiais.
 - **O HUD é HTML, não canvas.** Pontos, vidas e fase ficam fora da tela do jogo:
   crescem junto com a página, continuam legíveis no celular e só são reescritos
   quando o número muda (nada de mexer no DOM 60 vezes por segundo).
@@ -139,4 +169,6 @@ node testes/super_adventure/fase2.test.mjs          # tilemap, colisão, câmera
 node testes/super_adventure/fase2-tela.test.mjs     # a fase 1 percorrida até a bandeira
 node testes/super_adventure/fase3.test.mjs          # moedas, blocos quebráveis, pontos
 node testes/super_adventure/fase3-tela.test.mjs     # o placar e o HUD em tempo real
+node testes/super_adventure/fase4.test.mjs          # checkpoints e vidas
+node testes/super_adventure/fase4-tela.test.mjs     # cair, perder vida, voltar ao checkpoint
 ```

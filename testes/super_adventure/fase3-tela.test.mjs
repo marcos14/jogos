@@ -12,8 +12,9 @@
      - dar uma cabecada num bloco quebravel tira ele do mundo, solta o efeito
        do cristal e para de pinta-lo na tela
      - o efeito e curto: some sozinho depois de alguns quadros
-     - cair num buraco recomeca a fase (moedas de volta, placar zerado) e as
-       vidas continuam em 3 - perder vida e a proxima etapa do plano
+     - cair num buraco custa um coracao, mas nao devolve as moedas ja pegas
+       (o reinicio da fase inteira so acontece quando as vidas acabam - isso
+       quem testa e o fase4-tela)
      - o piloto automatico chega na bandeira com pontos no bolso, e a tela de
        fim mostra o mesmo numero do HUD
    ========================================================================== */
@@ -186,24 +187,29 @@ teste('o efeito do cristal e curto: some sozinho', () => {
   assert.ok(pintadosDaCor('#6844fc') > 0, 'mas os blocos vizinhos continuam la');
 });
 
-// --------------------------------------- Recomecar a fase devolve tudo ------
-teste('cair num buraco recomeca a fase: moedas de volta e placar zerado', () => {
+// ------------------------------------- Cair custa uma vida, nao o placar ----
+// (a regra completa - checkpoints e reinicio sem vidas - esta no fase4-tela)
+teste('cair num buraco custa uma vida, mas as moedas ja pegas continuam pegas', () => {
   soltarTudo();
-  assert.ok(jogo.pontos > 0, 'tinha pontos antes de cair');
+  const pontosAntes = jogo.pontos;
+  const blocosAntes = Itens.quantos(jogo.itens.blocos);
+  assert.ok(pontosAntes > 0, 'tinha pontos antes de cair');
 
   const quedasAntes = jogo.quedas;
-  dom.tecla('ArrowRight', true);
+  dom.tecla('ArrowRight', true);   // no caminho ate o buraco ainda pega moedas
   for (let i = 0; i < 600 && jogo.quedas === quedasAntes; i++) dom.avancarQuadros(1);
   soltarTudo();
 
   assert.equal(jogo.quedas, quedasAntes + 1, 'caiu no buraco');
-  assert.equal(jogo.pontos, 0, 'a fase recomecou do zero');
-  assert.equal(texto('hud-pontos'), '0');
-  assert.equal(Itens.quantos(jogo.itens.moedas), 100, 'as moedas voltaram');
-  assert.equal(Itens.quantos(jogo.itens.blocos), 10, 'os blocos tambem');
+  assert.ok(jogo.pontos >= pontosAntes, 'o placar da tentativa ficou de pe');
+  assert.equal(texto('hud-pontos'), String(jogo.pontos));
+  assert.equal(jogo.pontos / 10, 100 - Itens.quantos(jogo.itens.moedas),
+    'moeda pega nao volta: os pontos continuam batendo com o mapa');
+  assert.equal(Itens.quantos(jogo.itens.blocos), blocosAntes,
+    'bloco quebrado continua quebrado');
   assert.equal(jogo.efeitos.length, 0);
-  assert.equal(jogo.vidas, 3, 'nesta etapa do plano ainda nao se perde vida');
-  assert.equal(texto('hud-vidas'), '❤️❤️❤️');
+  assert.equal(jogo.vidas, 2, 'foi-se um coracao');
+  assert.equal(texto('hud-vidas'), '❤️❤️');
 });
 
 // -------------------------------------------------- Uma fase inteirinha -----

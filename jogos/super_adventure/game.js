@@ -1,22 +1,25 @@
 /* ==========================================================================
    SUPER ADVENTURE  -  plataforma retro, no estilo dos consoles de 8 bits
    --------------------------------------------------------------------------
-   FASE 3 do plano: moedas, blocos quebraveis, pontuacao e HUD.
+   FASE 4 do plano: checkpoints, vidas e reinicio da fase.
 
      - `Fisica`: as funcoes puras do movimento, com colisao AABB contra os
        blocos solidos do mapa (para em cima, nao atravessa, bate a cabeca).
      - `Mapa`: le um tilemap escrito como texto e devolve os retangulos
-       solidos, as moedas, os blocos quebraveis, o ponto de nascimento e a
-       bandeira. Tambem e funcao pura.
+       solidos, as moedas, os blocos quebraveis, os checkpoints, o ponto de
+       nascimento e a bandeira. Tambem e funcao pura.
      - `Itens`: o que o heroi encosta e o que ele quebra. Tambem puro: recebe
        o estado dos itens e devolve um estado NOVO, com o que aconteceu.
+     - `Progresso`: as vidas e os checkpoints. Cair custa uma vida e devolve o
+       heroi ao ultimo checkpoint ligado; sem vidas, a fase inteira recomeca.
+       Puro tambem.
      - `Camera`: side-scroll, seguindo o heroi sem sair das bordas do mundo.
      - A fase 1 do jogo ja e um percurso de verdade: 120 colunas de 32px, com
-       buracos, degraus, plataformas soltas, 100 moedas, 10 blocos quebraveis
-       e a bandeira no fim.
+       buracos, degraus, plataformas soltas, 100 moedas, 10 blocos quebraveis,
+       3 checkpoints e a bandeira no fim.
 
-   Nada disto usa imagem: tudo e retangulo pintado no Canvas 2D. Checkpoints,
-   vidas de verdade, inimigos e a rede chegam nas fases seguintes do plano.
+   Nada disto usa imagem: tudo e retangulo pintado no Canvas 2D. Os inimigos,
+   as fases 2 e 3 e a rede chegam nas fases seguintes do plano.
    ========================================================================== */
 
 (function () {
@@ -30,7 +33,7 @@
 
   // ---------------------------------------------------------- A pontuacao ---
   var PONTOS_MOEDA = 10;                  // cada moeda vale 10 pontos
-  var VIDAS_INICIAIS = 3;                 // fixo nesta fase do plano
+  var VIDAS_INICIAIS = 3;                 // cada tentativa comeca com 3 vidas
   var TOTAL_FASES = 3;                    // o jogo completo tem 3 fases
 
   // ------------------------------------------------------------- A fisica ---
@@ -242,6 +245,7 @@
          .  vazio          #  terra (o chao e os degraus)
          =  plataforma     P  onde o heroi nasce      F  a bandeira do fim
          o  moeda          ?  bloco quebravel (tem um cristal dentro)
+         C  checkpoint (o heroi renasce nele depois de ligado)
 
      `Mapa.ler()` transforma esse desenho nos retangulos solidos que a fisica
      usa. Blocos vizinhos de uma mesma linha viram UM retangulo so, o que deixa
@@ -270,6 +274,18 @@
     function solido(mapa, coluna, linha) {
       var ch = tile(mapa, coluna, linha);
       return solidoChar(ch) || quebravelChar(ch);
+    }
+
+    /**
+     * O retangulo de um mastro plantado no quadrado (coluna, linha): vai da
+     * letra ate o primeiro chao abaixo dela. E a forma da bandeira e a dos
+     * checkpoints - assim os dois sao faceis de encostar, seja andando pelo
+     * chao, seja passando por cima.
+     */
+    function mastro(mapa, coluna, linha) {
+      var pe = linha + 1;
+      while (pe < mapa.linhas && !solido(mapa, coluna, pe)) pe++;
+      return { x: coluna * TILE, y: linha * TILE, l: TILE, a: (pe - linha) * TILE };
     }
 
     /** O retangulo de uma moeda, no meio do quadrado (coluna, linha). */
@@ -304,6 +320,7 @@
         solidos: [],
         moedas: [],
         quebraveis: [],
+        checkpoints: [],
         spawn: null,
         bandeira: null
       };
@@ -329,17 +346,15 @@
             mapa.quebraveis.push({ x: c * TILE, y: r * TILE, l: TILE, a: TILE });
           }
           if (ch === 'P') mapa.spawn = { x: c * TILE, y: r * TILE };
-          if (ch === 'F') {
-            // O mastro vai da letra F ate o primeiro chao abaixo dela.
-            var pe = r + 1;
-            while (pe < grade.length && !solido(mapa, c, pe)) pe++;
-            mapa.bandeira = {
-              x: c * TILE, y: r * TILE,
-              l: TILE, a: (pe - r) * TILE
-            };
-          }
+          if (ch === 'C') mapa.checkpoints.push(mastro(mapa, c, r));
+          if (ch === 'F') mapa.bandeira = mastro(mapa, c, r);
         }
       }
+
+      // Na ordem do percurso: o checkpoint 0 e o primeiro que o heroi encontra
+      // andando para a direita (o desenho e lido linha a linha, nao coluna a
+      // coluna, entao eles nao saem prontos da leitura).
+      mapa.checkpoints.sort(function (a, b) { return a.x - b.x; });
 
       // Os limites do mapa inteirinho, com todos os blocos quebraveis de pe.
       mapa.limites = limitesCom(mapa, null);
@@ -352,6 +367,7 @@
       solido: solido,
       limitesCom: limitesCom,
       retanguloMoeda: retanguloMoeda,
+      mastro: mastro,
       TILE: TILE
     };
   }());
@@ -490,6 +506,107 @@
     };
   }());
 
+  // ---------------------------------------------------------- O progresso ---
+  /* As vidas e os checkpoints - o que sobra de uma tentativa quando o heroi
+     cai num buraco.
+
+     O mapa diz ONDE os checkpoints estao; o "estado do progresso" diz o que ja
+     aconteceu nesta tentativa:
+
+         { vidas: 3,                    // coracoes que ainda restam
+           ativos: [true, false, ...],  // quais checkpoints ja foram ligados
+           atual: 0 }                   // o ultimo que ligou (-1 = nenhum)
+
+     As regras do PRD, em duas funcoes puras:
+
+       - `tocar()`  liga o checkpoint em que o heroi encostou. Uma vez ligado,
+         ele fica ligado ate o fim da tentativa: checkpoint nao expira.
+       - `perderVida()` tira um coracao. Sobrando vida, o heroi volta ao ultimo
+         checkpoint ligado; sem nenhuma, a tentativa acaba e a fase inteira
+         recomeca - vidas cheias de novo e todos os checkpoints apagados.
+
+     Como todo o resto, nenhuma das duas mexe no estado que recebe. */
+  var Progresso = (function () {
+
+    /** Um array de `n` posicoes, todas com `false`. */
+    function apagados(n) {
+      var lista = [];
+      for (var i = 0; i < n; i++) lista.push(false);
+      return lista;
+    }
+
+    /** O comeco de uma tentativa: vidas cheias, nenhum checkpoint ligado. */
+    function novoEstado(mapa) {
+      return {
+        vidas: VIDAS_INICIAIS,
+        ativos: apagados(mapa.checkpoints.length),
+        atual: -1
+      };
+    }
+
+    /** Onde o heroi nasce agora: no checkpoint mais novo, ou no inicio. */
+    function nascedouro(mapa, estado) {
+      var cp = estado.atual >= 0 ? mapa.checkpoints[estado.atual] : null;
+      if (!cp) return { x: mapa.spawn.x, y: mapa.spawn.y };
+      // De pe no pe do mastro, exatamente como se tivesse acabado de pousar.
+      return {
+        x: cp.x + (cp.l - HEROI_L) / 2,
+        y: cp.y + cp.a - HEROI_A
+      };
+    }
+
+    /** Qual checkpoint apagado o corpo esta encostando agora (-1 = nenhum). */
+    function checkpointTocado(estado, mapa, corpo) {
+      for (var i = 0; i < mapa.checkpoints.length; i++) {
+        if (estado.ativos[i]) continue;                // ja estava ligado
+        if (Fisica.tocandoCorpo(corpo, mapa.checkpoints[i])) return i;
+      }
+      return -1;
+    }
+
+    /**
+     * Liga o checkpoint em que o heroi encostou.
+     * Devolve { estado, ativou: indice|-1 } - e o MESMO estado se nada mudou.
+     */
+    function tocar(estado, mapa, corpo) {
+      var i = checkpointTocado(estado, mapa, corpo);
+      if (i < 0) return { estado: estado, ativou: -1 };
+
+      var ativos = estado.ativos.slice();
+      ativos[i] = true;
+      return {
+        estado: { vidas: estado.vidas, ativos: ativos, atual: i },
+        ativou: i
+      };
+    }
+
+    /**
+     * Tira um coracao. Devolve { estado, tipo }:
+     *   'checkpoint' - ainda ha vidas: renascer no ultimo checkpoint ligado
+     *   'reinicio'   - acabaram as vidas: a fase inteira volta ao comeco, com
+     *                  as vidas cheias e os checkpoints apagados
+     */
+    function perderVida(estado, mapa) {
+      var vidas = estado.vidas - 1;
+      if (vidas > 0) {
+        return {
+          estado: { vidas: vidas, ativos: estado.ativos, atual: estado.atual },
+          tipo: 'checkpoint'
+        };
+      }
+      return { estado: novoEstado(mapa), tipo: 'reinicio' };
+    }
+
+    return {
+      novoEstado: novoEstado,
+      nascedouro: nascedouro,
+      checkpointTocado: checkpointTocado,
+      tocar: tocar,
+      perderVida: perderVida,
+      VIDAS_INICIAIS: VIDAS_INICIAIS
+    };
+  }());
+
   // ------------------------------------------------------------- A camera ---
   /* Side-scroll: a camera anda so na horizontal, centrada no heroi, e trava
      nas duas pontas do mundo para nunca mostrar o lado de fora do mapa. */
@@ -504,6 +621,11 @@
   // ------------------------------------------------------ O mapa da fase 1 --
   // Facil: chao quase todo continuo, buracos de 2 quadrados, degraus de 2 e
   // algumas plataformas soltas para quem quiser subir. A bandeira fica no fim.
+  //
+  // Os tres checkpoints (`C`) ficam logo DEPOIS dos lugares onde da para cair:
+  // coluna 29 (passado o primeiro buraco), coluna 63 (do outro lado do vao do
+  // planalto) e coluna 87 (passado o buraco das colunas 84-85). Assim quem cai
+  // volta perto de onde errou, sem refazer a fase inteira.
   var FASE_1 = [
     '........................................................................................................................',
     '........................................................................................................................',
@@ -515,9 +637,9 @@
     '........................................................................................................................',
     '........................................................................................................................',
     '......................................................???..........................................................F....',
-    '................................oooo..........ooo.........oo.oo...oo......oooo.............ooo..........ooo.............',
+    '................................oooo..........ooo.........oo.ooC..oo......oooo.............ooo..........ooo.............',
     '..............???.........oo....====.....oo...===..ooooooooo....ooooo..??.====......oo.....===..oo..??..===.............',
-    '.........ooo..ooo........o..o....oo.....o..o..ooo.###########..#######.oo..........o..o........o..o.oo..........oo..oo..',
+    '.........ooo..ooo........o..oC...oo.....o..o..ooo.###########..#######.oo..........o..oC.......o..o.oo..........oo..oo..',
     '..P..ooo..........ooo.oo......oo.....ooo....oo....###########..#######.........ooo......ooo.................oooo....ooo.',
     '##########################..#############..##################..#####################..##########..######################',
     '##########################..#############..##################..#####################..##########..######################',
@@ -533,6 +655,7 @@
       Fisica: Fisica,
       Mapa: Mapa,
       Itens: Itens,
+      Progresso: Progresso,
       Camera: Camera,
       FASE_1: FASE_1,
       fase: fase,
@@ -789,8 +912,32 @@
     }
   }
 
+  // ----- Os checkpoints: um mastro com bandeirinha. Apagado ele e cinza e a
+  // bandeirinha fica caida no pe; aceso, ela sobe para o topo e balanca.
+  function desenharCheckpoint(cp, cam, aceso, quadro) {
+    var x = cp.x - cam;
+    bloco(x + 13, cp.y + 2, 6, cp.a - 8, aceso ? '#e0e0f0' : '#8888a0');   // mastro
+    bloco(x + 5, cp.y + cp.a - 6, 22, 6, '#0d0d17');                       // base
+    bloco(x + 10, cp.y, 12, 6, aceso ? '#fcd800' : '#585868');             // topo
+
+    var pano = aceso ? cp.y + 8 : cp.y + cp.a - 26;   // aceso: a bandeirinha sobe
+    var balanco = aceso && ((quadro / 10) | 0) % 2 ? 2 : 0;
+    for (var i = 0; i < 4; i++) {
+      bloco(x + 19, pano + i * 4, 12 - Math.abs(i - 1) * 3 + balanco, 4,
+            aceso ? '#78f800' : '#585868');
+    }
+  }
+
+  function desenharCheckpoints(cam) {
+    for (var i = 0; i < fase.checkpoints.length; i++) {
+      var cp = fase.checkpoints[i];
+      if (!naTela(cp, cam)) continue;
+      desenharCheckpoint(cp, cam, jogo.progresso.ativos[i], jogo.relogio);
+    }
+  }
+
   // ----- Efeitos: duram poucos quadros e nao mexem em nada do mundo.
-  var EFEITO_MOEDA = 20, EFEITO_CRISTAL = 34;
+  var EFEITO_MOEDA = 20, EFEITO_CRISTAL = 34, EFEITO_CHECKPOINT = 30;
 
   function desenharEfeitoMoeda(x, y, t) {
     var d = 4 + t;                                   // as faiscas se abrindo
@@ -812,6 +959,15 @@
     if (t < 24) desenharCristal(x - 8, y - 10 - t * 1.1, t % 6 < 3 ? '#b8f8f8' : '#00e8d8');
   }
 
+  function desenharEfeitoCheckpoint(x, y, t) {
+    for (var i = 0; i < 5; i++) {                    // um anel de faiscas subindo
+      var angulo = (i / 5) * Math.PI * 2 + t * 0.12;
+      var raio = 8 + t;
+      bloco(x + Math.cos(angulo) * raio - 2, y + Math.sin(angulo) * raio - t - 2,
+            4, 4, i % 2 ? '#00e8d8' : '#fcd800');
+    }
+  }
+
   function desenharEfeitos(cam) {
     for (var i = 0; i < jogo.efeitos.length; i++) {
       var f = jogo.efeitos[i];
@@ -819,6 +975,7 @@
       if (x < -TILE * 2 || x > LARGURA + TILE * 2) continue;
       var t = f.total - f.vida;                      // quadros desde que nasceu
       if (f.tipo === 'moeda') desenharEfeitoMoeda(x, f.y, t);
+      else if (f.tipo === 'checkpoint') desenharEfeitoCheckpoint(x, f.y, t);
       else desenharEfeitoCristal(x, f.y, t);
     }
   }
@@ -843,6 +1000,7 @@
     desenharFundo(cam);
     desenharMapa(cam);
     desenharItens(cam);
+    desenharCheckpoints(cam);
     desenharBandeira(cam);
 
     var arte;
@@ -860,13 +1018,15 @@
     tela: 'menu',                       // 'menu' | 'jogando'
     relogio: 0,                         // quadros desde o inicio da partida
     quedas: 0,                          // quantas vezes caiu num buraco
+    tentativas: 1,                      // sobe toda vez que as vidas acabam
     concluida: false,                   // ja tocou a bandeira?
     camera: 0,
     pontos: 0,                          // o placar que aparece no HUD
-    vidas: VIDAS_INICIAIS,              // fixo em 3 ate a fase 4 do plano
+    vidas: VIDAS_INICIAIS,              // copia de `progresso.vidas`, para o HUD
     fase: 1,                            // a fase 1 de 3
     heroi: Fisica.novoCorpo(fase.spawn.x, fase.spawn.y),
     itens: Itens.novoEstado(fase),      // quais moedas/blocos ainda existem
+    progresso: Progresso.novoEstado(fase),   // vidas e checkpoints ligados
     efeitos: [],                        // faiscas e cristais, so enfeite
     eventos: []                         // os ultimos avisos (para os testes)
   };
@@ -874,7 +1034,9 @@
   var entrada = { esquerda: false, direita: false, pular: false };
   var ouvintes = [];
 
-  /** Avisa quem estiver escutando. Por enquanto: 'queda' e 'fase-concluida'. */
+  /* Avisa quem estiver escutando. Os avisos de hoje:
+       'moeda', 'bloco-quebrado', 'checkpoint', 'queda', 'vida-perdida',
+       'fase-reiniciada', 'fase-concluida'. */
   function emitir(tipo) {
     var evento = { tipo: tipo, quadro: jogo.relogio };
     jogo.eventos.push(evento);
@@ -917,16 +1079,31 @@
     }
   }
 
-  /* Volta a fase inteira ao comeco: heroi no spawn, moedas e blocos de volta
-     no lugar e o placar zerado. Cair num buraco ainda e so isto - o checkpoint
-     e a perda de vida chegam na fase 4 do plano. */
-  function reiniciarFase() {
-    jogo.heroi = Fisica.novoCorpo(fase.spawn.x, fase.spawn.y);
-    jogo.itens = Itens.novoEstado(fase);
+  /** Guarda o progresso novo; `jogo.vidas` e a copia que o HUD le. */
+  function aplicarProgresso(novo) {
+    jogo.progresso = novo;
+    jogo.vidas = novo.vidas;
+  }
+
+  /* Poe o heroi de pe onde ele deve nascer agora - no ultimo checkpoint ligado
+     ou no comeco da fase - com a camera junto. As moedas e os blocos NAO sao
+     mexidos: o que ja foi pego continua pego. */
+  function nascer() {
+    var onde = Progresso.nascedouro(fase, jogo.progresso);
+    jogo.heroi = Fisica.novoCorpo(onde.x, onde.y);
     jogo.efeitos.length = 0;
-    jogo.pontos = 0;
     jogo.camera = Camera.seguir(centroDoHeroi(), fase.largura, LARGURA);
+  }
+
+  /* Volta a fase inteira ao comeco de uma tentativa nova: heroi no spawn,
+     moedas e blocos de volta no lugar, checkpoints apagados, vidas cheias e o
+     placar zerado (senao daria para juntar as mesmas moedas de novo). */
+  function reiniciarFase() {
+    aplicarProgresso(Progresso.novoEstado(fase));
+    jogo.itens = Itens.novoEstado(fase);
+    jogo.pontos = 0;
     jogo.concluida = false;
+    nascer();
     el.fim.classList.add('hidden');
     atualizarHud();
   }
@@ -969,6 +1146,37 @@
     atualizarHud();
   }
 
+  /* Cair num buraco custa um coracao. Sobrando vida, o heroi volta ao ultimo
+     checkpoint ligado com as moedas que ja juntou; sem nenhuma, a tentativa
+     acaba e a fase inteira recomeca do zero. */
+  function cair() {
+    jogo.quedas++;
+    emitir('queda');
+
+    var r = Progresso.perderVida(jogo.progresso, fase);
+    if (r.tipo === 'reinicio') {
+      jogo.tentativas++;
+      reiniciarFase();
+      emitir('fase-reiniciada');
+      return;
+    }
+
+    aplicarProgresso(r.estado);
+    nascer();
+    atualizarHud();
+    emitir('vida-perdida');
+  }
+
+  /* Encostou num checkpoint apagado? Ele acende - e fica aceso ate o fim da
+     tentativa, mesmo depois de o heroi passar direto por ele. */
+  function atualizarCheckpoints() {
+    var r = Progresso.tocar(jogo.progresso, fase, jogo.heroi);
+    if (r.ativou < 0) return;
+    aplicarProgresso(r.estado);
+    soltarEfeito('checkpoint', fase.checkpoints[r.ativou], EFEITO_CHECKPOINT);
+    emitir('checkpoint');
+  }
+
   function atualizar() {
     if (jogo.concluida) return;
 
@@ -979,13 +1187,12 @@
     envelhecerEfeitos();
 
     if (Fisica.caiu(jogo.heroi, fase.fundo)) {          // caiu num buraco
-      jogo.quedas++;
-      emitir('queda');
-      reiniciarFase();
+      cair();
       return;
     }
 
     atualizarItens(antes);
+    atualizarCheckpoints();
 
     if (Fisica.tocandoCorpo(jogo.heroi, fase.bandeira)) {
       jogo.concluida = true;
@@ -999,7 +1206,7 @@
     jogo.tela = 'jogando';
     jogo.relogio = 0;
     jogo.quedas = 0;
-    jogo.vidas = VIDAS_INICIAIS;
+    jogo.tentativas = 1;
     jogo.fase = 1;
     jogo.eventos.length = 0;
     entrada.esquerda = entrada.direita = entrada.pular = false;

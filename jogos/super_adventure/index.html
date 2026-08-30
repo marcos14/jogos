@@ -12,9 +12,9 @@
 <div id="app">
 
   <!-- ------------------------------------------------------------ HUD ----- -->
-  <!-- Os numeros sao escritos pelo game.js. Os pontos ja sobem em tempo real
-       (cada moeda vale 10); as vidas ainda ficam fixas em 3 - perder vida e
-       assunto da proxima etapa do plano. -->
+  <!-- Os numeros sao escritos pelo game.js: os pontos sobem a cada moeda (10
+       cada) e os coracoes caem a cada queda. Sem coracoes, a fase inteira
+       recomeca e eles voltam cheios. -->
   <header id="hud" class="hidden">
     <div class="hud-box">
       <span class="hud-label">Pontos</span>
@@ -45,6 +45,7 @@
         <ul class="ajuda">
           <li><b>&larr; &rarr;</b> ou <b>A / D</b> — andar</li>
           <li><b>ESPAÇO</b> ou <b>&uarr;</b> — pular</li>
+          <li>🚩 encoste nos <b>checkpoints</b> antes de cair!</li>
         </ul>
       </div>
     </section>
@@ -63,7 +64,7 @@
     </section>
   </div>
 
-  <footer id="rodape">Junte as moedas, quebre os blocos e corra até a bandeira!</footer>
+  <footer id="rodape">Junte as moedas, acenda os checkpoints e corra até a bandeira!</footer>
 </div>
 
 <script src="game.js" charset="utf-8"></script>

@@ -12,5 +12,7 @@ sem abrir navegador.
     node testes/super_adventure/fase2-tela.test.mjs   a fase 1 percorrida ate o fim
     node testes/super_adventure/fase3.test.mjs        moedas, blocos quebraveis, pontos
     node testes/super_adventure/fase3-tela.test.mjs   o placar e o HUD em tempo real
+    node testes/super_adventure/fase4.test.mjs        checkpoints e vidas
+    node testes/super_adventure/fase4-tela.test.mjs   cair, voltar ao checkpoint
 
 O harness.mjs de cada pasta tem o carregador e o corredor de testes.
