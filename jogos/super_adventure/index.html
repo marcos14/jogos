@@ -69,6 +69,23 @@
       <span><b>ESPAÇO</b> = Pular</span>
     </aside>
 
+    <!-- Os controles de toque: no tablet e no celular não há seta nem barra de
+         espaço, então os botões vêm para o vidro. A cruzeta fica no canto de
+         baixo à esquerda e o pulo no de baixo à direita — um para cada polegar,
+         com o aparelho segurado nas duas mãos. Só aparecem em aparelho de dedo
+         (e no lugar da caixa de controles, que ali não serviria para nada). A
+         moldura não recebe toque: quem recebe são os três botões. -->
+    <div id="toque" class="hidden">
+      <div class="toque-cruzeta">
+        <button id="toque-esquerda" type="button" class="toque-botao"
+                aria-label="Andar para a esquerda">◀</button>
+        <button id="toque-direita" type="button" class="toque-botao"
+                aria-label="Andar para a direita">▶</button>
+      </div>
+      <button id="toque-pular" type="button" class="toque-botao toque-salto"
+              aria-label="Pular">▲</button>
+    </div>
+
     <!-- Pausa: o mundo congela onde está e ficam os dois caminhos — voltar
          para o mesmo lugar ou recomeçar a corrida inteira, da fase 1. -->
     <section id="tela-pausa" class="tela hidden">
@@ -107,6 +124,7 @@
           <li><b>&larr; &rarr;</b> ou <b>A / D</b> — andar</li>
           <li><b>ESPAÇO</b> ou <b>&uarr;</b> — pular</li>
           <li><b>P</b> ou <b>ESC</b> — pausar &nbsp;·&nbsp; <b>F</b> — tela cheia</li>
+          <li>📱 no celular e no tablet, use os <b>botões na tela</b></li>
           <li>🚩 encoste nos <b>checkpoints</b> antes de cair!</li>
         </ul>
       </div>

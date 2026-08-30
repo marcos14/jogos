@@ -1,9 +1,19 @@
 /* ==========================================================================
    SUPER ADVENTURE  -  plataforma retro, no estilo dos consoles de 8 bits
    --------------------------------------------------------------------------
-   FASE 14 do plano: QUANDO A SALA SE DESMANCHA. Uma partida em grupo tem quatro
-   jeitos conhecidos de dar errado, e nenhum deles pode travar a tela de
-   ninguem:
+   FASE n1 do plano: O JOGO NO DEDO. No tablet e no celular nao existe seta nem
+   barra de espaco, entao os controles vao para o vidro: a cruzeta num canto de
+   baixo do palco, o botao de pular no outro, um para cada polegar. Os tres
+   botoes escrevem no MESMO `entrada` que o teclado escreve - a fisica, a pausa
+   e a rede nao ficam sabendo de nada. Quem conta os dedos e o modulo `Toque`
+   (puro, sem DOM): dai saem de graca os dois polegares ao mesmo tempo, os dois
+   dedos no mesmo botao e o arrasto de um botao para o outro. E `entrada` e a
+   SOMA de dois cadernos, o `teclado` e o `Toque`, para que num aparelho hibrido
+   tirar o dedo de um botao nao solte a seta que a outra mao segura.
+
+   Antes disso, a FASE 14 fechou o QUANDO A SALA SE DESMANCHA. Uma partida em
+   grupo tem quatro jeitos conhecidos de dar errado, e nenhum deles pode travar
+   a tela de ninguem:
 
      - alguem SAI no meio (fechou a aba, o wi-fi caiu): a plataforma manda o
        `saiu` e cada aparelho tira aquela linha do mundo e do placar. Quem ficou
@@ -69,6 +79,8 @@
        90px. Pura tambem.
      - `Pacote`: o tradutor da rede. Transforma o mundo do anfitriao num
        punhado de numeros inteiros (e de volta, do lado do convidado). Puro.
+     - `Toque`: o caderninho dos dedos na tela - um mapa "id do dedo" -> acao
+       mais um contador por acao. Puro tambem: nao sabe nada de DOM.
      - As tres fases do PRD, cada uma um degrau mais dificil que a anterior:
 
          fase 1  facil   120 colunas, 100 moedas, 4 bichos a 2px/quadro
@@ -86,7 +98,8 @@
 
    A interface fecha o RF-7: o HUD tem os botoes de pausa e de tela cheia, o
    quadro de pausa congela o mundo (o laco continua desenhando, so o
-   `atualizar()` para) e a caixa no canto lembra os controles.
+   `atualizar()` para) e a caixa no canto lembra os controles - ou, num aparelho
+   de dedo, os botoes de toque entram no lugar dela.
 
      - `Rede`: tudo o que sabe da Central mora aqui dentro, e o arquivo inteiro
        so entra nesse caminho se `window.Plataforma` existir. Sem servidor (o
@@ -1838,6 +1851,97 @@
     };
   }());
 
+  // --------------------------------------------------------------- O toque --
+  /* No tablet e no celular nao existe seta nem barra de espaco: o que existe
+     sao dedos em cima do vidro. Este modulo e o caderninho deles - um mapa
+     "id do dedo" -> acao (`esquerda`, `direita` ou `pular`) mais um contador
+     por acao. Dai saem as tres coisas que uma crianca faz sem pensar:
+
+       - APERTAR DOIS BOTOES AO MESMO TEMPO (correr e pular): sao dois dedos,
+         cada um na sua linha, e cada um mexe so na acao dele;
+       - DOIS DEDOS NO MESMO BOTAO: o contador vai a 2 e tirar um deles nao
+         solta o botao - so o ultimo solta;
+       - ARRASTAR o dedo de um botao para o outro sem tirar da tela: o mesmo
+         id troca de linha, o botao velho volta a zero e o novo acende.
+
+     Puro: nao sabe nada de DOM nem de eventos, e cada funcao devolve um estado
+     NOVO, como o resto dos modulos deste arquivo. */
+  var Toque = (function () {
+
+    var ACOES = ['esquerda', 'direita', 'pular'];
+
+    function novoEstado() {
+      return { dedos: {}, esquerda: 0, direita: 0, pular: 0 };
+    }
+
+    function copiar(estado) {
+      var novo = { dedos: {} };
+      for (var chave in estado.dedos) {
+        if (Object.prototype.hasOwnProperty.call(estado.dedos, chave)) {
+          novo.dedos[chave] = estado.dedos[chave];
+        }
+      }
+      for (var i = 0; i < ACOES.length; i++) novo[ACOES[i]] = estado[ACOES[i]];
+      return novo;
+    }
+
+    function ehAcao(acao) {
+      for (var i = 0; i < ACOES.length; i++) if (ACOES[i] === acao) return true;
+      return false;
+    }
+
+    /** O dedo `id` passou a apertar `acao` (largando o botao anterior dele). */
+    function encostar(estado, id, acao) {
+      if (!ehAcao(acao)) return estado;
+      var chave = String(id);
+      if (estado.dedos[chave] === acao) return estado;
+
+      var novo = copiar(estado);
+      var antes = novo.dedos[chave];
+      if (antes) novo[antes] = Math.max(0, novo[antes] - 1);
+      novo.dedos[chave] = acao;
+      novo[acao] = novo[acao] + 1;
+      return novo;
+    }
+
+    /** O dedo `id` saiu da tela (ou do botao). */
+    function soltar(estado, id) {
+      var chave = String(id);
+      var acao = estado.dedos[chave];
+      if (!acao) return estado;
+
+      var novo = copiar(estado);
+      delete novo.dedos[chave];
+      novo[acao] = Math.max(0, novo[acao] - 1);
+      return novo;
+    }
+
+    /** Tudo solto de uma vez (pausa, aba que perdeu o foco, aparelho girado). */
+    function largarTudo() { return novoEstado(); }
+
+    /** Tem algum dedo nesta acao agora? */
+    function apertada(estado, acao) { return (estado[acao] | 0) > 0; }
+
+    /** Quantos dedos estao na tela. */
+    function dedos(estado) {
+      var n = 0;
+      for (var chave in estado.dedos) {
+        if (Object.prototype.hasOwnProperty.call(estado.dedos, chave)) n++;
+      }
+      return n;
+    }
+
+    return {
+      novoEstado: novoEstado,
+      encostar: encostar,
+      soltar: soltar,
+      largarTudo: largarTudo,
+      apertada: apertada,
+      dedos: dedos,
+      ACOES: ACOES
+    };
+  }());
+
   // ------------------------------------------------------ O mapa da fase 1 --
   // Facil: chao quase todo continuo, buracos de 2 quadrados, degraus de 2 e
   // algumas plataformas soltas para quem quiser subir. A bandeira fica no fim.
@@ -1967,6 +2071,7 @@
       Placar: Placar,
       Previsao: Previsao,
       Pacote: Pacote,
+      Toque: Toque,
       FASE_1: FASE_1,
       FASE_2: FASE_2,
       FASE_3: FASE_3,
@@ -2191,6 +2296,10 @@
     hudSalaCodigo: $('hud-sala-codigo'),
     placarSala: $('placar-sala'),
     placarLista: $('placar-lista'),
+    toque: $('toque'),
+    toqueEsquerda: $('toque-esquerda'),
+    toqueDireita: $('toque-direita'),
+    toquePular: $('toque-pular'),
     btnProxima: $('btn-proxima'),
     btnDeNovo: $('btn-de-novo'),
     btnPausa: $('btn-pausa'),
@@ -2563,7 +2672,12 @@
   // da sala precisa deles antes de existir tela nenhuma.)
   var VAO_NASCIMENTO = 10;                // um respiro entre quem nasce junto
 
+  /* O que o jogador de casa esta pedindo AGORA. Duas maos escrevem aqui - o
+     teclado e os dedos na tela - e por isso cada uma tem o seu caderno: o
+     `teclado` e o `Toque`, somados em `aplicarEntrada()`. O resto do arquivo
+     (a fisica, a pausa, a rede) le so o `entrada` e nao sabe de onde veio. */
   var entrada = { esquerda: false, direita: false, pular: false };
+  var teclado = { esquerda: false, direita: false, pular: false };
 
   /* Um jogador novinho. O de casa (`local`) usa o MESMO objeto de entrada que
      o teclado escreve; os outros tem o deles, preenchido pelos pacotes que
@@ -3034,16 +3148,167 @@
     }
   }
 
+  // -------------------------------------------------- Controles de toque ---
+  /* No tablet e no celular nao ha seta nem barra de espaco: o jogo e jogado com
+     dois polegares, a cruzeta num canto e o pulo no outro. Os tres botoes
+     escrevem no MESMO `entrada` que o teclado escreve, entao a fisica, a pausa
+     e a rede nao ficam sabendo de nada - para elas "direita apertada" e
+     "direita apertada", venha de onde vier.
+
+     Quem conta os dedos e o modulo `Toque`, la em cima (puro, sem DOM). Aqui
+     embaixo fica so a fiacao com os eventos de ponteiro - `pointer*`, que valem
+     para dedo, caneta e mouse de uma vez so, sem tres caminhos diferentes. */
+  var toque = Toque.novoEstado();
+  var toqueLigado = aparelhoDeToque();
+
+  var BOTOES_DE_TOQUE = [
+    { elemento: el.toqueEsquerda, acao: 'esquerda' },
+    { elemento: el.toqueDireita, acao: 'direita' },
+    { elemento: el.toquePular, acao: 'pular' }
+  ];
+
+  /* Este aparelho e de dedo? O sinal que vale e o do ponteiro GROSSO (`pointer:
+     coarse`): ele diz "quem aponta aqui e um dedo", que e exatamente a
+     pergunta. Os outros dois sao rede de seguranca para navegador antigo. */
+  function aparelhoDeToque() {
+    var nav = window.navigator;
+    if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) return true;
+    if (nav && (nav.maxTouchPoints | 0) > 0) return true;
+    return 'ontouchstart' in window;
+  }
+
+  /* A soma das duas maos: uma acao esta apertada se a TECLA dela esta apertada
+     ou se ha um dedo no botao dela. Somar (em vez de um escrever por cima do
+     outro) e o que faz teclado e dedo conviverem no mesmo aparelho: tirar o
+     dedo de um botao nao solta a seta que a outra mao esta segurando. */
+  function aplicarEntrada() {
+    for (var i = 0; i < Toque.ACOES.length; i++) {
+      var acao = Toque.ACOES[i];
+      entrada[acao] = teclado[acao] || Toque.apertada(toque, acao);
+    }
+  }
+
+  /** Troca o estado dos dedos e refaz a conta. */
+  function mudarToque(novo) {
+    toque = novo;
+    pintarBotoesDeToque();
+    aplicarEntrada();
+  }
+
+  /* O afundado dos botoes que estao com dedo em cima. E uma classe, e nao o
+     `:active` do navegador, porque o dedo que ARRASTA de um botao para o outro
+     precisa acender o novo - e o `:active` fica preso no primeiro. */
+  function pintarBotoesDeToque() {
+    for (var i = 0; i < BOTOES_DE_TOQUE.length; i++) {
+      var b = BOTOES_DE_TOQUE[i];
+      if (Toque.apertada(toque, b.acao)) b.elemento.classList.add('apertado');
+      else b.elemento.classList.remove('apertado');
+    }
+  }
+
+  /* Larga so os DEDOS - as teclas seguem valendo. E o que acontece quando os
+     botoes saem da tela (pausa, fim de fase): o dedo continua no vidro, mas o
+     botao nao esta mais debaixo dele. */
+  function largarDedos() {
+    if (Toque.dedos(toque) === 0) return;
+    mudarToque(Toque.largarTudo());
+  }
+
+  /* Larga TUDO - teclas e dedos. E o que a pausa, o comeco de uma corrida nova
+     e a aba que perde o foco pedem: dali ninguem sai correndo sozinho. */
+  function largarControles() {
+    teclado.esquerda = teclado.direita = teclado.pular = false;
+    toque = Toque.largarTudo();
+    pintarBotoesDeToque();
+    aplicarEntrada();
+  }
+
+  /* Liga ou desliga o modo dedo. Ligado, os botoes entram no palco e a caixa de
+     controles sai: ela fala de setas e barra de espaco, que num aparelho sem
+     teclado nao existem - e ainda ficaria bem debaixo do botao de pular. */
+  function definirToque(ligado) {
+    if (toqueLigado === ligado) return;
+    toqueLigado = ligado;
+    largarDedos();
+    atualizarControles();
+  }
+
+  function ligarBotaoDeToque(elemento, acao) {
+    elemento.addEventListener('pointerdown', function (ev) {
+      ev.preventDefault();
+      /* O navegador prende o dedo no botao em que ele encostou (a "captura
+         implicita" dos eventos de ponteiro). Soltando essa captura, o
+         `pointerenter`/`pointerleave` dos vizinhos volta a valer - e ai
+         arrastar o polegar de um botao para o outro passa a funcionar, que e
+         como se vira o heroi sem tirar o dedo da tela. */
+      if (elemento.hasPointerCapture && elemento.releasePointerCapture &&
+          elemento.hasPointerCapture(ev.pointerId)) {
+        elemento.releasePointerCapture(ev.pointerId);
+      }
+      if (ev.pointerType === 'touch') definirToque(true);
+      mudarToque(Toque.encostar(toque, ev.pointerId, acao));
+    });
+
+    /* O dedo entrou ARRASTANDO, vindo do botao do lado. Um mouse so passeando
+       por cima (nenhum botao apertado) nao conta. */
+    elemento.addEventListener('pointerenter', function (ev) {
+      if (!ev.buttons) return;
+      mudarToque(Toque.encostar(toque, ev.pointerId, acao));
+    });
+
+    elemento.addEventListener('pointerleave', function (ev) {
+      mudarToque(Toque.soltar(toque, ev.pointerId));
+    });
+  }
+
+  for (var iBotaoToque = 0; iBotaoToque < BOTOES_DE_TOQUE.length; iBotaoToque++) {
+    ligarBotaoDeToque(BOTOES_DE_TOQUE[iBotaoToque].elemento,
+                      BOTOES_DE_TOQUE[iBotaoToque].acao);
+  }
+
+  /* Soltar e sempre na JANELA, e nao no botao: o dedo pode terminar fora dele
+     (arrastou para o meio da tela e so entao levantou) e o botao nunca ficaria
+     sabendo. */
+  function soltarDedo(ev) { mudarToque(Toque.soltar(toque, ev.pointerId)); }
+
+  window.addEventListener('pointerup', soltarDedo);
+  window.addEventListener('pointercancel', soltarDedo);
+
+  /* A rede de seguranca da deteccao: um toque em qualquer canto da pagina ja
+     prova que este aparelho e de dedo. Serve para o navegador antigo que nao
+     responde `pointer: coarse` e para o hibrido (notebook com tela sensivel)
+     que so se revela quando alguem encosta nele. */
+  window.addEventListener('pointerdown', function (ev) {
+    if (ev.pointerType === 'touch') definirToque(true);
+  }, true);
+
+  /* Girar o aparelho no meio de um pulo costuma comer o `pointerup` do dedo que
+     estava na tela: sem isto o heroi sairia correndo sozinho para sempre. */
+  window.addEventListener('orientationchange', largarDedos);
+
+  window.SuperAdventure.Toque = Toque;
+  window.SuperAdventure.toque = function () { return toque; };
+  window.SuperAdventure.toqueLigado = function () { return toqueLigado; };
+  window.SuperAdventure.definirToque = function (ligado) { definirToque(ligado); };
+
   // ------------------------------------------------- Pausa e tela cheia ----
   /* A caixa de controles no canto do palco. Ela so aparece com o jogo
      rolando: no menu, na pausa e nas telas de fim tem sempre um quadro por
      cima, e o lembrete atras dele so sujaria a tela.
 
+     Os botoes de toque entram no LUGAR dela quando o aparelho e de dedo: um
+     cartaz falando de setas nao serve para quem nao tem teclado. Saindo da
+     tela, os botoes largam os dedos que estavam em cima - senao o heroi
+     voltaria correndo sozinho na proxima fase.
+
      O placar da sala segue a mesma regra - e so aparece quando ha sala. */
   function atualizarControles() {
     var mostrar = jogo.tela === 'jogando' && !jogo.pausado && !jogo.concluida;
+    var comToque = mostrar && toqueLigado;
     var comPlacar = mostrar && emGrupo();
-    exibir(el.controles, mostrar);
+    exibir(el.controles, mostrar && !toqueLigado);
+    exibir(el.toque, comToque);
+    if (!comToque) largarDedos();
     exibir(el.placarSala, comPlacar);
     if (comPlacar) atualizarPlacar(true);
   }
@@ -3063,7 +3328,7 @@
     if (jogo.pausado === pausado || (pausado && !podePausar())) return;
 
     jogo.pausado = pausado;
-    entrada.esquerda = entrada.direita = entrada.pular = false;
+    largarControles();
     // Pausado, o convidado para de mandar teclas - e o anfitriao continuaria
     // com as ultimas que recebeu, correndo sozinho. Este ultimo pacote e o que
     // solta as teclas la do outro lado tambem.
@@ -3390,7 +3655,7 @@
     // pontos da fase quem zera e o `reiniciarFase()`, logo abaixo).
     for (var i = 0; i < jogo.jogadores.length; i++) jogo.jogadores[i].total = 0;
     placarPintado = '';
-    entrada.esquerda = entrada.direita = entrada.pular = false;
+    largarControles();
     irParaFase(1);
     el.menu.classList.add('hidden');
     el.hud.classList.remove('hidden');
@@ -3423,7 +3688,7 @@
     definirPausa(false);
     jogo.tela = 'menu';
     jogo.concluida = false;
-    entrada.esquerda = entrada.direita = entrada.pular = false;
+    largarControles();
     Rede.limparRecado();          // nenhuma tarja de partida sobra no menu
     esconderTelas();
     el.hud.classList.add('hidden');
@@ -3947,7 +4212,8 @@
     var acao = TECLAS[ev.key];
     if (!acao) return;
     ev.preventDefault();
-    entrada[acao] = apertada;
+    teclado[acao] = apertada;
+    aplicarEntrada();
   }
 
   window.addEventListener('keydown', function (ev) {
@@ -3956,9 +4222,7 @@
     tecla(ev, true);
   });
   window.addEventListener('keyup', function (ev) { tecla(ev, false); });
-  window.addEventListener('blur', function () {
-    entrada.esquerda = entrada.direita = entrada.pular = false;
-  });
+  window.addEventListener('blur', largarControles);
 
   el.btnSolo.addEventListener('click', comecarSolo);
   el.btnProxima.addEventListener('click', avancarFase);

@@ -17,9 +17,10 @@ amigos na mesma fase, cada um no seu aparelho.
 > de PARABÉNS) e agora a partida também **aguenta a rede dar errado**: quem sai
 > some do mundo sem travar os outros, o anfitrião caindo aborta com aviso,
 > pacote atrasado depois do fim vai para o lixo e mais de 2 segundos de silêncio
-> viram a tarja **CONEXÃO INSTÁVEL**. O que ainda **não** aconteceu é o
-> polimento final (paleta, responsividade e o checklist de publicação) — é a
-> etapa seguinte.
+> viram a tarja **CONEXÃO INSTÁVEL**. E agora o jogo também **se joga no dedo**:
+> no celular e no tablet a cruzeta e o botão de pular aparecem na tela, um para
+> cada polegar. O que ainda **não** aconteceu é o polimento final (paleta,
+> responsividade e o checklist de publicação) — é a etapa seguinte.
 
 ## Como jogar
 
@@ -30,6 +31,10 @@ amigos na mesma fase, cada um no seu aparelho.
 | **P** | pausar / continuar |
 | **ESC** | pausar |
 | **F** | tela cheia (entra e sai) |
+
+No celular e no tablet não há teclado: os controles aparecem **na própria tela**
+(a cruzeta num canto, o pulo no outro). O passo a passo está em
+[No celular e no tablet](#no-celular-e-no-tablet).
 
 Clique em **JOGAR SOLO**, corra para a direita, junte moedas, acenda os
 checkpoints, pule em cima dos bichos e chegue na bandeira. A bandeira fecha a
@@ -203,7 +208,49 @@ inclusive quando quem fecha a tela cheia é o **ESC** do próprio navegador.
 No canto de baixo à direita do palco fica a **caixa de controles**
 (`← → = Mover | ESPAÇO = Pular`), um cartaz que não recebe clique nenhum. Ela
 aparece com o jogo rolando e some atrás de qualquer tela — menu, pausa, fim de
-fase e parabéns.
+fase e parabéns. Num aparelho de dedo ela dá lugar aos **botões de toque**, que
+ficam exatamente ali.
+
+## No celular e no tablet
+
+No vidro não existe seta nem barra de espaço, então os controles vêm para a
+tela: a **cruzeta** (◀ ▶) no canto de baixo à esquerda e o **▲ pular** no de
+baixo à direita — um para cada polegar, com o aparelho segurado nas duas mãos.
+
+| Botão | O que faz |
+|---|---|
+| **◀** / **▶** | andar, igualzinho às setas |
+| **▲** | pular |
+
+Eles aparecem **só em aparelho de dedo** e ocupam o lugar da caixa de controles
+— um cartaz falando de teclas não serve para quem não tem teclado, e ainda
+ficaria bem debaixo do botão de pular. Quem decide é o navegador, pela pergunta
+`(pointer: coarse)`: "quem aponta nesta tela é um dedo?". Se ele não souber
+responder (navegador antigo, ou um notebook com tela sensível que só se revela
+quando alguém encosta), o **primeiro toque** na página liga os botões assim
+mesmo.
+
+O que o dedo sabe fazer:
+
+- **Dois polegares ao mesmo tempo.** Correr e pular são dois dedos, cada um no
+  seu botão — não é preciso soltar um para apertar o outro.
+- **Dois dedos no mesmo botão.** Tirar um não solta o botão; só o último solta.
+- **Arrastar de um botão para o outro** sem tirar o dedo da tela: o ◀ apaga e o
+  ▶ acende na hora, que é como se vira o herói correndo.
+- **Nada de rolagem, zoom ou seleção** por baixo dos botões (`touch-action:
+  none` neles e no palco, mais o `user-scalable=no` da página).
+
+E o que ele **não** pode fazer é deixar o herói correndo sozinho. Larga tudo
+quando: o jogo é **pausado**, alguma tela sobe por cima (fim de fase, parabéns),
+a **aba perde o foco**, o toque é **cancelado** pelo aparelho (uma ligação
+chegando) ou o aparelho é **girado** — girar costuma comer o "levantei o dedo"
+do sistema.
+
+Os botões escrevem no **mesmo** lugar que o teclado escreve, então a física, a
+pausa e o multijogador não ficam sabendo de nada: para eles "direita apertada" é
+"direita apertada", venha de onde vier. Num aparelho híbrido as duas coisas
+convivem — tirar o dedo de um botão não solta a seta que a outra mão está
+segurando.
 
 ## Jogar com amigos
 
@@ -486,6 +533,22 @@ câmera, para dar sensação de distância.
   degradê, com `image-rendering: pixelated`.
 - **Herói genérico.** Nada de personagem de marca: é um aventureiro de boné
   vermelho e macacão azul, no clima dos consoles antigos.
+- **Os dedos também são um estado puro** (`Toque`): um mapa "id do dedo" → ação
+  mais um contador por ação. É dele que saem de graça os dois polegares ao mesmo
+  tempo, os dois dedos no mesmo botão e o arrasto de um botão para o outro — e,
+  sendo puro, ele é testado sem DOM nenhum.
+- **Um caderno para cada mão, somados no fim.** O teclado escreve num `teclado`,
+  os dedos no `Toque`, e `entrada` é a **soma** dos dois. Se um escrevesse por
+  cima do outro, tirar o dedo de um botão soltaria a seta que a outra mão estava
+  segurando — que é justamente o que acontece num notebook com tela sensível.
+- **Eventos de ponteiro (`pointer*`), não `touch*` nem `mouse*`.** Um caminho só
+  para dedo, caneta e mouse. Com um detalhe: no `pointerdown` o jogo **solta a
+  captura implícita** que o navegador põe no botão — sem isso o dedo ficaria
+  preso no primeiro botão em que encostou e arrastar para o vizinho não valeria.
+  E por isso o "apertado" é uma classe posta pelo jogo, e não o `:active` do
+  navegador, que fica preso do mesmo jeito.
+- **Botões de 72 px (88 px o de pular).** Bem acima dos 44 px que se toma como
+  mínimo confortável: aqui o dedo é de criança e o botão é apertado correndo.
 - **ES5, IIFE, `'use strict'`, zero dependências, sem build** — o mesmo padrão
   da Galinha Feliz. O `index.html` abre direto no navegador, sem servidor.
 - **A física mora em funções puras.** Os módulos `Fisica`, `Mapa`, `Itens` e
@@ -664,7 +727,22 @@ node testes/super_adventure/fase11.test.mjs        # o mundo compartilhado e a c
 node testes/super_adventure/fase12.test.mjs        # a bandeira e o checkpoint da sala inteira
 node testes/super_adventure/fase13.test.mjs        # o placar de todos e o ranking do fim
 node testes/super_adventure/fase13-tela.test.mjs   # o ranking passando pela Central de verdade
+node testes/super_adventure/fase14.test.mjs        # quem sai, quem cai e a rede que engasga
+node testes/super_adventure/fase14-tela.test.mjs   # a sala se desmanchando de verdade
+node testes/super_adventure/fasen1.test.mjs        # o caderninho dos dedos (módulo Toque)
+node testes/super_adventure/fasen1-tela.test.mjs   # os botões de toque no palco
 ```
+
+O `fasen1-tela.test.mjs` roda o jogo inteiro num DOM de mentira que **finge ser
+um tablet** (o `matchMedia('(pointer: coarse)')` responde que sim) e dirige os
+botões com os mesmos eventos que o navegador manda, um `pointerId` por dedo.
+Assim dá para conferir sem aparelho nenhum que dois polegares correm e pulam
+juntos, que dois dedos no mesmo botão não se atrapalham, que o arrasto de um
+botão para o outro funciona — o DOM de mentira **não deixa** arrastar enquanto a
+captura implícita estiver presa, então o teste falharia se o jogo esquecesse de
+soltá-la — e que pausar, girar o aparelho, perder o foco ou trocar de tela
+largam os dedos. No fim, duas cópias sem o `{ toque: true }` garantem que num
+computador comum nada mudou.
 
 O `fase8-tela.test.mjs` sobe o **servidor das salas de verdade** dentro do teste
 (o mesmo `montarWebSocket()` e o mesmo `salas.js` do `server/src/plataforma/`,

@@ -86,6 +86,15 @@ function criarElemento(tag, id) {
     filhos: [],
     ouvintes: {},
     atributos: {},
+    /* A captura implicita dos eventos de ponteiro, de mentira: o navegador
+       prende o dedo no elemento em que ele encostou, e enquanto ela durar os
+       vizinhos NAO recebem `pointerenter`/`pointerleave`. Quem quiser deixar o
+       dedo arrastar de um botao para o outro precisa soltar a captura - e e
+       exatamente isso que o teste do toque confere. */
+    capturados: new Set(),
+    setPointerCapture(id) { this.capturados.add(id); },
+    hasPointerCapture(id) { return this.capturados.has(id); },
+    releasePointerCapture(id) { this.capturados.delete(id); },
     classList: {
       add(c) { this.dono.classes.add(c); },
       remove(c) { this.dono.classes.delete(c); },
@@ -138,6 +147,11 @@ function criarElemento(tag, id) {
  * `opcoes.plataforma` entra no contexto como `window.Plataforma` - e o lugar
  * do SDK da Central. Sem ela (o padrao), o jogo roda como se tivesse sido
  * aberto direto do disco: nada de rede, so o solo.
+ *
+ * `opcoes.toque` finge um tablet: o `matchMedia('(pointer: coarse)')` passa a
+ * responder que sim e o `navigator.maxTouchPoints` sai de zero, que sao os dois
+ * sinais que o jogo olha para por os botoes de dedo no palco. Sem ela (o
+ * padrao) o DOM de mentira e um computador com teclado.
  */
 export function carregarJogoComTela(slug = 'super_adventure', opcoes = {}) {
   const codigo = fs.readFileSync(path.join(RAIZ, 'jogos', slug, 'game.js'), 'utf8');
@@ -152,6 +166,7 @@ export function carregarJogoComTela(slug = 'super_adventure', opcoes = {}) {
   const elementos = {};
   for (const id of ['app', 'palco', 'hud', 'tela-menu', 'tela-fase', 'tela-fim',
                     'tela-pausa', 'controles', 'recado-palco',
+                    'toque', 'toque-esquerda', 'toque-direita', 'toque-pular',
                     'btn-solo', 'btn-amigos', 'btn-proxima', 'btn-de-novo',
                     'btn-pausa', 'btn-tela-cheia', 'btn-continuar', 'btn-recomecar',
                     'aviso', 'hud-sala', 'hud-sala-codigo',
@@ -170,6 +185,9 @@ export function carregarJogoComTela(slug = 'super_adventure', opcoes = {}) {
   elementos['tela-fim'].classes.add('hidden');
   elementos['tela-pausa'].classes.add('hidden');
   elementos.controles.classes.add('hidden');
+  // Os botoes de toque tambem nascem escondidos: eles so entram no palco em
+  // aparelho de dedo, e no lugar da caixa de controles.
+  elementos.toque.classes.add('hidden');
   // A tarja de recado do palco (conexao instavel, partida que acabou no meio)
   // tambem nasce escondida e vazia.
   elementos['recado-palco'].classes.add('hidden');
@@ -186,6 +204,8 @@ export function carregarJogoComTela(slug = 'super_adventure', opcoes = {}) {
   elementos.tela.getContext = () => contexto2d;
 
   let proximoQuadro = null;
+  /** Onde cada dedo esta pousado agora: `pointerId` -> id do elemento. */
+  const dedosNaTela = new Map();
   const janela = {
     innerWidth: 1280,
     innerHeight: 720,
@@ -193,6 +213,17 @@ export function carregarJogoComTela(slug = 'super_adventure', opcoes = {}) {
     addEventListener(tipo, fn) { (janela.ouvintes[tipo] = janela.ouvintes[tipo] || []).push(fn); },
     removeEventListener() {},
     requestAnimationFrame(fn) { proximoQuadro = fn; return 1; },
+    /* O jogo pergunta por `(pointer: coarse)` - "quem aponta aqui e um dedo?" -
+       para decidir se os botoes de toque entram no palco. `opcoes.toque` e o
+       que finge um tablet; sem ela o DOM de mentira e um computador com
+       teclado, como nos testes das fases anteriores. */
+    matchMedia: (consulta) => ({
+      media: consulta,
+      matches: Boolean(opcoes.toque) && /pointer:\s*coarse/.test(consulta),
+      addEventListener() {},
+      removeEventListener() {},
+    }),
+    navigator: { maxTouchPoints: opcoes.toque ? 5 : 0 },
   };
   /* A Fullscreen API de mentira. O navegador de verdade nao deixa entrar em
      tela cheia fora de um clique, entao aqui so ficam registradas as chamadas
@@ -265,6 +296,58 @@ export function carregarJogoComTela(slug = 'super_adventure', opcoes = {}) {
     },
 
     clicar(id) { elementos[id].disparar('click'); },
+
+    /* ---------------------------------------------------------- Os dedos --
+       Os tres gestos que uma crianca faz num botao de toque, com os mesmos
+       eventos que o navegador manda. Cada dedo tem um `pointerId` proprio, e e
+       por isso que dois dedos ao mesmo tempo (correr e pular) funcionam. */
+
+    /** Um dedo encosta num botao. */
+    dedoBaixo(id, dedo = 1, tipo = 'touch') {
+      const alvo = elementos[id];
+      alvo.capturados.add(dedo);          // a captura implicita do navegador
+      dedosNaTela.set(dedo, id);
+      const evento = { pointerId: dedo, pointerType: tipo, buttons: 1 };
+      alvo.disparar('pointerdown', evento);
+      dom.eventoJanela('pointerdown', evento);     // o evento sobe ate a janela
+    },
+
+    /**
+     * O dedo escorrega para outro botao sem sair da tela. Devolve `false` se o
+     * navegador ainda estiver com a captura implicita presa no botao de origem
+     * - nesse caso o vizinho nao receberia nada, e o arrasto nao aconteceria.
+     */
+    dedoArrastar(id, dedo = 1, tipo = 'touch') {
+      const origem = dedosNaTela.get(dedo);
+      const de = origem ? elementos[origem] : null;
+      if (de && de.capturados.has(dedo)) return false;
+
+      const evento = { pointerId: dedo, pointerType: tipo, buttons: 1 };
+      if (de) de.disparar('pointerleave', evento);
+      elementos[id].disparar('pointerenter', evento);
+      dedosNaTela.set(dedo, id);
+      return true;
+    },
+
+    /** O dedo sai da tela. */
+    dedoCima(dedo = 1, tipo = 'touch') {
+      const origem = dedosNaTela.get(dedo);
+      dedosNaTela.delete(dedo);
+      const evento = { pointerId: dedo, pointerType: tipo, buttons: 0 };
+      dom.eventoJanela('pointerup', evento);
+      if (origem) {
+        elementos[origem].capturados.delete(dedo);
+        elementos[origem].disparar('pointerleave', evento);
+      }
+    },
+
+    /** O aparelho tirou o dedo da conta (ligacao chegando, aba trocada...). */
+    dedoCancelado(dedo = 1, tipo = 'touch') {
+      const origem = dedosNaTela.get(dedo);
+      dedosNaTela.delete(dedo);
+      if (origem) elementos[origem].capturados.delete(dedo);
+      dom.eventoJanela('pointercancel', { pointerId: dedo, pointerType: tipo, buttons: 0 });
+    },
 
     /**
      * Roda `n` quadros de 1/60s. O primeiro quadro de todos so acerta o
