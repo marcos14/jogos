@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Super Adventure</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍄</text></svg>">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ------------------------------------------------------------ HUD ----- -->
+  <!-- Os numeros sao escritos pelo game.js: os pontos sobem a cada moeda (10
+       cada) e os coracoes caem a cada queda. Sem coracoes, a fase inteira
+       recomeca e eles voltam cheios. -->
+  <header id="hud" class="hidden">
+    <div class="hud-box">
+      <span class="hud-label">Pontos</span>
+      <strong id="hud-pontos">0</strong>
+    </div>
+    <div class="hud-box">
+      <span class="hud-label">Vidas</span>
+      <strong id="hud-vidas">❤️❤️❤️</strong>
+    </div>
+    <div class="hud-box">
+      <span class="hud-label">Fase</span>
+      <strong id="hud-fase">1 / 3</strong>
+    </div>
+
+    <!-- Só existe nas partidas em grupo: o código da sala em que você está,
+         para quem chegou depois conseguir digitar o mesmo. No solo esta caixa
+         nem aparece. -->
+    <div id="hud-sala" class="hud-box hidden">
+      <span class="hud-label">Sala</span>
+      <strong id="hud-sala-codigo">----</strong>
+    </div>
+
+    <!-- Os dois botões da partida. Eles moram no HUD, então só aparecem com o
+         jogo em andamento — no menu não há nada para pausar. -->
+    <div class="hud-botoes">
+      <button id="btn-pausa" type="button" class="botao-icone"
+              title="Pausar (P ou ESC)" aria-label="Pausar">⏸</button>
+      <button id="btn-tela-cheia" type="button" class="botao-icone"
+              title="Tela cheia (F)" aria-label="Tela cheia">⛶</button>
+    </div>
+  </header>
+
+  <!-- ---------------------------------------------------------- Palco ----- -->
+  <div id="palco">
+    <canvas id="tela" width="960" height="540"></canvas>
+
+    <!-- O placar da sala, no canto de cima à esquerda: a turma inteira e os
+         pontos de cada um, em tempo real. Só existe nas partidas em grupo (no
+         solo o placar é o do HUD) e some junto com a caixa de controles quando
+         alguma tela sobe por cima. As linhas são escritas pelo game.js. -->
+    <aside id="placar-sala" class="hidden">
+      <h2 class="placar-titulo">Placar da sala</h2>
+      <ol id="placar-lista" class="placar-lista"></ol>
+    </aside>
+
+    <!-- Lembrete dos controles, no canto de baixo à direita. Fica só com o
+         jogo rolando; qualquer tela por cima (menu, pausa, fim de fase) o
+         esconde. Não recebe clique nenhum: é só um cartaz. -->
+    <aside id="controles" class="hidden">
+      <span><b>← →</b> = Mover</span>
+      <span class="separador">|</span>
+      <span><b>ESPAÇO</b> = Pular</span>
+    </aside>
+
+    <!-- Os controles de toque: no tablet e no celular não há seta nem barra de
+         espaço, então os botões vêm para o vidro. A cruzeta fica no canto de
+         baixo à esquerda e o pulo no de baixo à direita — um para cada polegar,
+         com o aparelho segurado nas duas mãos. Só aparecem em aparelho de dedo
+         (e no lugar da caixa de controles, que ali não serviria para nada). A
+         moldura não recebe toque: quem recebe são os três botões. -->
+    <div id="toque" class="hidden">
+      <div class="toque-cruzeta">
+        <button id="toque-esquerda" type="button" class="toque-botao"
+                aria-label="Andar para a esquerda">◀</button>
+        <button id="toque-direita" type="button" class="toque-botao"
+                aria-label="Andar para a direita">▶</button>
+      </div>
+      <button id="toque-pular" type="button" class="toque-botao toque-salto"
+              aria-label="Pular">▲</button>
+    </div>
+
+    <!-- Pausa: o mundo congela onde está e ficam os dois caminhos — voltar
+         para o mesmo lugar ou recomeçar a corrida inteira, da fase 1. -->
+    <section id="tela-pausa" class="tela hidden">
+      <div class="painel">
+        <h1 class="titulo"><span class="destaque">PAUSA</span></h1>
+        <p class="subtitulo">O jogo está esperando você ⏸</p>
+
+        <div class="botoes">
+          <button id="btn-continuar" type="button" class="botao">CONTINUAR</button>
+          <button id="btn-recomecar" type="button" class="botao botao-claro">RECOMEÇAR</button>
+        </div>
+        <p class="legenda">Recomeçar volta para a fase 1 e zera os pontos</p>
+      </div>
+    </section>
+
+    <!-- Tela inicial -->
+    <section id="tela-menu" class="tela">
+      <div class="painel">
+        <h1 class="titulo">SUPER<br><span class="destaque">ADVENTURE</span></h1>
+        <p class="subtitulo">Três fases, uma bandeira em cada uma</p>
+
+        <div class="botoes">
+          <button id="btn-solo" type="button" class="botao">JOGAR SOLO</button>
+          <!-- Só aparece quando a Central está no ar e o multijogador da
+               plataforma está de pé. Aberto direto do disco (sem servidor), o
+               /plataforma/sdk.js não carrega, este botão continua escondido e
+               o jogo inteiro funciona no solo. -->
+          <button id="btn-amigos" type="button" class="botao botao-claro hidden">JOGAR COM AMIGOS</button>
+        </div>
+
+        <!-- Os recados da sala (a partida acabou, o anfitrião caiu, deu erro
+             na hora de entrar). Fica vazio e escondido no dia a dia. -->
+        <p id="aviso" class="aviso hidden"></p>
+
+        <ul class="ajuda">
+          <li><b>&larr; &rarr;</b> ou <b>A / D</b> — andar</li>
+          <li><b>ESPAÇO</b> ou <b>&uarr;</b> — pular</li>
+          <li><b>P</b> ou <b>ESC</b> — pausar &nbsp;·&nbsp; <b>F</b> — tela cheia</li>
+          <li>📱 no celular e no tablet, use os <b>botões na tela</b></li>
+          <li>🚩 encoste nos <b>checkpoints</b> antes de cair!</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Fim de fase: aparece quando alguém encosta na bandeira das fases 1 e
+         2, com o que a fase rendeu e o bônus de chegar na bandeira. O único
+         caminho é para a frente — não dá para voltar a uma fase já vencida.
+         Numa sala a bandeira é do grupo: o subtítulo diz o nome de quem chegou
+         primeiro, porque a fase acaba para todo mundo junto. -->
+    <section id="tela-fase" class="tela hidden">
+      <div class="painel">
+        <h1 class="titulo"><span class="destaque">FASE <b id="fase-numero">1</b></span><br>CONCLUÍDA!</h1>
+        <p id="fase-subtitulo" class="subtitulo">Você chegou na bandeira 🚩</p>
+        <p class="placar">
+          Pontos da fase: <b id="fase-pontos">0</b><br>
+          Bônus da bandeira: <b id="fase-bonus">+50</b>
+        </p>
+
+        <button id="btn-proxima" type="button" class="botao">IR PARA A FASE <span id="fase-proxima">2</span></button>
+      </div>
+    </section>
+
+    <!-- Fim do jogo: só depois da bandeira da fase 3. Traz o resumo da corrida
+         inteira — quanto cada fase rendeu, com o bônus, e o total. Numa sala
+         vem junto o ranking de todo mundo, montado com o placar que a Central
+         devolve para todos ao mesmo tempo. -->
+    <section id="tela-fim" class="tela hidden">
+      <div class="painel">
+        <h1 class="titulo"><span class="destaque">PARABÉNS!</span></h1>
+        <p id="fim-subtitulo" class="subtitulo">Você venceu as três fases 🏆</p>
+
+        <ul class="resumo">
+          <li><span>Fase 1</span><b id="fim-fase-1">0</b></li>
+          <li><span>Fase 2</span><b id="fim-fase-2">0</b></li>
+          <li><span>Fase 3</span><b id="fim-fase-3">0</b></li>
+        </ul>
+        <p class="legenda">moedas e bichos + bônus da bandeira</p>
+        <p class="placar">Total: <b id="fim-total">0</b></p>
+
+        <!-- Só nas partidas em grupo. A lista vai do último para o primeiro,
+             de propósito: ela sobe degrau por degrau e termina no campeão. -->
+        <div id="fim-sala" class="hidden">
+          <h2 class="ranking-titulo">Ranking da sala</h2>
+          <ol id="fim-ranking" class="placar-lista ranking"></ol>
+          <p id="fim-esperando" class="legenda">Juntando o placar da sala…</p>
+        </div>
+
+        <button id="btn-de-novo" type="button" class="botao">JOGAR NOVAMENTE</button>
+      </div>
+    </section>
+
+    <!-- A tarja de recado do palco. É a última coisa dentro do #palco de
+         propósito: assim ela é pintada POR CIMA de tudo, inclusive das telas de
+         fim de fase e de parabéns. É aqui que aparece o "⚠ CONEXÃO INSTÁVEL"
+         (mais de 2 segundos sem notícia da sala) e o motivo de uma partida que
+         acabou no meio. Não recebe clique: é só um cartaz. -->
+    <p id="recado-palco" class="hidden" role="status"></p>
+  </div>
+
+  <footer id="rodape">Três fases: junte as moedas, acenda os checkpoints e corra até a bandeira!</footer>
+</div>
+
+<!-- O SDK da Central: dá o lobby pronto (criar sala, código de 4 letras, lista
+     de salas abertas, "pronto" e "começar"). O caminho é absoluto de propósito:
+     abrindo o index.html direto do disco ele simplesmente não carrega, o
+     `window.Plataforma` não existe e o jogo segue 100% solo. -->
+<script src="/plataforma/sdk.js" charset="utf-8"></script>
+<script src="game.js" charset="utf-8"></script>
+</body>
+</html>
