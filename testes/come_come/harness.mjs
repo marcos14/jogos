@@ -126,9 +126,14 @@ export function carregarJogoComTela(slug = 'come_come', opcoes = {}) {
   };
 
   const elementos = {};
-  for (const id of ['app', 'palco', 'rodape']) {
+  for (const id of ['app', 'palco', 'rodape', 'hud',
+                    'hud-pontos', 'hud-vidas', 'hud-fase', 'hud-faltam',
+                    'tela-fase', 'fase-numero', 'fase-pontos']) {
     elementos[id] = criarElemento('div', id);
   }
+  // No index.html a tela de fim de fase ja nasce escondida.
+  elementos['tela-fase'].classes.add('hidden');
+
   elementos.tela = criarElemento('canvas', 'tela');
   elementos.tela.getContext = () => contexto2d;
 
@@ -196,6 +201,12 @@ export function carregarJogoComTela(slug = 'come_come', opcoes = {}) {
     },
 
     clicar(id) { elementos[id].disparar('click'); },
+
+    /** O texto de um elemento do HUD (ou de qualquer outro). */
+    texto(id) { return elementos[id].textContent; },
+
+    /** Aquele elemento esta escondido? (`class="hidden"`, como no CSS) */
+    escondido(id) { return elementos[id].classList.contains('hidden'); },
 
     /**
      * Roda `n` quadros de 1/60s. O primeiro quadro de todos so acerta o

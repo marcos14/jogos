@@ -1,8 +1,12 @@
 /* ==========================================================================
    COME-COME  -  labirinto de fliperama, no clima dos consoles de 8 bits
    --------------------------------------------------------------------------
-   FASE 1 do plano: O ESQUELETO E O COME-COME ANDANDO NO LABIRINTO 1. O que
-   existe aqui e o chao de tudo o que vem depois:
+   FASE 2 do plano: AS PASTILHAS, A PONTUACAO, O HUD E O LABIRINTO LIMPO. O
+   come-come agora COME: passar por cima de uma pastilha faz ela sumir e somar
+   pontos, o HUD mostra o placar, as vidas e a fase, e quando a ultima pastilha
+   some o labirinto e dado por limpo.
+
+   O chao de tudo (fase 1) continua sendo o mesmo:
 
      - `Mapa`: o labirinto e um DESENHO EM TEXTO, uma letra por quadrado. Este
        modulo le o desenho e devolve a grade que o jogo usa (paredes, pastilhas,
@@ -22,15 +26,28 @@
        RASTERIZADO na mao, linha por linha, com a boca abrindo e fechando na
        direcao em que ele anda.
 
+   E o que a fase 2 poe por cima:
+
+     - `Pastilhas`: o caderninho do labirinto - quais pastilhas ainda estao de
+       pe, o que acontece quando o come-come passa por cima de uma (ela some e
+       vale 10; a de PODER vale 50 e vem marcada a parte, ainda sem efeito
+       nenhum - isso e a fase 4) e quantas faltam para o labirinto ficar limpo.
+       Puro tambem, e pelo mesmo motivo do resto: numa sala vai ser ele, no
+       aparelho do anfitriao, que diz qual pastilha sumiu para todo mundo.
+     - O HUD - pontos, vidas e fase - mora no HTML, FORA do canvas: assim ele
+       cresce junto com a tela e continua legivel no celular.
+     - A ultima pastilha do labirinto fecha a fase.
+
    O labirinto tem 28 colunas por 31 linhas de quadrados de 16px - 448 x 496
    pixels, que e o tamanho de dentro do canvas. O tamanho de FORA (o quanto ele
    aparece na tela) e escolhido pelo CSS, mantendo a proporcao: as contas do
    jogo acontecem sempre nos mesmos 448 x 496, em qualquer aparelho.
 
-   As pastilhas ainda nao somem quando o come-come passa por cima (isso e a
-   fase 2), os fantasmas ainda nao existem (fase 3) e a tela ainda entra
-   direto no jogo, sem menu (fase 7). O que da para fazer hoje e o que a fase 1
-   promete: andar pelo labirinto, virar nas esquinas e atravessar o tunel.
+   Os fantasmas ainda nao existem (fase 3), a pastilha de poder ainda so vale
+   pontos (fase 4), as vidas ainda nao caem porque nao ha de quem fugir (fase
+   5), o labirinto ainda e um so (fase 6a) e a tela entra direto no jogo, sem
+   menu (fase 7). O que da para fazer hoje e o que a fase 2 promete: correr
+   pelo labirinto comendo tudo, ver o placar subir e limpar o labirinto.
    ========================================================================== */
 
 (function () {
@@ -49,6 +66,12 @@
      que ele decide se vira ou nao. Numero redondo e o que mantem a grade
      honesta - nada de meio pixel sobrando. */
   var VEL_COME = 2;
+
+  // ------------------------------------------------------------ As regras ---
+  var PONTOS_PASTILHA = 10;               // cada pastilha comum
+  var PONTOS_PODER = 50;                  // a pastilha de poder (efeito: fase 4)
+  var VIDAS_INICIAIS = 3;                 // ainda nao ha como perder (fase 5)
+  var TOTAL_FASES = 3;                    // os tres labirintos do jogo (fase 6a)
 
   // ------------------------------------------------------------ As direcoes -
   /* A ordem importa: e ela que vira numero quando a direcao viajar pela rede,
@@ -140,6 +163,18 @@
       return livre(mapa, v.c, v.l);
     }
 
+    /**
+     * O indice da pastilha que mora no quadrado (c, l) - ou -1 se ali nao ha
+     * pastilha nenhuma. E a pergunta que o come-come faz a cada quadro ("tem
+     * comida debaixo dos meus pes?"), entao ela e uma consulta numa tabela
+     * montada uma vez so na leitura do desenho, e nao uma varredura nas 244.
+     */
+    function pastilhaEm(mapa, c, l) {
+      if (l < 0 || l >= mapa.linhas || c < 0 || c >= mapa.colunas) return -1;
+      var i = mapa.indicePastilha[l * mapa.colunas + c];
+      return i === undefined ? -1 : i;
+    }
+
     /** Quantas saidas tem aquele quadrado (2 = corredor, 3+ = encruzilhada). */
     function saidas(mapa, c, l) {
       var lista = [];
@@ -166,11 +201,15 @@
         altura: grade.length * TILE,
         pastilhas: [],          // todas elas, na ordem de leitura
         poderes: [],            // so os indices das pastilhas de poder
+        indicePastilha: [],     // quadrado -> indice da pastilha dali (-1: nenhuma)
         portas: [],             // os quadrados da porta da casa
         tuneis: [],             // tuneis[linha] = true na linha do tunel
         nascimento: null,       // onde o come-come nasce
         nome: op.nome || ''
       };
+
+      // A tabela quadrado -> pastilha comeca vazia: -1 e "aqui nao ha nada".
+      for (var q = 0; q < mapa.linhas * colunas; q++) mapa.indicePastilha.push(-1);
 
       for (l = 0; l < mapa.linhas; l++) {
         // A linha do tunel e a que tem uma boca em cada ponta.
@@ -182,6 +221,7 @@
           if (ch === PASTILHA || ch === PODER) {
             var meio = centro(c, l);
             if (ch === PODER) mapa.poderes.push(mapa.pastilhas.length);
+            mapa.indicePastilha[l * colunas + c] = mapa.pastilhas.length;
             mapa.pastilhas.push({
               c: c, l: l, x: meio.x, y: meio.y, poder: ch === PODER
             });
@@ -202,6 +242,7 @@
       parede: parede,
       vizinho: vizinho,
       podeIr: podeIr,
+      pastilhaEm: pastilhaEm,
       saidas: saidas,
       centro: centro,
       coluna: coluna,
@@ -314,6 +355,105 @@
     };
   }());
 
+  // ---------------------------------------------------------- As pastilhas --
+  /* O caderninho do labirinto: o `Mapa` diz ONDE cada pastilha esta (isso nao
+     muda nunca); o "estado das pastilhas" diz quais ainda estao de pe NESTA
+     partida:
+
+         { restam: [true, false, true, ...],   // uma casinha por pastilha
+           faltam: 243,                        // quantas ainda estao de pe
+           comidas: 1 }                        // quantas ja sumiram
+
+     A regra e a do genero, e cabe em uma frase: o come-come come a pastilha do
+     quadrado em que ele ESTA. Comum vale 10, a de poder vale 50 e vem marcada
+     a parte - o efeito dela (fantasmas assustados) e a fase 4; hoje ela so
+     rende mais pontos. Comida uma vez, ela nao volta e nao conta de novo:
+     `comer()` num quadrado ja limpo simplesmente nao faz nada.
+
+     Como o resto dos modulos, nada aqui mexe no estado que recebe: quando a
+     mordida acontece sai um estado NOVO, e quando nao acontece sai o mesmo de
+     antes. Numa sala vai ser esta funcao, rodando no aparelho do anfitriao,
+     que decide qual pastilha sumiu para todo mundo. */
+  var Pastilhas = (function () {
+
+    /** O comeco de uma fase: todas as pastilhas do desenho de pe. */
+    function novoEstado(mapa) {
+      var restam = [];
+      for (var i = 0; i < mapa.totalPastilhas; i++) restam.push(true);
+      return { restam: restam, faltam: mapa.totalPastilhas, comidas: 0 };
+    }
+
+    /** Aquela pastilha ainda esta de pe? */
+    function existe(estado, i) { return estado.restam[i] === true; }
+
+    /** Quantas ainda faltam para o labirinto ficar limpo. */
+    function faltam(estado) { return estado.faltam; }
+
+    /** O labirinto foi limpo? (e o que fecha a fase) */
+    function limpo(estado) { return estado.faltam === 0; }
+
+    /** Nada aconteceu neste quadro: o mesmo estado, sem mordida nenhuma. */
+    function nada(estado) {
+      return { estado: estado, comeu: -1, poder: false, pontos: 0, limpou: false };
+    }
+
+    /**
+     * Comer a pastilha do quadrado (c, l), se houver uma inteira ali.
+     * Devolve `{ estado, comeu, poder, pontos, limpou }`:
+     *   comeu   o indice da pastilha que sumiu (-1 = nenhuma)
+     *   poder   ela era uma pastilha de poder?
+     *   pontos  quanto ela rendeu
+     *   limpou  foi ela a ultima do labirinto?
+     */
+    function comer(estado, mapa, c, l) {
+      var i = Mapa.pastilhaEm(mapa, c, l);
+      if (i < 0 || !existe(estado, i)) return nada(estado);
+
+      var restam = estado.restam.slice();
+      restam[i] = false;
+      var novo = {
+        restam: restam,
+        faltam: estado.faltam - 1,
+        comidas: estado.comidas + 1
+      };
+      var poder = mapa.pastilhas[i].poder === true;
+
+      return {
+        estado: novo,
+        comeu: i,
+        poder: poder,
+        pontos: poder ? PONTOS_PODER : PONTOS_PASTILHA,
+        limpou: novo.faltam === 0
+      };
+    }
+
+    /** Um quadro: o come-come come o que estiver debaixo dos pes dele. */
+    function passo(estado, mapa, corpo) {
+      return comer(estado, mapa, Mapa.coluna(corpo.x), Mapa.linha(corpo.y));
+    }
+
+    /** Quanto vale limpar o labirinto inteiro (240 x 10 + 4 x 50 = 2600). */
+    function totalDoLabirinto(mapa) {
+      var total = 0;
+      for (var i = 0; i < mapa.pastilhas.length; i++) {
+        total += mapa.pastilhas[i].poder ? PONTOS_PODER : PONTOS_PASTILHA;
+      }
+      return total;
+    }
+
+    return {
+      novoEstado: novoEstado,
+      comer: comer,
+      passo: passo,
+      existe: existe,
+      faltam: faltam,
+      limpo: limpo,
+      totalDoLabirinto: totalDoLabirinto,
+      PONTOS_PASTILHA: PONTOS_PASTILHA,
+      PONTOS_PODER: PONTOS_PODER
+    };
+  }());
+
   // ------------------------------------------------------- O labirinto 1 ----
   /* O primeiro dos tres labirintos do jogo: corredores largos, quatro
      pastilhas de poder nos cantos e um tunel na linha do meio. A casa dos
@@ -371,6 +511,7 @@
     window.ComeCome = {
       Mapa: Mapa,
       Movimento: Movimento,
+      Pastilhas: Pastilhas,
       LABIRINTO_1: LABIRINTO_1,
       LABIRINTOS: LABIRINTOS,
       mapas: mapas,
@@ -378,7 +519,9 @@
       mundo: {
         TILE: TILE, COLUNAS: COLUNAS, LINHAS: LINHAS,
         LARGURA: LARGURA, ALTURA: ALTURA,
-        PASSO_MS: PASSO_MS, VEL_COME: VEL_COME
+        PASSO_MS: PASSO_MS, VEL_COME: VEL_COME,
+        PONTOS_PASTILHA: PONTOS_PASTILHA, PONTOS_PODER: PONTOS_PODER,
+        VIDAS_INICIAIS: VIDAS_INICIAIS, TOTAL_FASES: TOTAL_FASES
       }
     };
   }
@@ -420,9 +563,22 @@
   var ctx = tela.getContext('2d');
   if (ctx.imageSmoothingEnabled !== undefined) ctx.imageSmoothingEnabled = false;
 
+  function $(id) { return document.getElementById(id); }
+
   var el = {
-    app: document.getElementById('app'),
-    palco: document.getElementById('palco')
+    app: $('app'),
+    palco: $('palco'),
+
+    // O HUD: os numeros que a crianca acompanha sem tirar o olho do labirinto.
+    pontos: $('hud-pontos'),
+    vidas: $('hud-vidas'),
+    fase: $('hud-fase'),
+    faltam: $('hud-faltam'),
+
+    // A tela provisoria de fim de fase (o encadeamento e a fase 6b do plano).
+    telaFase: $('tela-fase'),
+    faseNumero: $('fase-numero'),
+    fasePontos: $('fase-pontos')
   };
 
   /** As paredes: bloco cheio, com brilho so nas beiradas que dao para o chao. */
@@ -452,11 +608,16 @@
     }
   }
 
-  /** As pastilhas. As de poder pulsam, para a crianca achar de longe. */
-  function desenharPastilhas(mapa, relogio) {
+  /**
+   * As pastilhas que ainda estao de pe. As de poder pulsam, para a crianca
+   * achar de longe. Quem foi comida simplesmente nao e pintada - e por isso
+   * que o desenho conta a mesma historia que o `estado`.
+   */
+  function desenharPastilhas(mapa, estado, relogio) {
     ctx.fillStyle = COR_PASTILHA;
     var grande = (relogio % 40) < 20;
     for (var i = 0; i < mapa.pastilhas.length; i++) {
+      if (!Pastilhas.existe(estado, i)) continue;
       var p = mapa.pastilhas[i];
       var lado = p.poder ? (grande ? PODER_MAX : PODER_MIN) : PASTILHA_L;
       ctx.fillRect(p.x - lado / 2, p.y - lado / 2, lado, lado);
@@ -510,7 +671,7 @@
     ctx.fillRect(0, 0, LARGURA, ALTURA);
 
     desenharParedes(labirinto);
-    desenharPastilhas(labirinto, jogo.relogio);
+    desenharPastilhas(labirinto, jogo.pastilhas, jogo.relogio);
 
     var come = jogo.come;
     var ciclo = come.passos % CICLO_BOCA;
@@ -542,7 +703,10 @@
     tela: 'jogando',                 // o menu chega na fase 7
     relogio: 0,                      // quadros desde o inicio da partida
     fase: 1,                         // o labirinto 1 de 3
-    come: Movimento.novoCorpo(labirinto.nascimento.c, labirinto.nascimento.l)
+    pontos: 0,                       // o que a fase rendeu ate agora
+    vidas: VIDAS_INICIAIS,           // ainda nao ha como perder (fase 5)
+    come: Movimento.novoCorpo(labirinto.nascimento.c, labirinto.nascimento.l),
+    pastilhas: Pastilhas.novoEstado(labirinto)
   };
 
   // O estado vivo, para os testes dirigirem o jogo sem navegador.
@@ -554,6 +718,61 @@
     jogo.relogio++;
     if (entrada.desejada) jogo.come.desejada = entrada.desejada;
     jogo.come = Movimento.passo(jogo.come, labirinto);
+
+    // O que estiver debaixo dos pes dele some e vira ponto. Cada pastilha conta
+    // uma vez so: nos outros 7 quadros dentro do mesmo quadrado ja nao ha nada.
+    var mordida = Pastilhas.passo(jogo.pastilhas, labirinto, jogo.come);
+    if (mordida.comeu >= 0) {
+      jogo.pastilhas = mordida.estado;
+      jogo.pontos += mordida.pontos;
+      if (mordida.limpou) concluirFase();
+    }
+  }
+
+  /**
+   * A ultima pastilha sumiu: o labirinto esta limpo e a fase acabou. Por ora a
+   * tela so mostra o que a fase rendeu e o mundo congela - quem encadeia o
+   * labirinto seguinte e a corrida das tres fases (fase 6b do plano).
+   */
+  function concluirFase() {
+    jogo.tela = 'fase';
+    el.faseNumero.textContent = String(jogo.fase);
+    el.fasePontos.textContent = String(jogo.pontos);
+    el.telaFase.classList.remove('hidden');
+  }
+
+  // ----------------------------------------------------------------- HUD ----
+  /* Pontos, vidas, fase e quantas pastilhas faltam ficam no HTML (fora do
+     canvas): assim eles crescem junto com a tela e continuam legiveis no
+     celular. Escrever no DOM so quando o numero muda evita mexer na pagina 60
+     vezes por segundo. */
+  var COME_VIDA = '🟡';
+  var hudPintado = { pontos: -1, vidas: -1, fase: -1, faltam: -1 };
+
+  function repetir(texto, n) {
+    var saida = '';
+    for (var i = 0; i < n; i++) saida += texto;
+    return saida;
+  }
+
+  function atualizarHud() {
+    if (jogo.pontos !== hudPintado.pontos) {
+      hudPintado.pontos = jogo.pontos;
+      el.pontos.textContent = String(jogo.pontos);
+    }
+    if (jogo.vidas !== hudPintado.vidas) {
+      hudPintado.vidas = jogo.vidas;
+      el.vidas.textContent = repetir(COME_VIDA, jogo.vidas) || '—';
+    }
+    if (jogo.fase !== hudPintado.fase) {
+      hudPintado.fase = jogo.fase;
+      el.fase.textContent = jogo.fase + ' / ' + TOTAL_FASES;
+    }
+    var faltam = Pastilhas.faltam(jogo.pastilhas);
+    if (faltam !== hudPintado.faltam) {
+      hudPintado.faltam = faltam;
+      el.faltam.textContent = String(faltam);
+    }
   }
 
   // ------------------------------------------------------------- Teclado ----
@@ -607,7 +826,9 @@
     if (jogo.tela === 'jogando') {
       acumulado += dt;
       var passos = 0;
-      while (acumulado >= PASSO_MS && passos < 6) {
+      // A fase pode acabar no meio da rajada (a ultima pastilha some): dai em
+      // diante o mundo nao anda mais neste quadro.
+      while (acumulado >= PASSO_MS && passos < 6 && jogo.tela === 'jogando') {
         atualizar();
         acumulado -= PASSO_MS;
         passos++;
@@ -617,10 +838,12 @@
       acumulado = 0;
     }
 
+    atualizarHud();
     desenharCena();
   }
 
   ajustarPalco();
+  atualizarHud();
   desenharCena();
   requestAnimationFrame(quadro);
 }());

@@ -5,11 +5,12 @@ corredores, coma todas as pastilhas e escape dos quatro fantasmas. Três
 labirintos, cada um mais difícil que o anterior — sozinho ou com até 5 amigos
 na mesma sala.
 
-> **Estado de hoje: fase 1 do plano.** O que já funciona é o chão de tudo o
-> resto: o labirinto 1 desenhado, o come-come andando na grade, virando nas
-> esquinas e atravessando o túnel lateral. As pastilhas ainda não somem quando
-> ele passa por cima (fase 2), os fantasmas ainda não existem (fase 3), e a
-> partida ainda entra direto no jogo, sem menu (fase 7).
+> **Estado de hoje: fase 2 do plano.** Já dá para correr pelo labirinto 1
+> comendo todas as pastilhas, ver o placar subir no HUD e limpar o labirinto —
+> a fase é dada por concluída quando a última pastilha some. Os fantasmas ainda
+> não existem (fase 3), a pastilha de poder ainda só vale pontos (fase 4), as
+> vidas ainda não caem porque não há de quem fugir (fase 5), o labirinto ainda
+> é um só (fase 6a) e a partida ainda entra direto no jogo, sem menu (fase 7).
 
 ---
 
@@ -26,6 +27,36 @@ assim aqui.
 
 Os dois lados da linha do meio são o **túnel**: quem sai por uma ponta entra
 pela outra sem parar de andar.
+
+O objetivo é **limpar o labirinto**: comer todas as 244 pastilhas. Quando a
+última some, a fase acabou.
+
+---
+
+## A pontuação
+
+| O que | Quanto vale |
+|---|---|
+| pastilha comum (`.`) | **10** pontos |
+| pastilha de poder (`o`) | **50** pontos |
+| **labirinto 1 inteiro** | **2 600** (240 × 10 + 4 × 50) |
+
+Cada pastilha conta **uma vez só**: o come-come come a que estiver debaixo dos
+pés dele, ela some da tela e o quadrado fica limpo para sempre — voltar por
+cima não rende mais nada.
+
+A pastilha de poder já vale os 50 pontos, mas ainda **não faz mais nada**: o
+efeito dela (deixar os fantasmas azuis e comestíveis) chega junto com os
+fantasmas.
+
+O HUD, em cima do labirinto, mostra quatro números:
+
+| Caixa | O que é |
+|---|---|
+| **Pontos** | o que a fase rendeu até agora |
+| **Vidas** | 🟡🟡🟡 — três, como no fliperama (ainda não há como perder) |
+| **Fase** | qual dos três labirintos está em jogo |
+| **Faltam** | quantas pastilhas ainda estão de pé; zerou, a fase acabou |
 
 ---
 
@@ -56,6 +87,11 @@ A **linha do túnel** é a que começa e termina com `T`. Nela, o vizinho da pon
 esquerda é a ponta direita — e `Mapa.vizinho()` já devolve o vizinho com essa
 volta feita, de modo que o resto do jogo não precisa saber do assunto.
 
+Ler o desenho também monta a tabela `quadrado → pastilha dali`, que é o que
+`Mapa.pastilhaEm()` consulta. É a pergunta que o come-come faz **a cada
+quadro** ("tem comida debaixo dos meus pés?"), então ela é uma consulta direta,
+e não uma varredura nas 244.
+
 ---
 
 ## Decisões técnicas
@@ -74,12 +110,20 @@ apontando para onde ele anda.
 |---|---|
 | `Mapa` | lê o desenho em texto e devolve a grade (paredes, pastilhas, poderes, porta da casa, nascimento e as linhas de túnel) |
 | `Movimento` | um quadro de movimento na grade: direção atual + direção desejada, parada na parede, alinhamento no meio do corredor e a volta do túnel |
+| `Pastilhas` | o caderninho do labirinto: quais pastilhas ainda estão de pé, o que rende comer a do quadrado em que o come-come está, e quantas faltam |
 
-Nenhum dos dois sabe o que é DOM, e `Movimento.passo()` é função pura: recebe
-um corpo e devolve um corpo novo. Isso vale por dois motivos — os testes em
-Node exercitam o jogo inteiro sem abrir navegador, e mais adiante o convidado
-de uma sala vai prever o próprio corpo com **exatamente a mesma função** que o
-anfitrião roda.
+Nenhum deles sabe o que é DOM, e todos são funções puras: recebem um estado e
+devolvem um estado **novo**, sem mexer no que receberam. Isso vale por dois
+motivos — os testes em Node exercitam o jogo inteiro sem abrir navegador, e
+mais adiante o convidado de uma sala vai prever o próprio corpo com
+**exatamente a mesma função** que o anfitrião roda, enquanto quem decide qual
+pastilha sumiu para todos é o `Pastilhas` rodando só no aparelho do anfitrião.
+
+**Comer é uma pergunta por quadro, e uma resposta só.** O come-come come a
+pastilha do quadrado em que ele *está* — a 2px por quadro ele passa 8 quadros
+dentro do mesmo quadrado, e nos 7 seguintes a resposta é "aqui já está limpo".
+É assim que a mesma pastilha nunca conta duas vezes, sem nenhum controle
+extra.
 
 **A grade é honesta.** O come-come anda 2px por quadro, num relógio fixo de 60
 quadros por segundo: são 8 quadros para atravessar um quadrado de 16px, então
@@ -101,4 +145,12 @@ anfitrião e convidado batendo certo quando o multijogador entrar.
 node --check jogos/come_come/game.js
 node testes/come_come/fase1.test.mjs        # o mapa e o movimento, puros
 node testes/come_come/fase1-tela.test.mjs   # o jogo ligado, sem navegador
+node testes/come_come/fase2.test.mjs        # as pastilhas e a pontuação, puras
+node testes/come_come/fase2-tela.test.mjs   # o labirinto percorrido até ficar limpo
 ```
+
+O `fase2-tela.test.mjs` põe um **piloto automático** no volante: a cada centro
+de quadrado ele procura a pastilha inteira mais perto (uma busca em largura
+pelo labirinto, com o túnel e tudo) e aperta a seta daquele lado. Assim o
+labirinto inteiro é percorrido até ficar limpo, e o teste confere os 2 600
+pontos no HUD e a fase dada por concluída.

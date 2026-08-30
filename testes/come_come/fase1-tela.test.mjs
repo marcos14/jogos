@@ -171,8 +171,13 @@ teste('o labirinto e desenhado no canvas, sem imagem nenhuma', () => {
   const paredes = pixeisDaCor(COR_PAREDE);
   assert.ok(paredes.length > 200, `${paredes.length} blocos de parede`);
 
-  const pastilhas = pixeisDaCor(COR_PASTILHA);
-  assert.equal(pastilhas.length, dom.api.mapas[0].totalPastilhas,
+  // O labirinto INTEIRO so existe num jogo recem-aberto: os testes daqui de
+  // cima ja levaram o come-come a passear, e desde a fase 2 passear come
+  // pastilha. Uma copia nova do jogo devolve o desenho como ele nasce.
+  const novo = carregarJogoComTela('come_come');
+  novo.avancarQuadros(1);
+  const pastilhas = novo.pintados.filter((p) => p.cor === COR_PASTILHA);
+  assert.equal(pastilhas.length, novo.api.mapas[0].totalPastilhas,
     'uma pastilha pintada para cada uma do desenho');
 });
 

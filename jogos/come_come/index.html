@@ -11,6 +11,30 @@
 
 <div id="app">
 
+  <!-- ------------------------------------------------------------ HUD ----- -->
+  <!-- Os números são escritos pelo game.js: os pontos sobem a cada pastilha
+       (10 cada, 50 nas de poder), "faltam" conta quantas ainda estão de pé no
+       labirinto — quando chega a zero, a fase acabou. As vidas ainda não caem:
+       só existem fantasmas (e perigo) a partir das fases 3 e 5. -->
+  <header id="hud">
+    <div class="hud-box">
+      <span class="hud-label">Pontos</span>
+      <strong id="hud-pontos">0</strong>
+    </div>
+    <div class="hud-box">
+      <span class="hud-label">Vidas</span>
+      <strong id="hud-vidas">🟡🟡🟡</strong>
+    </div>
+    <div class="hud-box">
+      <span class="hud-label">Fase</span>
+      <strong id="hud-fase">1 / 3</strong>
+    </div>
+    <div class="hud-box">
+      <span class="hud-label">Faltam</span>
+      <strong id="hud-faltam">244</strong>
+    </div>
+  </header>
+
   <!-- ---------------------------------------------------------- Palco ----- -->
   <!-- O canvas tem por dentro o tamanho exato do labirinto (28 x 31 quadrados
        de 16px = 448 x 496). O CSS só decide de que tamanho ele APARECE, sempre
@@ -18,9 +42,25 @@
        que é o que vai deixar anfitrião e convidado batendo certo lá na frente. -->
   <div id="palco">
     <canvas id="tela" width="448" height="496"></canvas>
+
+    <!-- Fim de fase: sobe quando a última pastilha do labirinto some. Por
+         enquanto ela só mostra o que a fase rendeu e o mundo fica congelado
+         atrás dela — quem encadeia o labirinto seguinte é a corrida das três
+         fases, que ainda vai ser escrita. -->
+    <section id="tela-fase" class="tela hidden">
+      <div class="painel">
+        <h1 class="titulo"><span class="destaque">LABIRINTO</span><br>LIMPO!</h1>
+        <p class="subtitulo">Você comeu todas as pastilhas 🟡</p>
+        <p class="placar">
+          Fase <b id="fase-numero">1</b> de 3<br>
+          Pontos da fase: <b id="fase-pontos">0</b>
+        </p>
+        <p class="legenda">Os outros dois labirintos chegam em breve</p>
+      </div>
+    </section>
   </div>
 
-  <footer id="rodape">Setas ou W A S D para virar nas esquinas — e cuidado com o túnel dos lados!</footer>
+  <footer id="rodape">Setas ou W A S D para virar nas esquinas — coma todas as pastilhas e cuidado com o túnel dos lados!</footer>
 </div>
 
 <script src="game.js" charset="utf-8"></script>
