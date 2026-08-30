@@ -29,6 +29,8 @@ sem abrir navegador.
     node testes/super_adventure/fase12.test.mjs      a bandeira e o checkpoint da sala
     node testes/super_adventure/fase13.test.mjs      o placar de todos e o ranking do fim
     node testes/super_adventure/fase13-tela.test.mjs o ranking passando pela Central
+    node testes/super_adventure/fase14.test.mjs      quem sai, quem cai e a rede que engasga
+    node testes/super_adventure/fase14-tela.test.mjs a sala se desmanchando de verdade
 
 O harness.mjs de cada pasta tem o carregador e o corredor de testes. O do
 super_adventure tambem sabe subir o servidor das salas de verdade numa porta

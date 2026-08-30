@@ -141,6 +141,30 @@ body{
 #controles b{ color: var(--amarelo); }
 #controles .separador{ color: var(--cinza); }
 
+/* ------------------------------------------------- Tarja do palco -------- */
+/* O recado que vale mais que o jogo: a conexão que engasgou (mais de 2 segundos
+   sem notícia da sala) ou a partida que acabou no meio. Fica no alto do palco,
+   centralizada, e como é o último filho do #palco ela é pintada por cima das
+   telas de fim de fase e de parabéns. Vermelha, como a tarja do menu, e sem
+   clique nenhum. */
+#recado-palco{
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  transform: translateX(-50%);
+  margin: 0;
+  max-width: 90%;
+  background: var(--vermelho);
+  border: 3px solid var(--branco);
+  padding: 4px 10px;
+  font-size: clamp(8px, 1.3vw, 12px);
+  letter-spacing: 1px;
+  line-height: 1.4;
+  color: var(--branco);
+  text-align: center;
+  pointer-events: none;
+}
+
 /* ------------------------------------------------- O placar da sala ------ */
 /* A mini-lista do canto de cima à esquerda do palco, por cima do canvas. Como
    a caixa de controles, ela é só um cartaz: não recebe clique nenhum. */
@@ -422,6 +446,7 @@ html:-webkit-full-screen body{ padding: 0; background: var(--preto); }
   .botao-icone{ width: 38px; height: 38px; font-size: 15px; }
   #controles{ padding: 2px 6px; gap: 6px; }
   #placar-sala{ padding: 2px 5px; min-width: 112px; }
+  #recado-palco{ padding: 2px 6px; top: 4px; }
   .placar-lista{ line-height: 1.35; }
   .ranking-titulo{ margin: 8px 0 4px; }
   .ranking li{ padding: 2px 8px; border-bottom-width: 2px; }

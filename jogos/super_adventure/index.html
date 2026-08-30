@@ -158,6 +158,13 @@
         <button id="btn-de-novo" type="button" class="botao">JOGAR NOVAMENTE</button>
       </div>
     </section>
+
+    <!-- A tarja de recado do palco. É a última coisa dentro do #palco de
+         propósito: assim ela é pintada POR CIMA de tudo, inclusive das telas de
+         fim de fase e de parabéns. É aqui que aparece o "⚠ CONEXÃO INSTÁVEL"
+         (mais de 2 segundos sem notícia da sala) e o motivo de uma partida que
+         acabou no meio. Não recebe clique: é só um cartaz. -->
+    <p id="recado-palco" class="hidden" role="status"></p>
   </div>
 
   <footer id="rodape">Três fases: junte as moedas, acenda os checkpoints e corra até a bandeira!</footer>

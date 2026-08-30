@@ -4,7 +4,7 @@ Um platformer retrô, de 8 bits, para as crianças: corra, pule, junte moedas e
 chegue na bandeira. São 3 fases fixas e dá para jogar sozinho ou com até 8
 amigos na mesma fase, cada um no seu aparelho.
 
-> **Estado: em construção.** Esta é a **fase 13** do plano — o jogo solo está
+> **Estado: em construção.** Esta é a **fase 14** do plano — o jogo solo está
 > completo (as três fases em ordem fixa, o bônus da bandeira, a tela de
 > **PARABÉNS** e a interface inteira: pausa, recomeçar, tela cheia e a caixa de
 > controles) e o multijogador já joga de verdade: o **JOGAR COM AMIGOS** abre o
@@ -12,11 +12,14 @@ amigos na mesma fase, cada um no seu aparelho.
 > convidado adivinha o próprio corpo para o controle não ficar molenga, as
 > moedas/blocos/bichos são de todos (quem pega, tira dos outros), **cada
 > aparelho tem a sua câmera** centrada no próprio personagem, a **bandeira e os
-> checkpoints são da sala** e agora **todo mundo vê o placar de todo mundo**:
-> uma mini-lista no canto da tela durante a partida e o **ranking da sala** na
-> tela de PARABÉNS. O que ainda **não** acontece: os casos de borda da rede
-> (alguém sair no meio, o anfitrião cair, a conexão engasgar) e o polimento
-> final — são as etapas seguintes.
+> checkpoints são da sala**, **todo mundo vê o placar de todo mundo** (uma
+> mini-lista no canto da tela durante a partida e o **ranking da sala** na tela
+> de PARABÉNS) e agora a partida também **aguenta a rede dar errado**: quem sai
+> some do mundo sem travar os outros, o anfitrião caindo aborta com aviso,
+> pacote atrasado depois do fim vai para o lixo e mais de 2 segundos de silêncio
+> viram a tarja **CONEXÃO INSTÁVEL**. O que ainda **não** aconteceu é o
+> polimento final (paleta, responsividade e o checklist de publicação) — é a
+> etapa seguinte.
 
 ## Como jogar
 
@@ -362,6 +365,37 @@ retrato. Terminada a partida, a sala volta ao lobby na Central: por isso o botã
 da tela de fim vira **VOLTAR AO LOBBY**, de onde o anfitrião pode começar outra
 corrida com a turma inteira.
 
+### Quando a rede dá errado
+
+Uma partida com oito crianças na rede de casa dá errado de quatro jeitos
+conhecidos — e nenhum deles pode deixar alguém olhando para uma tela parada:
+
+| O que aconteceu | O que o jogo faz |
+|---|---|
+| **Alguém sai no meio** (fechou a aba, o wi-fi caiu, clicou em *Jogar solo*) | a Central manda o aviso e cada aparelho tira aquela linha do mundo e do placar. A partida **continua** para quem ficou, com um jogador a menos |
+| **O anfitrião cai** | era a máquina dele que simulava o mundo, então a partida **aborta**: todo mundo volta ao menu com o motivo na tarja vermelha e já pode jogar solo ou abrir o lobby de novo (a Central escolhe um anfitrião novo para a sala) |
+| **Chega um pacote atrasado depois do fim** | vai para o lixo, sem barulho — aplicá-lo mexeria no mundo que ficou congelado atrás do ranking |
+| **Mais de 2 segundos sem notícia da sala** | sobe a tarja **⚠ CONEXÃO INSTÁVEL** no alto do palco, e ela some sozinha no primeiro pacote que chegar |
+
+Quem sai **some do placar na hora**: a mini-lista encolhe nas telas de todos e,
+se sobrou uma pessoa só na sala, ela nem aparece mais — placar de sala é coisa
+de grupo. O anfitrião deixa de simular aquele personagem no mesmo quadro, então
+ele também para de viajar no retrato do mundo: ninguém fica com um boneco parado
+no meio da fase.
+
+Se o anfitrião cair **depois** da bandeira da fase 3, quando a única coisa que
+faltava era o placar oficial, a tela de PARABÉNS não volta para o menu: ela
+fecha com o **ranking daqui mesmo** (que bate com o dos outros, porque o total
+de cada um viajava no retrato) e o motivo aparece na tarja. Ficar para sempre
+num "juntando o placar da sala…" seria o pior dos mundos.
+
+A tarja de conexão vale para os **dois lados**: o convidado espera o retrato do
+anfitrião 20 vezes por segundo, e o anfitrião espera as teclas dos convidados na
+mesma toada — dois segundos de silêncio já são muito. Numa sala de uma pessoa só
+não há o que vigiar, e no jogo solo a tarja não existe. Um aviso: quem **pausa**
+para de mandar pacote, então uma pausa longa de um amigo pode fazer a tarja
+subir na tela dos outros — ela some assim que ele volta.
+
 ## As plataformas móveis (fase 3)
 
 São pontes de ferro que andam sozinhas pelo trilho desenhado no mapa: **1 px
@@ -518,6 +552,20 @@ câmera, para dar sensação de distância.
   funciona igual com o jogo aberto direto e dentro do iframe do catálogo. O
   estado do botão vem do evento `fullscreenchange` do navegador, nunca de um
   palpite nosso — assim sair pelo `ESC` também acerta o ícone.
+- **Quem sai é removido do mundo em todos os aparelhos, não só no anfitrião.**
+  A Central manda o mesmo aviso para a sala inteira, e cada tela apaga aquela
+  linha por conta própria: assim o retrato do mundo continua sendo só posição e
+  pontos, sem precisar carregar a lista de quem está na sala 20 vezes por
+  segundo.
+- **Partida encerrada é encerrada:** depois que o ranking sobe, qualquer pacote
+  que ainda estivesse a caminho — inclusive um `fim` atrasado da própria
+  Central — é descartado e contado, e nada mais mexe no mundo. Sem isso, um
+  retrato perdido podia trocar a fase (ou o placar) debaixo do nariz de quem
+  está lendo o ranking.
+- **A tarja de recado do palco é o último filho do `#palco`**, e por isso é
+  pintada por cima até das telas de fim de fase e de parabéns: é ali que aparece
+  o "conexão instável" e o motivo de uma partida que acabou no meio — os dois
+  recados que valem mais do que a tela que estiver na frente.
 - **O convidado prevê o corpo, nunca o placar.** A previsão local roda só o
   `Fisica.passo()` (e o passo das plataformas móveis, que são previsíveis): não
   pega moeda, não quebra bloco, não pisa em bicho, não acende checkpoint e não

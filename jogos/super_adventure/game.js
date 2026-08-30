@@ -1,13 +1,30 @@
 /* ==========================================================================
    SUPER ADVENTURE  -  plataforma retro, no estilo dos consoles de 8 bits
    --------------------------------------------------------------------------
-   FASE 13 do plano: TODO MUNDO VE O PLACAR DE TODO MUNDO. Numa sala, uma
-   mini-lista no canto da tela mostra a turma inteira e quantos pontos cada um
-   fez, na hora em que faz; e a bandeira da fase 3 fecha a partida da sala pela
-   Central (`terminar(placar)`), de onde volta para todos, ao mesmo tempo, o
-   mesmo RANKING - montado do pior para o melhor, para a lista terminar no
-   campeao. Se a plataforma nao confirmar em ~3 segundos, cada tela mostra o
-   placar que ela mesma tem, e ninguem fica esperando para sempre.
+   FASE 14 do plano: QUANDO A SALA SE DESMANCHA. Uma partida em grupo tem quatro
+   jeitos conhecidos de dar errado, e nenhum deles pode travar a tela de
+   ninguem:
+
+     - alguem SAI no meio (fechou a aba, o wi-fi caiu): a plataforma manda o
+       `saiu` e cada aparelho tira aquela linha do mundo e do placar. Quem ficou
+       continua jogando, com um jogador a menos;
+     - o ANFITRIAO cai: era a maquina dele que simulava o mundo, entao a partida
+       aborta (`aoAbortar`). Todo mundo volta ao menu com o motivo na tarja - ou,
+       se a corrida ja tinha acabado e faltava so o placar oficial, o PARABENS
+       fecha com o ranking daqui mesmo;
+     - PACOTE ATRASADO depois do fim: um retrato (ou ate o `fim` da Central) que
+       chega quando o ranking ja esta na tela e descartado sem barulho, senao
+       ele mexeria num mundo que ninguem mais esta jogando;
+     - MAIS DE 2 SEGUNDOS sem noticia da sala: a tarja "CONEXAO INSTAVEL" sobe
+       no palco e some sozinha no primeiro pacote que chegar.
+
+   Antes disso, o placar ja era de todos (fase 13): uma mini-lista no canto da
+   tela mostra a turma inteira e quantos pontos cada um fez, na hora em que faz;
+   e a bandeira da fase 3 fecha a partida da sala pela Central
+   (`terminar(placar)`), de onde volta para todos, ao mesmo tempo, o mesmo
+   RANKING - montado do pior para o melhor, para a lista terminar no campeao. Se
+   a plataforma nao confirmar em ~3 segundos, cada tela mostra o placar que ela
+   mesma tem, e ninguem fica esperando para sempre.
 
    Antes disso a bandeira e o checkpoint ja eram da SALA (fase 12): o primeiro
    jogador que encostar na bandeira - anfitriao ou convidado, tanto faz - fecha
@@ -114,6 +131,12 @@
    ranking do pior para o melhor. Nao vindo resposta em ~3 segundos, cada uma
    mostra o placar que tem em casa - que bate com o dos outros, porque o
    `total` de cada jogador viaja no retrato.
+
+   E quando a sala se desmancha, tudo isso e desfeito com cuidado: `jogadorSaiu`
+   tira do mundo (e do placar) quem largou a partida, `abortar` devolve a turma
+   ao menu com o motivo na tarja, `rede.encerrada` manda para o lixo o que
+   chegar depois do fim e `vigiarConexao` conta os quadros calados para avisar,
+   passados 2 segundos, que a rede engasgou.
 
    A camera, essa, e de cada aparelho: `seguirCamera()` centra a janela no
    personagem de casa, dentro da MESMA geometria que o anfitriao esta usando -
@@ -2160,6 +2183,7 @@
     fim: $('tela-fim'),
     telaPausa: $('tela-pausa'),
     controles: $('controles'),
+    recado: $('recado-palco'),
     btnSolo: $('btn-solo'),
     btnAmigos: $('btn-amigos'),
     aviso: $('aviso'),
@@ -2625,7 +2649,9 @@
        'dano', 'vida-perdida', 'jogador-recomecou', 'fase-reiniciada',
        'fase-concluida', 'corrida-vencida', 'pausa', 'continuou',
        'rede-ligada', 'sala-comecou', 'sala-terminou', 'sala-abortada',
-       'saiu-da-sala', 'ranking-da-sala' (o placar oficial da plataforma) e
+       'saiu-da-sala', 'jogador-saiu' (alguem largou a sala), 'conexao-instavel'
+       e 'conexao-voltou' (a sala ficou - ou deixou de ficar - calada por mais
+       de 2 segundos), 'ranking-da-sala' (o placar oficial da plataforma) e
        'ranking-local' (o daqui, quando ela demorou demais). */
   function emitir(tipo) {
     var evento = { tipo: tipo, quadro: jogo.relogio };
@@ -2694,6 +2720,16 @@
   function exibir(elemento, sim) {
     if (sim) elemento.classList.remove('hidden');
     else elemento.classList.add('hidden');
+  }
+
+  /* A tarja do palco: um recado curto pintado POR CIMA de tudo - inclusive das
+     telas de fim de fase e de parabens, porque ela e a ultima coisa dentro do
+     `#palco`. E dela que sai o aviso de "conexao instavel" (a sala ficou mais
+     de 2 segundos calada) e o motivo de uma partida que acabou no meio. Texto
+     vazio apaga e esconde. */
+  function recadoNoPalco(texto) {
+    el.recado.textContent = texto || '';
+    exibir(el.recado, !!texto);
   }
 
   /** O placar de agora, do melhor para o pior. */
@@ -3343,6 +3379,7 @@
      sala continua nela - largar a sala e coisa do "Jogar solo". */
   function comecarPartida() {
     definirPausa(false);                // recomecar pela pausa descongela tudo
+    Rede.avisar('');                    // o recado da partida passada nao volta
     jogo.tela = 'jogando';
     jogo.relogio = 0;
     jogo.quedas = 0;
@@ -3387,6 +3424,7 @@
     jogo.tela = 'menu';
     jogo.concluida = false;
     entrada.esquerda = entrada.direita = entrada.pular = false;
+    Rede.limparRecado();          // nenhuma tarja de partida sobra no menu
     esconderTelas();
     el.hud.classList.add('hidden');
     el.menu.classList.remove('hidden');
@@ -3427,7 +3465,11 @@
     snaps: 0,             // ... e os que precisaram encaixar de uma vez
     encerrando: false,    // a corrida acabou e o placar oficial esta a caminho
     espera: 0,            // quadros de espera por esse placar
-    encerrada: false      // ja veio (ou ja desistimos): a partida acabou
+    encerrada: false,     // ja veio (ou ja desistimos): a partida acabou
+    saidas: 0,            // gente que largou a sala no meio da partida
+    descartados: 0,       // pacotes que chegaram depois do fim e foram ignorados
+    semPacote: 0,         // quadros desde o ultimo pacote da sala
+    instavel: false       // ... e passou de 2 segundos: a tarja esta na tela
   };
 
   var Rede = (function () {
@@ -3435,6 +3477,7 @@
     var mj = null;        // P.multijogador
     var quadrosDesdeEnvio = 0;   // para mandar na taxa certa, nao a cada quadro
     var QUADROS_ESPERA_FIM = 3 * 60;   // ~3s esperando o placar da plataforma
+    var QUADROS_SEM_PACOTE = 2 * 60;   // 2s calado ja e sinal de rede engasgada
 
     /* Liga o jogo na plataforma. Devolve `false` (e nao muda nada na tela)
        quando o multijogador nao esta disponivel - e o caso do servidor fora do
@@ -3446,6 +3489,9 @@
 
       rede.ligada = true;
       mj.em('erro', function (texto) { avisar(texto); });
+      // Alguem largou a sala: a plataforma avisa a turma inteira, e cada
+      // aparelho tira aquela linha do mundo por conta propria.
+      mj.em('saiu', function (quem) { jogadorSaiu(quem); });
 
       el.btnAmigos.classList.remove('hidden');
       el.btnAmigos.addEventListener('click', abrirLobby);
@@ -3490,6 +3536,10 @@
       rede.encerrando = false;
       rede.espera = 0;
       rede.encerrada = false;
+      rede.saidas = 0;
+      rede.descartados = 0;
+      rede.semPacote = 0;
+      marcarInstavel(false);
       quadrosDesdeEnvio = 0;
       montarJogadores(sala);
       avisar('');
@@ -3521,6 +3571,49 @@
       jogo.eu = eu;
     }
 
+    /* Alguem largou a sala no meio da partida: fechou a aba, o wi-fi caiu ou
+       clicou em "Jogar solo". A plataforma manda o `saiu` para a sala inteira
+       e cada aparelho tira aquela linha do mundo sozinho - no anfitriao ela
+       para de ser simulada (e de viajar no retrato), nos convidados ela some
+       da tela e do placar. Para quem ficou, a partida continua exatamente como
+       estava: um jogador a menos, e mais nada.
+
+       O meu proprio `saiu` nunca chega aqui (a plataforma avisa quem ficou),
+       mas o `local` fica de guarda: perder a propria linha deixaria o jogo sem
+       heroi. */
+    function jogadorSaiu(quem) {
+      var id = quem && quem.id;
+      if (!rede.sala || rede.encerrada || !id) return;
+
+      var j = jogadorPorId(id);
+      if (!j || j.local) return;
+
+      tirarDoMundo(id);
+      rede.saidas++;
+      emitir('jogador-saiu');
+    }
+
+    /* Tira a linha daquele jogador do mundo e do instantaneo da sala. O placar
+       lateral e repintado na hora (a lista encolheu) e, se sobrou so o jogador
+       de casa, ele nem aparece mais: a mini-lista e coisa de grupo. */
+    function tirarDoMundo(id) {
+      var ficam = [], i;
+      for (i = 0; i < jogo.jogadores.length; i++) {
+        if (jogo.jogadores[i].id !== id) ficam.push(jogo.jogadores[i]);
+      }
+      jogo.jogadores = ficam;
+
+      if (rede.sala && rede.sala.jogadores) {
+        var naSala = [];
+        for (i = 0; i < rede.sala.jogadores.length; i++) {
+          if (rede.sala.jogadores[i].id !== id) naSala.push(rede.sala.jogadores[i]);
+        }
+        rede.sala.jogadores = naSala;
+      }
+      atualizarControles();
+      atualizarPlacar(true);
+    }
+
     /** De volta a ser um jogo de um jogador so. */
     function jogarSozinho() {
       jogo.eu = novoJogador({ local: true, cor: COR_SOLO });
@@ -3532,6 +3625,13 @@
        os convidados). Qualquer outra coisa e ignorada sem barulho. */
     function receber(msg) {
       if (!rede.sala) return;         // pacote atrasado, de uma sala que acabou
+      /* A partida ja fechou (o ranking esta na tela): o que ainda estava a
+         caminho chegou tarde demais. Aplicar um retrato agora mexeria no mundo
+         que ficou congelado atras do quadro de PARABENS - e podia ate trocar a
+         fase debaixo dele. Vai para o lixo, sem barulho. */
+      if (rede.encerrada) { rede.descartados++; return; }
+
+      chegouPacote();
       rede.recebidas++;
       rede.ultimaMensagem = msg;
 
@@ -3621,6 +3721,8 @@
       if (rede.encerrando) { esperarFim(); return; }
       if (!rede.sala || rede.encerrada || jogo.tela !== 'jogando') return;
 
+      vigiarConexao();
+
       var taxa = rede.sala.taxaEstado || 15;
       var cada = Math.max(1, Math.round(60 / taxa));
       if (++quadrosDesdeEnvio < cada) return;
@@ -3628,6 +3730,35 @@
 
       if (rede.papel === 'anfitriao') mandarEstado();
       else mandarEntrada();
+    }
+
+    /* O termometro da rede. Com a sala andando, alguma coisa chega umas 20
+       vezes por segundo: o retrato do mundo, para o convidado, e as teclas dos
+       convidados, para o anfitriao. Dois segundos inteiros de silencio ja sao
+       sinal de que a conexao engasgou, e ai a tarja sobe no palco - a crianca
+       precisa saber que o jogo travado nao e culpa dela. Ela some sozinha no
+       primeiro pacote que chegar.
+
+       Sozinho numa sala (o manifesto permite salas de um) nao ha com quem
+       falar: dai nao ha nada a vigiar. */
+    function vigiarConexao() {
+      if (!emGrupo()) { marcarInstavel(false); return; }
+      rede.semPacote++;
+      marcarInstavel(rede.semPacote > QUADROS_SEM_PACOTE);
+    }
+
+    /** Chegou pacote: a rede esta viva de novo. */
+    function chegouPacote() {
+      rede.semPacote = 0;
+      marcarInstavel(false);
+    }
+
+    /** Poe (ou tira) a tarja de conexao instavel, uma vez so por mudanca. */
+    function marcarInstavel(sim) {
+      if (rede.instavel === sim) return;
+      rede.instavel = sim;
+      recadoNoPalco(sim ? '⚠ CONEXÃO INSTÁVEL' : '');
+      emitir(sim ? 'conexao-instavel' : 'conexao-voltou');
     }
 
     function mandarEstado() {
@@ -3655,6 +3786,7 @@
       if (!rede.sala || rede.encerrando || rede.encerrada) return;
       rede.encerrando = true;
       rede.espera = 0;
+      marcarInstavel(false);     // acabou: nao ha mais pacote para esperar
       if (rede.papel !== 'anfitriao') return;
 
       mandarEstado();
@@ -3676,6 +3808,11 @@
        preso numa fase que nao existe mais. */
     function terminar(fim) {
       if (!rede.sala) return;
+      /* Partida ja fechada: este `fim` demorou mais que os ~3 segundos de
+         espera e chegou depois de o ranking daqui ja estar na tela. Trocar a
+         lista debaixo do nariz de quem esta lendo nao ajuda ninguem - ele e
+         descartado, e so. */
+      if (rede.encerrada) { rede.descartados++; return; }
 
       // Esperando o placar, ou ainda com o quadro de fim na tela (o oficial
       // chegou atrasado, depois de a espera ja ter mostrado o daqui).
@@ -3694,12 +3831,35 @@
       emitir('sala-terminou');
     }
 
-    /** O anfitriao caiu (ou a sala se desfez) no meio da partida. */
+    /* O anfitriao caiu (ou a sala se desfez) no meio da partida. Era a maquina
+       dele que simulava o mundo, entao nao ha partida para continuar: a regra
+       do PRD e abortar. O que nao pode acontecer, de jeito nenhum, e alguem
+       ficar preso numa tela parada - e por isso ha dois caminhos:
+
+         - a corrida ainda estava rolando: todo mundo volta ao menu, com o
+           motivo na tarja vermelha, e dali da para jogar solo ou abrir o lobby
+           de novo (a Central ja escolheu um anfitriao novo para a sala);
+         - a corrida ja tinha acabado e o que faltava era so o placar oficial:
+           vale o daqui, e a tela de PARABENS fecha com o ranking local em vez
+           de ficar "juntando o placar da sala..." para sempre. */
     function abortar(motivo) {
       if (!rede.sala) return;
+      var recado = (motivo && motivo.motivo) || 'A sala foi encerrada.';
+
+      if (rede.encerrando || (jogo.corrida.terminada && jogo.tela === 'jogando')) {
+        rede.encerrando = false;
+        rede.encerrada = true;
+        marcarInstavel(false);
+        mostrarRanking(placarDaSala(), false);
+        recadoNoPalco(recado);
+        avisar(recado);
+        emitir('sala-abortada');
+        return;
+      }
+
       limparSala();
       voltarAoMenu();
-      avisar((motivo && motivo.motivo) || 'A sala foi encerrada.');
+      avisar(recado);
       emitir('sala-abortada');
     }
 
@@ -3717,6 +3877,8 @@
       rede.encerrando = false;
       rede.espera = 0;
       rede.encerrada = false;
+      rede.semPacote = 0;
+      limparRecado();            // sem sala nao ha conexao para reclamar
       jogarSozinho();
       mostrarSala();
       atualizarControles();      // sem sala nao ha placar lateral
@@ -3730,6 +3892,12 @@
       } else {
         el.hudSala.classList.add('hidden');
       }
+    }
+
+    /** Apaga a tarja do palco (e o motivo dela) - o menu comeca limpo. */
+    function limparRecado() {
+      marcarInstavel(false);
+      recadoNoPalco('');
     }
 
     /** A tarja de recado do menu. Texto vazio apaga e esconde. */
@@ -3747,6 +3915,7 @@
       passo: passo,
       mandarEstado: mandarEstado,
       mandarEntrada: mandarEntrada,
+      limparRecado: limparRecado,
       avisar: avisar
     };
   }());

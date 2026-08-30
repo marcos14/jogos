@@ -151,7 +151,7 @@ export function carregarJogoComTela(slug = 'super_adventure', opcoes = {}) {
 
   const elementos = {};
   for (const id of ['app', 'palco', 'hud', 'tela-menu', 'tela-fase', 'tela-fim',
-                    'tela-pausa', 'controles',
+                    'tela-pausa', 'controles', 'recado-palco',
                     'btn-solo', 'btn-amigos', 'btn-proxima', 'btn-de-novo',
                     'btn-pausa', 'btn-tela-cheia', 'btn-continuar', 'btn-recomecar',
                     'aviso', 'hud-sala', 'hud-sala-codigo',
@@ -170,6 +170,9 @@ export function carregarJogoComTela(slug = 'super_adventure', opcoes = {}) {
   elementos['tela-fim'].classes.add('hidden');
   elementos['tela-pausa'].classes.add('hidden');
   elementos.controles.classes.add('hidden');
+  // A tarja de recado do palco (conexao instavel, partida que acabou no meio)
+  // tambem nasce escondida e vazia.
+  elementos['recado-palco'].classes.add('hidden');
   // O botao "Jogar com amigos", a tarja de recado e a caixa do codigo da sala
   // tambem nascem escondidos: eles so entram com a Central no ar.
   elementos['btn-amigos'].classes.add('hidden');
