@@ -1,0 +1,12 @@
+Os testes dos jogos ficam aqui, uma pasta por jogo.
+
+Nao existe framework de teste no projeto (e nada novo entra no package.json):
+cada arquivo e um script Node que roda sozinho e sai com codigo 1 se algo falhar.
+O truque e sempre o mesmo: o game.js do jogo e carregado num "vm" com um DOM de
+mentira, entao da para exercitar fisica, colisoes e mensagens de multijogador
+sem abrir navegador.
+
+    node testes/super_adventure/fase1.test.mjs        fisica pura + manifesto
+    node testes/super_adventure/fase1-tela.test.mjs   o jogo ligado, sem navegador
+
+O harness.mjs de cada pasta tem o carregador e o corredor de testes.

@@ -1,0 +1,173 @@
+/* ==========================================================================
+   Super Adventure - visual 8-bit: cores chapadas, cantos vivos, nada de
+   desfoque nem degrade. Tudo em pixel grande, como nos consoles antigos.
+   ========================================================================== */
+
+:root{
+  --ceu:      #5c94fc;
+  --ceu-2:    #3868c8;
+  --tijolo:   #e45c10;
+  --terra:    #c84c0c;
+  --grama:    #00a800;
+  --amarelo:  #fcd800;
+  --vermelho: #d82800;
+  --branco:   #fcfcfc;
+  --preto:    #0d0d17;
+  --cinza:    #6c6c74;
+}
+
+*{ box-sizing: border-box; }
+
+html, body{
+  height: 100%;
+  margin: 0;
+  overscroll-behavior: none;   /* sem puxar-para-atualizar no celular */
+}
+
+body{
+  font-family: "Consolas", "Courier New", "Lucida Console", monospace;
+  color: var(--branco);
+  background: var(--ceu-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+#app{
+  width: min(100%, 1200px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ------------------------------------------------------------------- HUD -- */
+#hud{
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+  width: 100%;
+}
+
+.hud-box{
+  background: var(--preto);
+  border: 3px solid var(--branco);
+  padding: 2px 10px;
+  min-width: 90px;
+  text-align: center;
+}
+
+.hud-label{
+  display: block;
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--amarelo);
+  text-transform: uppercase;
+}
+
+.hud-box strong{
+  font-size: 16px;
+  letter-spacing: 1px;
+}
+
+/* ----------------------------------------------------------------- Palco -- */
+#palco{
+  position: relative;
+  line-height: 0;
+  border: 4px solid var(--preto);
+  background: var(--ceu);
+}
+
+#tela{
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;          /* pixel grande, sem borrar */
+  image-rendering: crisp-edges;
+}
+
+/* --------------------------------------------------------------- Telas --- */
+.tela{
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.4;
+  background: rgba(13, 13, 23, .82);
+  padding: 12px;
+}
+
+.tela.hidden, .hidden{ display: none !important; }
+
+.painel{
+  text-align: center;
+  max-width: 520px;
+}
+
+.titulo{
+  margin: 0 0 10px;
+  font-size: clamp(22px, 5.2vw, 46px);
+  letter-spacing: 4px;
+  line-height: 1.1;
+  color: var(--branco);
+  text-shadow: 4px 4px 0 var(--preto);
+}
+
+.titulo .destaque{ color: var(--amarelo); }
+
+.subtitulo{
+  margin: 0 0 18px;
+  font-size: clamp(11px, 2.2vw, 15px);
+  letter-spacing: 2px;
+  color: var(--branco);
+}
+
+.botao{
+  font-family: inherit;
+  font-size: clamp(13px, 2.6vw, 18px);
+  letter-spacing: 3px;
+  color: var(--preto);
+  background: var(--amarelo);
+  border: 4px solid var(--branco);
+  box-shadow: 6px 6px 0 var(--preto);
+  padding: 12px 22px;
+  cursor: pointer;
+}
+
+.botao:active{
+  transform: translate(3px, 3px);
+  box-shadow: 3px 3px 0 var(--preto);
+}
+
+.ajuda{
+  list-style: none;
+  margin: 20px 0 0;
+  padding: 0;
+  font-size: clamp(10px, 2vw, 13px);
+  letter-spacing: 1px;
+  color: var(--branco);
+}
+
+.ajuda li{ margin: 4px 0; }
+.ajuda b{ color: var(--amarelo); }
+
+/* ---------------------------------------------------------------- Rodape -- */
+#rodape{
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--branco);
+  text-align: center;
+  opacity: .85;
+}
+
+/* Telas bem baixinhas (celular deitado): o rodape sai da frente. */
+@media (max-height: 420px){
+  #rodape{ display: none; }
+  .hud-label{ font-size: 9px; }
+}

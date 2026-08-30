@@ -1,0 +1,36 @@
+{
+  "nome": "Super Adventure",
+  "descricao": "Plataforma retrô de 3 fases: corra, pule, junte moedas e chegue na bandeira. Dá para jogar sozinho ou com até 8 amigos na mesma fase.",
+  "emoji": "🍄",
+  "cor": "#e45c10",
+  "tags": ["plataforma", "retrô", "até 8 jogadores"],
+  "idade": "5+",
+  "visivel": true,
+
+  "plataforma": {
+    "versao": 1,
+    "multijogador": {
+      "min": 1,
+      "max": 8,
+      "modo": "competitivo",
+      "autoridade": "anfitriao",
+      "taxaEstado": 20,
+      "listarSalas": true
+    },
+    "ranking": {
+      "metrica": "pontos",
+      "rotulo": "Pontos",
+      "ordem": "desc",
+      "tamanho": 10
+    },
+    "classificacao": {
+      "idadeMinima": 0,
+      "conteudo": []
+    },
+    "privacidade": {
+      "coleta": ["apelido"],
+      "guardaLocal": true,
+      "guardaServidor": false
+    }
+  }
+}
