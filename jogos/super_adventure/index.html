@@ -28,11 +28,44 @@
       <span class="hud-label">Fase</span>
       <strong id="hud-fase">1 / 3</strong>
     </div>
+
+    <!-- Os dois botões da partida. Eles moram no HUD, então só aparecem com o
+         jogo em andamento — no menu não há nada para pausar. -->
+    <div class="hud-botoes">
+      <button id="btn-pausa" type="button" class="botao-icone"
+              title="Pausar (P ou ESC)" aria-label="Pausar">⏸</button>
+      <button id="btn-tela-cheia" type="button" class="botao-icone"
+              title="Tela cheia (F)" aria-label="Tela cheia">⛶</button>
+    </div>
   </header>
 
   <!-- ---------------------------------------------------------- Palco ----- -->
   <div id="palco">
     <canvas id="tela" width="960" height="540"></canvas>
+
+    <!-- Lembrete dos controles, no canto de baixo à direita. Fica só com o
+         jogo rolando; qualquer tela por cima (menu, pausa, fim de fase) o
+         esconde. Não recebe clique nenhum: é só um cartaz. -->
+    <aside id="controles" class="hidden">
+      <span><b>← →</b> = Mover</span>
+      <span class="separador">|</span>
+      <span><b>ESPAÇO</b> = Pular</span>
+    </aside>
+
+    <!-- Pausa: o mundo congela onde está e ficam os dois caminhos — voltar
+         para o mesmo lugar ou recomeçar a corrida inteira, da fase 1. -->
+    <section id="tela-pausa" class="tela hidden">
+      <div class="painel">
+        <h1 class="titulo"><span class="destaque">PAUSA</span></h1>
+        <p class="subtitulo">O jogo está esperando você ⏸</p>
+
+        <div class="botoes">
+          <button id="btn-continuar" type="button" class="botao">CONTINUAR</button>
+          <button id="btn-recomecar" type="button" class="botao botao-claro">RECOMEÇAR</button>
+        </div>
+        <p class="legenda">Recomeçar volta para a fase 1 e zera os pontos</p>
+      </div>
+    </section>
 
     <!-- Tela inicial -->
     <section id="tela-menu" class="tela">
@@ -45,6 +78,7 @@
         <ul class="ajuda">
           <li><b>&larr; &rarr;</b> ou <b>A / D</b> — andar</li>
           <li><b>ESPAÇO</b> ou <b>&uarr;</b> — pular</li>
+          <li><b>P</b> ou <b>ESC</b> — pausar &nbsp;·&nbsp; <b>F</b> — tela cheia</li>
           <li>🚩 encoste nos <b>checkpoints</b> antes de cair!</li>
         </ul>
       </div>

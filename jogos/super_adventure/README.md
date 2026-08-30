@@ -4,11 +4,11 @@ Um platformer retrô, de 8 bits, para as crianças: corra, pule, junte moedas e
 chegue na bandeira. São 3 fases fixas e dá para jogar sozinho ou com até 8
 amigos na mesma fase, cada um no seu aparelho.
 
-> **Estado: em construção.** Esta é a **fase 6b** do plano — o jogo solo já é
-> uma partida inteira: as três fases em ordem fixa (1 → 2 → 3), o bônus de
-> chegar na bandeira e a tela de **PARABÉNS** com o placar fase a fase. O que
-> falta é a interface completa — pausa, tela cheia e caixa de controles (fase
-> 7) — e o multijogador, nas etapas seguintes.
+> **Estado: em construção.** Esta é a **fase 7** do plano — o jogo solo está
+> completo: as três fases em ordem fixa (1 → 2 → 3), o bônus de chegar na
+> bandeira, a tela de **PARABÉNS** com o placar fase a fase e a interface
+> inteira (pausa, recomeçar, tela cheia e a caixa de controles). O que falta é
+> o multijogador, nas etapas seguintes.
 
 ## Como jogar
 
@@ -16,6 +16,9 @@ amigos na mesma fase, cada um no seu aparelho.
 |---|---|
 | **←** **→** (ou **A** / **D**) | andar |
 | **ESPAÇO** (ou **↑** / **W**) | pular |
+| **P** | pausar / continuar |
+| **ESC** | pausar |
+| **F** | tela cheia (entra e sai) |
 
 Clique em **JOGAR SOLO**, corra para a direita, junte moedas, acenda os
 checkpoints, pule em cima dos bichos e chegue na bandeira. A bandeira fecha a
@@ -144,6 +147,42 @@ volta**: cada bandeira fecha a fase que estava em jogo e abre a seguinte.
 O HUD mostra sempre o placar **da fase** em jogo; o total das três fases só
 aparece no fim, na tela de parabéns. Quem perde as três vidas repete a fase
 inteira — mas nunca volta para uma fase que já venceu.
+
+## Pausa, tela cheia e a caixa de controles
+
+O HUD tem dois botões, à direita dos números — eles só aparecem com uma partida
+em andamento, porque no menu não há nada para pausar:
+
+| Botão | O que faz |
+|---|---|
+| **⏸** | pausa. Vira **▶** e o quadro de **PAUSA** aparece por cima da fase |
+| **⛶** | tela cheia. Vira **🗗** enquanto estiver em tela cheia |
+
+A pausa **congela o mundo**: o herói, os bichos, as plataformas móveis e o
+relógio da partida ficam exatamente onde estavam. O que não para é o desenho —
+a fase continua na tela, paradinha, atrás do quadro. As teclas que estavam
+apertadas são soltas junto, senão o herói sairia correndo sozinho na hora de
+continuar. O quadro de pausa tem dois caminhos:
+
+- **CONTINUAR** volta para o mesmo lugar, do jeito que estava.
+- **RECOMEÇAR** começa a corrida inteira de novo, da **fase 1**, com o placar,
+  as vidas e o caderno da corrida zerados — é o mesmo caminho do "Jogar
+  novamente" da tela de parabéns.
+
+Pausar só vale com uma fase em andamento: no menu e nas telas de fim de fase o
+botão (e as teclas) não fazem nada, porque ali o mundo já está parado.
+
+A **tela cheia** é a Fullscreen API do navegador, pedida para o documento
+inteiro (`<html>`) — assim funciona tanto com o `index.html` aberto direto
+quanto dentro do iframe do catálogo (`/jogar/super_adventure`), que já vem com
+`allowfullscreen`. Quem manda no botão é o navegador: ele avisa (pelo evento
+`fullscreenchange`) quando entrou ou saiu, e é aí que o ⛶ vira 🗗 e vice-versa —
+inclusive quando quem fecha a tela cheia é o **ESC** do próprio navegador.
+
+No canto de baixo à direita do palco fica a **caixa de controles**
+(`← → = Mover | ESPAÇO = Pular`), um cartaz que não recebe clique nenhum. Ela
+aparece com o jogo rolando e some atrás de qualquer tela — menu, pausa, fim de
+fase e parabéns.
 
 ## As plataformas móveis (fase 3)
 
@@ -288,6 +327,22 @@ câmera, para dar sensação de distância.
   quando o número muda (nada de mexer no DOM 60 vezes por segundo).
 - **Relógio fixo de 60 passos/s** no laço do jogo, com acumulador, para a
   simulação não depender da taxa de quadros da tela.
+- **A pausa é um freio no `atualizar()`, não no laço:** o `requestAnimationFrame`
+  continua rodando e desenhando; o que para é o passo da simulação. Assim a fase
+  fica visível atrás do quadro de pausa e voltar não custa um "salto" — o
+  acumulador de tempo é zerado enquanto está pausado, senão o jogo engoliria
+  todos os quadros parados de uma vez ao continuar.
+- **O `ESC` só pausa; quem tira da pausa é o botão ou o `P`.** Em tela cheia o
+  `ESC` é do navegador (é ele que sai do fullscreen), então usá-lo para os dois
+  lados deixaria a tecla imprevisível.
+- **A tela cheia é pedida para o `<html>`**, e não para o `#palco`: é o que
+  funciona igual com o jogo aberto direto e dentro do iframe do catálogo. O
+  estado do botão vem do evento `fullscreenchange` do navegador, nunca de um
+  palpite nosso — assim sair pelo `ESC` também acerta o ícone.
+- **A caixa de controles usa as setas (`← →`) no lugar das palavras
+  "esquerda/direita":** ocupa menos canto de tela e é mais fácil de ler para
+  quem ainda está aprendendo a ler. Ela é `pointer-events: none`, para nunca
+  roubar um toque do jogo no tablet.
 - **Manifesto pronto para a plataforma** (`jogo.json`): sala de 1 a 8 jogadores,
   modo competitivo, autoridade do anfitrião, estado 20×/s. A rede em si entra
   nas fases seguintes — por enquanto o jogo é 100% solo e nem carrega o SDK.
@@ -313,4 +368,5 @@ node testes/super_adventure/fase6a.test.mjs         # as 3 fases e as plataforma
 node testes/super_adventure/fase6a-tela.test.mjs    # as fases 2 e 3 até a bandeira
 node testes/super_adventure/fase6b.test.mjs         # o caderno da corrida (pontos por fase)
 node testes/super_adventure/fase6b-tela.test.mjs    # uma corrida inteira, fase 1 → 2 → 3
+node testes/super_adventure/fase7-tela.test.mjs    # pausa, recomeçar, tela cheia e controles
 ```

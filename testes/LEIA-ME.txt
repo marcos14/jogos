@@ -20,5 +20,6 @@ sem abrir navegador.
     node testes/super_adventure/fase6a-tela.test.mjs as fases 2 e 3 ate a bandeira
     node testes/super_adventure/fase6b.test.mjs      a corrida das 3 fases e o bonus
     node testes/super_adventure/fase6b-tela.test.mjs uma partida inteira, 1 -> 2 -> 3
+    node testes/super_adventure/fase7-tela.test.mjs  pausa, recomecar, tela cheia
 
 O harness.mjs de cada pasta tem o carregador e o corredor de testes.

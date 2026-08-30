@@ -60,6 +60,11 @@ body{
   padding: 2px 10px;
   min-width: 90px;
   text-align: center;
+  /* Os botões são mais altos que os números; a coluna centralizada mantém as
+     caixas alinhadas com eles, sem sobra em cima nem embaixo. */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .hud-label{
@@ -74,6 +79,28 @@ body{
   font-size: 16px;
   letter-spacing: 1px;
 }
+
+/* Os botões de pausa e tela cheia, do lado dos números. Quadrados e grandes o
+   bastante para o dedo de uma criança (44px é o mínimo confortável). */
+.hud-botoes{
+  display: flex;
+  gap: 6px;
+}
+
+.botao-icone{
+  font-family: inherit;
+  font-size: 18px;
+  line-height: 1;
+  width: 44px;
+  height: 44px;
+  color: var(--preto);
+  background: var(--amarelo);
+  border: 3px solid var(--branco);
+  cursor: pointer;
+  padding: 0;
+}
+
+.botao-icone:active{ background: var(--branco); }
 
 /* ----------------------------------------------------------------- Palco -- */
 #palco{
@@ -90,6 +117,29 @@ body{
   image-rendering: pixelated;          /* pixel grande, sem borrar */
   image-rendering: crisp-edges;
 }
+
+/* ------------------------------------------------- Caixa dos controles --- */
+/* Um cartaz no canto de baixo à direita do palco, por cima do canvas. Não
+   recebe clique (`pointer-events: none`) para nunca roubar o toque do jogo. */
+#controles{
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  background: rgba(13, 13, 23, .78);
+  border: 3px solid var(--branco);
+  padding: 4px 9px;
+  font-size: clamp(8px, 1.2vw, 12px);
+  line-height: 1.4;
+  letter-spacing: 1px;
+  color: var(--branco);
+  pointer-events: none;
+}
+
+#controles b{ color: var(--amarelo); }
+#controles .separador{ color: var(--cinza); }
 
 /* --------------------------------------------------------------- Telas --- */
 .tela{
@@ -182,6 +232,19 @@ body{
   box-shadow: 3px 3px 0 var(--preto);
 }
 
+/* O segundo botão de uma tela (o "Recomeçar" da pausa): branco, para o
+   caminho de sempre continuar sendo o amarelo. */
+.botao-claro{ background: var(--branco); }
+
+/* Dois botões lado a lado; em tela estreita eles empilham. */
+.botoes{
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
 .ajuda{
   list-style: none;
   margin: 20px 0 0;
@@ -203,6 +266,15 @@ body{
   opacity: .85;
 }
 
+/* ----------------------------------------------------------- Tela cheia -- */
+/* O pedido de tela cheia é feito para o documento inteiro (`<html>`), que é o
+   que funciona tanto com o jogo aberto direto quanto dentro do iframe do
+   catálogo. Aí a moldura da página sai da frente e sobra só o jogo. */
+html:fullscreen{ background: var(--preto); }
+html:fullscreen body{ padding: 0; background: var(--preto); }
+html:-webkit-full-screen{ background: var(--preto); }
+html:-webkit-full-screen body{ padding: 0; background: var(--preto); }
+
 /* Telas bem baixinhas (celular deitado): o rodape sai da frente e o resumo da
    tela de parabens se aperta, para o botao nao ficar fora da tela. */
 @media (max-height: 420px){
@@ -212,4 +284,7 @@ body{
   .resumo li{ padding: 2px 8px; border-bottom-width: 2px; }
   .legenda{ margin-bottom: 8px; }
   .botao{ padding: 8px 18px; }
+  .botoes{ gap: 10px; margin-bottom: 8px; }
+  .botao-icone{ width: 38px; height: 38px; font-size: 15px; }
+  #controles{ padding: 2px 6px; gap: 6px; }
 }

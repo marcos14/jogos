@@ -61,7 +61,9 @@ export function carregarJogo(slug = 'super_adventure') {
    DOM de mentira COM tela: o suficiente para o jogo ligar de verdade (menu,
    teclado, laco de quadros e desenho) sem navegador nenhum. O "canvas" e um
    gravador: guarda cada retangulo pintado, e da para conferir onde o heroi
-   foi parar na tela.
+   foi parar na tela. Desde a fase 7 tem tambem uma Fullscreen API de mentira
+   (`dom.telaCheia` conta os pedidos e as saidas), porque o pedido de tela
+   cheia de verdade so vale dentro de um clique num navegador.
    -------------------------------------------------------------------------- */
 
 function criarElemento(id) {
@@ -74,11 +76,14 @@ function criarElemento(id) {
     clientHeight: 540,
     classes: new Set(),
     ouvintes: {},
+    atributos: {},
     classList: {
       add(c) { this.dono.classes.add(c); },
       remove(c) { this.dono.classes.delete(c); },
       contains(c) { return this.dono.classes.has(c); },
     },
+    setAttribute(nome, valor) { this.atributos[nome] = valor; },
+    getAttribute(nome) { return this.atributos[nome] ?? null; },
     addEventListener(tipo, fn) { (this.ouvintes[tipo] = this.ouvintes[tipo] || []).push(fn); },
     disparar(tipo, evento = {}) {
       (this.ouvintes[tipo] || []).forEach((fn) => fn({ preventDefault() {}, ...evento }));
@@ -99,17 +104,22 @@ export function carregarJogoComTela(slug = 'super_adventure') {
 
   const elementos = {};
   for (const id of ['app', 'palco', 'hud', 'tela-menu', 'tela-fase', 'tela-fim',
+                    'tela-pausa', 'controles',
                     'btn-solo', 'btn-proxima', 'btn-de-novo',
+                    'btn-pausa', 'btn-tela-cheia', 'btn-continuar', 'btn-recomecar',
                     'hud-pontos', 'hud-vidas', 'hud-fase',
                     'fase-numero', 'fase-pontos', 'fase-bonus', 'fase-proxima',
                     'fim-fase-1', 'fim-fase-2', 'fim-fase-3', 'fim-total']) {
     elementos[id] = criarElemento(id);
     elementos[id].classList.dono = elementos[id];
   }
-  // No index.html o HUD e as duas telas de fim ja nascem escondidos.
+  // No index.html o HUD, as telas de fim, a pausa e a caixa de controles ja
+  // nascem escondidos.
   elementos.hud.classes.add('hidden');
   elementos['tela-fase'].classes.add('hidden');
   elementos['tela-fim'].classes.add('hidden');
+  elementos['tela-pausa'].classes.add('hidden');
+  elementos.controles.classes.add('hidden');
 
   elementos.tela = criarElemento('tela');
   elementos.tela.classList.dono = elementos.tela;
@@ -124,9 +134,33 @@ export function carregarJogoComTela(slug = 'super_adventure') {
     removeEventListener() {},
     requestAnimationFrame(fn) { proximoQuadro = fn; return 1; },
   };
+  /* A Fullscreen API de mentira. O navegador de verdade nao deixa entrar em
+     tela cheia fora de um clique, entao aqui so ficam registradas as chamadas
+     - e o `fullscreenchange` e disparado na hora, como o navegador faz. */
+  const raiz = criarElemento('html');
+  raiz.classList.dono = raiz;
+  const telaCheia = { pedidos: 0, saidas: 0 };
+
   const documento = {
+    documentElement: raiz,
+    fullscreenElement: null,
+    exitFullscreen() {
+      telaCheia.saidas++;
+      documento.fullscreenElement = null;
+      dom.eventoDocumento('fullscreenchange');
+      return Promise.resolve();
+    },
     getElementById(id) { return elementos[id] || null; },
-    addEventListener() {},
+    ouvintes: {},
+    addEventListener(tipo, fn) {
+      (documento.ouvintes[tipo] = documento.ouvintes[tipo] || []).push(fn);
+    },
+  };
+  raiz.requestFullscreen = () => {
+    telaCheia.pedidos++;
+    documento.fullscreenElement = raiz;
+    dom.eventoDocumento('fullscreenchange');
+    return Promise.resolve();
   };
   janela.window = janela;
   janela.document = documento;
@@ -147,7 +181,14 @@ export function carregarJogoComTela(slug = 'super_adventure') {
   const dom = {
     elementos,
     pintados,
+    telaCheia,
+    documento,
     api: contexto.window.SuperAdventure,
+
+    /** Dispara um evento no documento (fullscreenchange...). */
+    eventoDocumento(tipo, evento = {}) {
+      (documento.ouvintes[tipo] || []).forEach((fn) => fn({ preventDefault() {}, ...evento }));
+    },
 
     /** Dispara um evento na janela (keydown, keyup, blur, resize...). */
     eventoJanela(tipo, evento = {}) {

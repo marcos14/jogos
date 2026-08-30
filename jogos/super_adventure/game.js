@@ -1,8 +1,9 @@
 /* ==========================================================================
    SUPER ADVENTURE  -  plataforma retro, no estilo dos consoles de 8 bits
    --------------------------------------------------------------------------
-   FASE 6b do plano: a corrida completa - as tres fases em ordem fixa e a
-   tela de parabens no fim.
+   FASE 7 do plano: a interface completa - pausa (com "Continuar" e
+   "Recomecar"), tela cheia pela API do navegador e a caixa de controles no
+   canto do palco.
 
      - `Fisica`: as funcoes puras do movimento, com colisao AABB contra os
        blocos solidos do mapa (para em cima, nao atravessa, bate a cabeca).
@@ -39,8 +40,12 @@
    fecha a corrida e traz a tela de PARABENS, com os pontos fase a fase e o
    total. "Jogar novamente" comeca tudo do zero, da fase 1.
 
-   Nada disto usa imagem: tudo e retangulo pintado no Canvas 2D. A pausa, a
-   tela cheia e a rede chegam nas fases seguintes do plano.
+   A interface fecha o RF-7: o HUD tem os botoes de pausa e de tela cheia, o
+   quadro de pausa congela o mundo (o laco continua desenhando, so o
+   `atualizar()` para) e a caixa no canto lembra os controles.
+
+   Nada disto usa imagem: tudo e retangulo pintado no Canvas 2D. A rede chega
+   nas fases seguintes do plano.
    ========================================================================== */
 
 (function () {
@@ -1501,9 +1506,15 @@
     menu: $('tela-menu'),
     telaFase: $('tela-fase'),
     fim: $('tela-fim'),
+    telaPausa: $('tela-pausa'),
+    controles: $('controles'),
     btnSolo: $('btn-solo'),
     btnProxima: $('btn-proxima'),
     btnDeNovo: $('btn-de-novo'),
+    btnPausa: $('btn-pausa'),
+    btnTelaCheia: $('btn-tela-cheia'),
+    btnContinuar: $('btn-continuar'),
+    btnRecomecar: $('btn-recomecar'),
     pontos: $('hud-pontos'),
     vidas: $('hud-vidas'),
     fase: $('hud-fase'),
@@ -1836,6 +1847,7 @@
   // -------------------------------------------------------------- O jogo ----
   var jogo = {
     tela: 'menu',                       // 'menu' | 'jogando'
+    pausado: false,                     // pausa: o mundo congela, a tela nao
     relogio: 0,                         // quadros desde o inicio da partida
     quedas: 0,                          // quantas vezes caiu num buraco
     tentativas: 1,                      // sobe toda vez que as vidas acabam
@@ -1861,7 +1873,7 @@
   /* Avisa quem estiver escutando. Os avisos de hoje:
        'moeda', 'bloco-quebrado', 'checkpoint', 'inimigo-derrotado', 'queda',
        'dano', 'vida-perdida', 'fase-reiniciada', 'fase-concluida',
-       'corrida-vencida'. */
+       'corrida-vencida', 'pausa', 'continuou'. */
   function emitir(tipo) {
     var evento = { tipo: tipo, quadro: jogo.relogio };
     jogo.eventos.push(evento);
@@ -1875,6 +1887,8 @@
   window.SuperAdventure.aoEvento = function (fn) { ouvintes.push(fn); };
   window.SuperAdventure.irParaFase = function (n) { irParaFase(n); };
   window.SuperAdventure.avancarFase = function () { avancarFase(); };
+  window.SuperAdventure.alternarPausa = function () { alternarPausa(); };
+  window.SuperAdventure.alternarTelaCheia = function () { alternarTelaCheia(); };
 
   function centroDoHeroi() { return jogo.heroi.x + HEROI_L / 2; }
 
@@ -2068,6 +2082,93 @@
     emitir('checkpoint');
   }
 
+  // ------------------------------------------------- Pausa e tela cheia ----
+  /* A caixa de controles no canto do palco. Ela so aparece com o jogo
+     rolando: no menu, na pausa e nas telas de fim tem sempre um quadro por
+     cima, e o lembrete atras dele so sujaria a tela. */
+  function atualizarControles() {
+    var mostrar = jogo.tela === 'jogando' && !jogo.pausado && !jogo.concluida;
+    if (mostrar) el.controles.classList.remove('hidden');
+    else el.controles.classList.add('hidden');
+  }
+
+  /* Pausar so faz sentido com uma fase em andamento - no menu nao ha o que
+     congelar, e depois da bandeira o mundo ja esta parado atras do quadro de
+     fim de fase. */
+  function podePausar() {
+    return jogo.tela === 'jogando' && !jogo.concluida;
+  }
+
+  /* A pausa congela o mundo e nada mais: o laco continua desenhando (a cena
+     fica ali, paradinha) mas `atualizar()` nao roda, entao nem o relogio anda.
+     As teclas presas sao soltas junto, senao o heroi sairia correndo sozinho
+     na hora de continuar. */
+  function definirPausa(pausado) {
+    if (jogo.pausado === pausado || (pausado && !podePausar())) return;
+
+    jogo.pausado = pausado;
+    entrada.esquerda = entrada.direita = entrada.pular = false;
+
+    if (pausado) el.telaPausa.classList.remove('hidden');
+    else el.telaPausa.classList.add('hidden');
+
+    pintarBotaoPausa();
+    atualizarControles();
+    emitir(pausado ? 'pausa' : 'continuou');
+  }
+
+  function alternarPausa() { definirPausa(!jogo.pausado); }
+
+  /** O botao do HUD conta em que pe a pausa esta: ⏸ pausa, ▶ continua. */
+  function pintarBotaoPausa() {
+    el.btnPausa.textContent = jogo.pausado ? '▶' : '⏸';
+    el.btnPausa.title = jogo.pausado ? 'Continuar (P ou ESC)' : 'Pausar (P ou ESC)';
+    el.btnPausa.setAttribute('aria-label', jogo.pausado ? 'Continuar' : 'Pausar');
+  }
+
+  /* Chama o primeiro nome que existir (as versoes antigas do Safari usam
+     `webkit...`). Se a promessa da API for recusada - alguns navegadores
+     recusam fora de um clique - o erro morre aqui, sem sujar o console. */
+  function chamarPrimeiro(alvo, nomes) {
+    if (!alvo) return false;
+    for (var i = 0; i < nomes.length; i++) {
+      if (typeof alvo[nomes[i]] !== 'function') continue;
+      var promessa = alvo[nomes[i]]();
+      if (promessa && typeof promessa['catch'] === 'function') {
+        promessa['catch'](function () {});
+      }
+      return true;
+    }
+    return false;
+  }
+
+  function emTelaCheia() {
+    return !!(document.fullscreenElement || document.webkitFullscreenElement);
+  }
+
+  /* Tela cheia pela API do navegador, pedida para o documento inteiro: assim
+     funciona tanto com o jogo aberto direto quanto dentro do iframe do
+     catalogo (`/jogar/super_adventure`), que ja vem com `allowfullscreen`. */
+  function alternarTelaCheia() {
+    if (emTelaCheia()) {
+      chamarPrimeiro(document, ['exitFullscreen', 'webkitExitFullscreen']);
+      return;
+    }
+    chamarPrimeiro(document.documentElement,
+      ['requestFullscreen', 'webkitRequestFullscreen']);
+  }
+
+  /* Quem manda no botao e o navegador: ele avisa quando entrou ou saiu (o
+     usuario pode sair pelo ESC, sem passar por aqui). */
+  function aoMudarTelaCheia() {
+    var cheia = emTelaCheia();
+    el.btnTelaCheia.textContent = cheia ? '🗗' : '⛶';
+    el.btnTelaCheia.title = cheia ? 'Sair da tela cheia (F)' : 'Tela cheia (F)';
+    el.btnTelaCheia.setAttribute('aria-label',
+      cheia ? 'Sair da tela cheia' : 'Tela cheia');
+    ajustarPalco();
+  }
+
   // --------------------------------------------------- As telas do fim -----
   /* A bandeira fecha a fase. Nas fases 1 e 2 aparece o quadro "FASE N
      CONCLUIDA", com o que ela rendeu e o botao que leva para a proxima; depois
@@ -2076,9 +2177,11 @@
   function esconderTelas() {
     el.telaFase.classList.add('hidden');
     el.fim.classList.add('hidden');
+    atualizarControles();
   }
 
   function mostrarFimDeFase(linha) {
+    atualizarControles();
     el.faseNumero.textContent = String(linha.numero);
     el.fasePontos.textContent = String(linha.pontos);
     el.faseBonus.textContent = '+' + linha.bonus;
@@ -2087,6 +2190,7 @@
   }
 
   function mostrarParabens() {
+    atualizarControles();
     var linhas = jogo.corrida.fases;
     for (var i = 0; i < el.fimLinhas.length; i++) {
       var linha = linhas[i];
@@ -2154,6 +2258,7 @@
      que fazem tanto o "Jogar solo" do menu quanto o "Jogar novamente" da tela
      de parabens. */
   function comecarSolo() {
+    definirPausa(false);                // recomecar pela pausa descongela tudo
     jogo.tela = 'jogando';
     jogo.relogio = 0;
     jogo.quedas = 0;
@@ -2164,6 +2269,7 @@
     irParaFase(1);
     el.menu.classList.add('hidden');
     el.hud.classList.remove('hidden');
+    atualizarControles();
     ajustarPalco();
   }
 
@@ -2174,6 +2280,15 @@
     ArrowUp: 'pular', w: 'pular', W: 'pular', ' ': 'pular', Spacebar: 'pular'
   };
 
+  // Os atalhos das duas teclas de interface. `Esc` so pausa: sair da pausa por
+  // ele nao daria certo em tela cheia, onde o navegador rouba o `Esc` para si.
+  var ATALHOS = {
+    p: alternarPausa, P: alternarPausa,
+    Escape: function () { definirPausa(true); },
+    Esc: function () { definirPausa(true); },
+    f: alternarTelaCheia, F: alternarTelaCheia
+  };
+
   function tecla(ev, apertada) {
     var acao = TECLAS[ev.key];
     if (!acao) return;
@@ -2181,7 +2296,11 @@
     entrada[acao] = apertada;
   }
 
-  window.addEventListener('keydown', function (ev) { tecla(ev, true); });
+  window.addEventListener('keydown', function (ev) {
+    var atalho = ATALHOS[ev.key];
+    if (atalho) { ev.preventDefault(); atalho(); return; }
+    tecla(ev, true);
+  });
   window.addEventListener('keyup', function (ev) { tecla(ev, false); });
   window.addEventListener('blur', function () {
     entrada.esquerda = entrada.direita = entrada.pular = false;
@@ -2190,6 +2309,15 @@
   el.btnSolo.addEventListener('click', comecarSolo);
   el.btnProxima.addEventListener('click', avancarFase);
   el.btnDeNovo.addEventListener('click', comecarSolo);
+  el.btnPausa.addEventListener('click', alternarPausa);
+  el.btnContinuar.addEventListener('click', function () { definirPausa(false); });
+  // "Recomecar" e o mesmo caminho do "Jogar novamente": a corrida inteira do
+  // zero, da fase 1, com o placar e o caderno em branco.
+  el.btnRecomecar.addEventListener('click', comecarSolo);
+  el.btnTelaCheia.addEventListener('click', alternarTelaCheia);
+
+  document.addEventListener('fullscreenchange', aoMudarTelaCheia);
+  document.addEventListener('webkitfullscreenchange', aoMudarTelaCheia);
 
   // ------------------------------------------------------- Tamanho da tela --
   // O canvas tem sempre 960x540 por dentro; aqui so escolhemos de que tamanho
@@ -2221,7 +2349,10 @@
     var dt = ultimo ? Math.min(200, agora - ultimo) : 0;
     ultimo = agora;
 
-    if (jogo.tela === 'jogando') {
+    // Pausado, o mundo nao anda - mas a cena continua sendo desenhada, entao a
+    // fase fica ali paradinha atras do quadro de pausa. O acumulador zera no
+    // `else`: ao continuar, ninguem leva um punhado de quadros de uma vez.
+    if (jogo.tela === 'jogando' && !jogo.pausado) {
       acumulado += dt;
       var passos = 0;
       while (acumulado >= PASSO_MS && passos < 6) {
@@ -2239,6 +2370,8 @@
 
   jogo.camera = Camera.seguir(centroDoHeroi(), fase.largura, LARGURA);
   atualizarHud();
+  pintarBotaoPausa();
+  aoMudarTelaCheia();      // e o botao de tela cheia comeca no estado certo
   ajustarPalco();
   desenharCena();
   requestAnimationFrame(quadro);
