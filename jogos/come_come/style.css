@@ -1,0 +1,77 @@
+/* ==========================================================================
+   Come-Come - visual 8-bit: cores chapadas, cantos vivos, nada de desfoque
+   nem degradê. Tudo em pixel grande, como nos fliperamas antigos.
+   ========================================================================== */
+
+:root{
+  --preto:    #0d0d17;
+  --azul:     #1a1ac0;
+  --azul-luz: #5c5cff;
+  --amarelo:  #fcd800;
+  --pastilha: #fcd8a8;
+  --rosa:     #ffb8de;
+  --branco:   #fcfcfc;
+  --cinza:    #6c6c74;
+}
+
+*{ box-sizing: border-box; }
+
+html, body{
+  height: 100%;
+  margin: 0;
+  overscroll-behavior: none;   /* sem puxar-para-atualizar no celular */
+}
+
+body{
+  font-family: "Consolas", "Courier New", "Lucida Console", monospace;
+  color: var(--branco);
+  background: var(--preto);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+#app{
+  width: min(100%, 900px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ----------------------------------------------------------------- Palco -- */
+#palco{
+  position: relative;
+  line-height: 0;
+  border: 4px solid var(--azul);
+  background: var(--preto);
+  /* No dedo, arrastar em cima do palco é jogo, nunca rolagem nem zoom. */
+  touch-action: none;
+}
+
+#tela{
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;          /* pixel grande, sem borrar */
+  image-rendering: crisp-edges;
+}
+
+/* ---------------------------------------------------------------- Rodape -- */
+#rodape{
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--branco);
+  text-align: center;
+  opacity: .85;
+}
+
+/* Telas bem baixinhas (celular deitado): o rodapé sai da frente para o
+   labirinto ficar com a altura toda. */
+@media (max-height: 420px){
+  #rodape{ display: none; }
+}

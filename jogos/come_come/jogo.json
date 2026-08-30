@@ -1,0 +1,36 @@
+{
+  "nome": "Come-Come",
+  "descricao": "Corra pelo labirinto comendo todas as pastilhas e escape dos quatro fantasmas. Três labirintos no clima dos fliperamas de 8 bits, sozinho ou com até 5 amigos.",
+  "emoji": "🟡",
+  "cor": "#fcd800",
+  "tags": ["labirinto", "arcade", "retrô", "até 5 jogadores"],
+  "idade": "4+",
+  "visivel": true,
+
+  "plataforma": {
+    "versao": 1,
+    "multijogador": {
+      "min": 1,
+      "max": 5,
+      "modo": "competitivo",
+      "autoridade": "anfitriao",
+      "taxaEstado": 20,
+      "listarSalas": true
+    },
+    "ranking": {
+      "metrica": "pontos",
+      "rotulo": "Pontos",
+      "ordem": "desc",
+      "tamanho": 10
+    },
+    "classificacao": {
+      "idadeMinima": 0,
+      "conteudo": []
+    },
+    "privacidade": {
+      "coleta": ["apelido"],
+      "guardaLocal": true,
+      "guardaServidor": false
+    }
+  }
+}
