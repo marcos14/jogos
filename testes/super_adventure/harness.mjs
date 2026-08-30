@@ -99,7 +99,8 @@ export function carregarJogoComTela(slug = 'super_adventure') {
 
   const elementos = {};
   for (const id of ['app', 'palco', 'hud', 'tela-menu', 'tela-fim',
-                    'btn-solo', 'btn-de-novo', 'hud-pontos']) {
+                    'btn-solo', 'btn-de-novo',
+                    'hud-pontos', 'hud-vidas', 'hud-fase', 'fim-pontos']) {
     elementos[id] = criarElemento(id);
     elementos[id].classList.dono = elementos[id];
   }

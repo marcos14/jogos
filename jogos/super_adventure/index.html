@@ -12,8 +12,9 @@
 <div id="app">
 
   <!-- ------------------------------------------------------------ HUD ----- -->
-  <!-- Provisorio: por enquanto so mostra os numeros. Pontos, vidas e fase
-       ganham logica de verdade nas fases seguintes do plano. -->
+  <!-- Os numeros sao escritos pelo game.js. Os pontos ja sobem em tempo real
+       (cada moeda vale 10); as vidas ainda ficam fixas em 3 - perder vida e
+       assunto da proxima etapa do plano. -->
   <header id="hud" class="hidden">
     <div class="hud-box">
       <span class="hud-label">Pontos</span>
@@ -48,20 +49,21 @@
       </div>
     </section>
 
-    <!-- Fim da fase: aparece quando alguém encosta na bandeira. Avançar para a
-         fase 2 é assunto de outra etapa do plano; por enquanto dá para
-         recomeçar a fase 1. -->
+    <!-- Fim da fase: aparece quando alguém encosta na bandeira, mostrando os
+         pontos juntados. Avançar para a fase 2 é assunto de outra etapa do
+         plano; por enquanto dá para recomeçar a fase 1. -->
     <section id="tela-fim" class="tela hidden">
       <div class="painel">
         <h1 class="titulo"><span class="destaque">FASE 1</span><br>CONCLUÍDA!</h1>
         <p class="subtitulo">Você chegou na bandeira 🚩</p>
+        <p class="placar">Pontos: <b id="fim-pontos">0</b></p>
 
         <button id="btn-de-novo" type="button" class="botao">JOGAR DE NOVO</button>
       </div>
     </section>
   </div>
 
-  <footer id="rodape">Corra até a bandeira: cuidado com os buracos!</footer>
+  <footer id="rodape">Junte as moedas, quebre os blocos e corra até a bandeira!</footer>
 </div>
 
 <script src="game.js" charset="utf-8"></script>

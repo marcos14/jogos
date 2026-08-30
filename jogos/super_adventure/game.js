@@ -1,19 +1,22 @@
 /* ==========================================================================
    SUPER ADVENTURE  -  plataforma retro, no estilo dos consoles de 8 bits
    --------------------------------------------------------------------------
-   FASE 2 do plano: colisao com plataformas, camera lateral e bandeira.
+   FASE 3 do plano: moedas, blocos quebraveis, pontuacao e HUD.
 
-     - `Fisica`: as funcoes puras do movimento, agora com colisao AABB contra
-       os blocos solidos do mapa (para em cima, nao atravessa, bate a cabeca).
+     - `Fisica`: as funcoes puras do movimento, com colisao AABB contra os
+       blocos solidos do mapa (para em cima, nao atravessa, bate a cabeca).
      - `Mapa`: le um tilemap escrito como texto e devolve os retangulos
-       solidos, o ponto de nascimento e a bandeira. Tambem e funcao pura.
+       solidos, as moedas, os blocos quebraveis, o ponto de nascimento e a
+       bandeira. Tambem e funcao pura.
+     - `Itens`: o que o heroi encosta e o que ele quebra. Tambem puro: recebe
+       o estado dos itens e devolve um estado NOVO, com o que aconteceu.
      - `Camera`: side-scroll, seguindo o heroi sem sair das bordas do mundo.
      - A fase 1 do jogo ja e um percurso de verdade: 120 colunas de 32px, com
-       buracos, degraus, plataformas soltas e a bandeira no fim.
+       buracos, degraus, plataformas soltas, 100 moedas, 10 blocos quebraveis
+       e a bandeira no fim.
 
-   Nada disto usa imagem: tudo e retangulo pintado no Canvas 2D. Moedas,
-   blocos quebraveis, checkpoints, inimigos e a rede chegam nas fases
-   seguintes do plano.
+   Nada disto usa imagem: tudo e retangulo pintado no Canvas 2D. Checkpoints,
+   vidas de verdade, inimigos e a rede chegam nas fases seguintes do plano.
    ========================================================================== */
 
 (function () {
@@ -24,6 +27,11 @@
   var TILE = 32;                          // o mundo e feito de quadrados de 32
   var CHAO_Y = 14 * TILE;                 // linha 14 do tilemap: o piso comum
   var HEROI_L = 32, HEROI_A = 32;         // o heroi mede 32x32, como pede o PRD
+
+  // ---------------------------------------------------------- A pontuacao ---
+  var PONTOS_MOEDA = 10;                  // cada moeda vale 10 pontos
+  var VIDAS_INICIAIS = 3;                 // fixo nesta fase do plano
+  var TOTAL_FASES = 3;                    // o jogo completo tem 3 fases
 
   // ------------------------------------------------------------- A fisica ---
   // Numeros em pixels por quadro, num relogio fixo de 60 quadros por segundo.
@@ -233,13 +241,22 @@
 
          .  vazio          #  terra (o chao e os degraus)
          =  plataforma     P  onde o heroi nasce      F  a bandeira do fim
+         o  moeda          ?  bloco quebravel (tem um cristal dentro)
 
      `Mapa.ler()` transforma esse desenho nos retangulos solidos que a fisica
      usa. Blocos vizinhos de uma mesma linha viram UM retangulo so, o que deixa
-     a lista curta e a colisao barata. */
+     a lista curta e a colisao barata.
+
+     Os blocos quebraveis sao solidos tambem, mas ficam numa lista separada e
+     NUNCA sao juntados com os vizinhos: cada um pode sumir sozinho quando o
+     heroi bate nele, e ai a lista de solidos e remontada sem ele. */
   var Mapa = (function () {
 
+    // Uma moeda nao ocupa o quadrado inteiro: fica no meio dele.
+    var MOEDA_L = 16, MOEDA_A = 24;
+
     function solidoChar(ch) { return ch === '#' || ch === '='; }
+    function quebravelChar(ch) { return ch === '?'; }
 
     /** A letra de um quadrado do mapa (fora do mapa = vazio). */
     function tile(mapa, coluna, linha) {
@@ -249,9 +266,28 @@
       return texto.charAt(coluna);
     }
 
-    /** Aquele quadrado do mapa e solido? */
+    /** Aquele quadrado do mapa e solido? (o bloco quebravel tambem e) */
     function solido(mapa, coluna, linha) {
-      return solidoChar(tile(mapa, coluna, linha));
+      var ch = tile(mapa, coluna, linha);
+      return solidoChar(ch) || quebravelChar(ch);
+    }
+
+    /** O retangulo de uma moeda, no meio do quadrado (coluna, linha). */
+    function retanguloMoeda(coluna, linha) {
+      return {
+        x: coluna * TILE + (TILE - MOEDA_L) / 2,
+        y: linha * TILE + (TILE - MOEDA_A) / 2,
+        l: MOEDA_L, a: MOEDA_A
+      };
+    }
+
+    /** A lista de solidos do mapa mais os blocos quebraveis que sobraram. */
+    function limitesCom(mapa, blocosVivos) {
+      var solidos = mapa.solidos.slice();
+      for (var i = 0; i < mapa.quebraveis.length; i++) {
+        if (!blocosVivos || blocosVivos[i]) solidos.push(mapa.quebraveis[i]);
+      }
+      return { esquerda: 0, direita: mapa.largura, solidos: solidos };
     }
 
     /** Le o desenho e devolve o mapa pronto para a fisica e para o desenho. */
@@ -266,6 +302,8 @@
         largura: colunas * TILE,
         altura: grade.length * TILE,
         solidos: [],
+        moedas: [],
+        quebraveis: [],
         spawn: null,
         bandeira: null
       };
@@ -286,6 +324,10 @@
             });
             inicio = -1;
           }
+          if (ch === 'o') mapa.moedas.push(retanguloMoeda(c, r));
+          if (quebravelChar(ch)) {
+            mapa.quebraveis.push({ x: c * TILE, y: r * TILE, l: TILE, a: TILE });
+          }
           if (ch === 'P') mapa.spawn = { x: c * TILE, y: r * TILE };
           if (ch === 'F') {
             // O mastro vai da letra F ate o primeiro chao abaixo dela.
@@ -299,15 +341,153 @@
         }
       }
 
-      mapa.limites = {
-        esquerda: 0,
-        direita: mapa.largura,
-        solidos: mapa.solidos
-      };
+      // Os limites do mapa inteirinho, com todos os blocos quebraveis de pe.
+      mapa.limites = limitesCom(mapa, null);
       return mapa;
     }
 
-    return { ler: ler, tile: tile, solido: solido, TILE: TILE };
+    return {
+      ler: ler,
+      tile: tile,
+      solido: solido,
+      limitesCom: limitesCom,
+      retanguloMoeda: retanguloMoeda,
+      TILE: TILE
+    };
+  }());
+
+  // -------------------------------------------------------------- Itens -----
+  /* O que da para pegar e o que da para quebrar.
+
+     O mapa (`Mapa.ler`) diz ONDE cada moeda e cada bloco estao - isso nunca
+     muda. O que muda durante a partida e quais deles ainda existem, e isso
+     fica num "estado dos itens":
+
+         { moedas: [true, false, ...],   // true = ainda esta la
+           blocos: [true, ...],
+           limites: { esquerda, direita, solidos } }
+
+     `Itens.passo()` e puro como o `Fisica.passo()`: nao mexe no estado que
+     recebe. Se nada aconteceu, devolve o MESMO estado (barato); se o heroi
+     pegou moeda ou quebrou bloco, devolve um estado novo mais o resumo do que
+     aconteceu, para o jogo somar os pontos e soltar os efeitos na tela. */
+  var Itens = (function () {
+
+    var NADA = [];
+
+    /** Um array de `n` posicoes, todas com `true`. */
+    function todosDePe(n) {
+      var lista = [];
+      for (var i = 0; i < n; i++) lista.push(true);
+      return lista;
+    }
+
+    /** O estado do comeco da fase: tudo no lugar, nada pego nem quebrado. */
+    function novoEstado(mapa) {
+      return {
+        moedas: todosDePe(mapa.moedas.length),
+        blocos: todosDePe(mapa.quebraveis.length),
+        limites: mapa.limites
+      };
+    }
+
+    /** Quantas moedas ainda existem / quantos blocos ainda estao de pe. */
+    function quantos(lista) {
+      var n = 0;
+      for (var i = 0; i < lista.length; i++) if (lista[i]) n++;
+      return n;
+    }
+
+    /** As moedas que o corpo esta encostando agora (so as que ainda existem). */
+    function moedasTocadas(corpo, mapa, estado) {
+      var eu = Fisica.retangulo(corpo);
+      var achadas = null;
+      for (var i = 0; i < mapa.moedas.length; i++) {
+        if (!estado.moedas[i]) continue;
+        if (!Fisica.tocando(eu, mapa.moedas[i])) continue;
+        (achadas = achadas || []).push(i);
+      }
+      return achadas || NADA;
+    }
+
+    /** Quanto dois retangulos se cruzam na horizontal (0 = nao se cruzam). */
+    function sobreposicaoX(corpo, bloco) {
+      return Math.min(corpo.x + HEROI_L, bloco.x + bloco.l) -
+             Math.max(corpo.x, bloco.x);
+    }
+
+    /**
+     * Qual bloco quebravel o heroi acertou neste quadro (-1 = nenhum).
+     * Vale de duas formas, as duas do PRD:
+     *   - de baixo: subindo, a cabeca atravessou a base do bloco;
+     *   - de cima: caindo, os pes pousaram no topo do bloco.
+     * Se dois blocos servirem, ganha aquele em que o heroi estava mais em cima
+     * - do jeito que os platformers antigos fazem.
+     */
+    function blocoAtingido(antes, depois, mapa, estado) {
+      var subindo = depois.y < antes.y;
+      var caindo = depois.y > antes.y;
+      var melhor = -1, maiorToque = 0;
+
+      for (var i = 0; i < mapa.quebraveis.length; i++) {
+        if (!estado.blocos[i]) continue;
+        var b = mapa.quebraveis[i];
+        var toque = sobreposicaoX(depois, b);
+        if (toque <= 0) continue;
+
+        var base = b.y + b.a;
+        var cabecada = subindo && antes.y >= base && depois.y <= base;
+        var pisada = caindo && depois.noChao &&
+                     antes.y + HEROI_A <= b.y &&
+                     Math.abs(depois.y + HEROI_A - b.y) < 0.5;
+
+        if ((cabecada || pisada) && toque > maiorToque) {
+          maiorToque = toque;
+          melhor = i;
+        }
+      }
+      return melhor;
+    }
+
+    /**
+     * Um passo do mundo dos itens, entre o corpo do quadro passado (`antes`) e
+     * o deste quadro (`depois`). Devolve:
+     *   { estado, pegou: [indices das moedas], quebrou: indice|-1, pontos }
+     */
+    function passo(estado, mapa, antes, depois) {
+      var pegou = moedasTocadas(depois, mapa, estado);
+      var quebrou = blocoAtingido(antes, depois, mapa, estado);
+      if (!pegou.length && quebrou < 0) {
+        return { estado: estado, pegou: NADA, quebrou: -1, pontos: 0 };
+      }
+
+      var novo = {
+        moedas: estado.moedas.slice(),
+        blocos: estado.blocos.slice(),
+        limites: estado.limites
+      };
+      for (var i = 0; i < pegou.length; i++) novo.moedas[pegou[i]] = false;
+      if (quebrou >= 0) {
+        novo.blocos[quebrou] = false;
+        novo.limites = Mapa.limitesCom(mapa, novo.blocos);   // o bloco sumiu
+      }
+
+      return {
+        estado: novo,
+        pegou: pegou,
+        quebrou: quebrou,
+        pontos: pegou.length * PONTOS_MOEDA
+      };
+    }
+
+    return {
+      novoEstado: novoEstado,
+      moedasTocadas: moedasTocadas,
+      blocoAtingido: blocoAtingido,
+      passo: passo,
+      quantos: quantos,
+      PONTOS_MOEDA: PONTOS_MOEDA
+    };
   }());
 
   // ------------------------------------------------------------- A camera ---
@@ -334,11 +514,11 @@
     '........................................................................................................................',
     '........................................................................................................................',
     '........................................................................................................................',
-    '...................................................................................................................F....',
-    '........................................................................................................................',
-    '................................====..........===.........................====.............===..........===.............',
-    '..................................................###########..#######..................................................',
-    '..P...............................................###########..#######..................................................',
+    '......................................................???..........................................................F....',
+    '................................oooo..........ooo.........oo.oo...oo......oooo.............ooo..........ooo.............',
+    '..............???.........oo....====.....oo...===..ooooooooo....ooooo..??.====......oo.....===..oo..??..===.............',
+    '.........ooo..ooo........o..o....oo.....o..o..ooo.###########..#######.oo..........o..o........o..o.oo..........oo..oo..',
+    '..P..ooo..........ooo.oo......oo.....ooo....oo....###########..#######.........ooo......ooo.................oooo....ooo.',
     '##########################..#############..##################..#####################..##########..######################',
     '##########################..#############..##################..#####################..##########..######################',
     '##########################..#############..##################..#####################..##########..######################'
@@ -352,12 +532,15 @@
     window.SuperAdventure = {
       Fisica: Fisica,
       Mapa: Mapa,
+      Itens: Itens,
       Camera: Camera,
       FASE_1: FASE_1,
       fase: fase,
       mundo: {
         LARGURA: LARGURA, ALTURA: ALTURA, CHAO_Y: CHAO_Y, TILE: TILE,
-        LARGURA_MUNDO: fase.largura, PASSO_MS: PASSO_MS
+        LARGURA_MUNDO: fase.largura, PASSO_MS: PASSO_MS,
+        PONTOS_MOEDA: PONTOS_MOEDA, VIDAS_INICIAIS: VIDAS_INICIAIS,
+        TOTAL_FASES: TOTAL_FASES
       },
       LIMITES_PADRAO: LIMITES_PADRAO
     };
@@ -452,7 +635,11 @@
     menu: $('tela-menu'),
     fim: $('tela-fim'),
     btnSolo: $('btn-solo'),
-    btnDeNovo: $('btn-de-novo')
+    btnDeNovo: $('btn-de-novo'),
+    pontos: $('hud-pontos'),
+    vidas: $('hud-vidas'),
+    fase: $('hud-fase'),
+    pontosFim: $('fim-pontos')
   };
 
   function bloco(x, y, l, a, cor) {
@@ -551,6 +738,91 @@
     }
   }
 
+  // ----- Moedas, blocos quebraveis e os efeitos de pegar/quebrar. Todos sao
+  // desenhados a partir do estado dos itens: quem ja foi pego (ou quebrado)
+  // simplesmente nao e pintado mais.
+
+  /** Esta a vista da camera? (com uma folga de um quadrado de cada lado) */
+  function naTela(item, cam) {
+    var x = item.x - cam;
+    return x + item.l > -TILE && x < LARGURA + TILE;
+  }
+
+  // A moeda gira: 4 quadros, do disco cheio ate quase de perfil.
+  var GIRO_MOEDA = [16, 11, 5, 11];
+
+  function desenharMoeda(m, cam, quadro) {
+    var l = GIRO_MOEDA[((quadro / 6) | 0) % GIRO_MOEDA.length];
+    var x = (m.x - cam + (m.l - l) / 2) | 0;
+    bloco(x, m.y + 2, l, m.a - 4, '#a04808');          // a borda escura
+    bloco(x + 1, m.y, l - 2, m.a, '#fcd800');          // o dourado
+    if (l > 6) bloco(x + 3, m.y + 5, 2, m.a - 10, '#fca044');   // o brilho
+  }
+
+  /** Um losango de 16x20 - o cristal que mora dentro do bloco quebravel. */
+  function desenharCristal(x, y, cor) {
+    bloco(x + 6, y, 4, 4, cor);
+    bloco(x + 3, y + 4, 10, 4, cor);
+    bloco(x, y + 8, 16, 4, cor);
+    bloco(x + 3, y + 12, 10, 4, cor);
+    bloco(x + 6, y + 16, 4, 4, cor);
+  }
+
+  function desenharQuebravel(b, cam, quadro) {
+    var x = b.x - cam;
+    bloco(x, b.y, TILE, TILE, '#0d0d17');
+    bloco(x + 2, b.y + 2, TILE - 4, TILE - 4, '#6844fc');
+    bloco(x + 2, b.y + 2, TILE - 4, 4, '#b8b8f8');            // luz em cima
+    bloco(x + 2, b.y + TILE - 6, TILE - 4, 4, '#3820a0');     // sombra embaixo
+    desenharCristal(x + 8, b.y + 6, ((quadro / 14) | 0) % 2 ? '#b8f8f8' : '#00e8d8');
+  }
+
+  function desenharItens(cam) {
+    var i;
+    for (i = 0; i < fase.moedas.length; i++) {
+      if (!jogo.itens.moedas[i]) continue;
+      if (naTela(fase.moedas[i], cam)) desenharMoeda(fase.moedas[i], cam, jogo.relogio);
+    }
+    for (i = 0; i < fase.quebraveis.length; i++) {
+      if (!jogo.itens.blocos[i]) continue;
+      if (naTela(fase.quebraveis[i], cam)) desenharQuebravel(fase.quebraveis[i], cam, jogo.relogio);
+    }
+  }
+
+  // ----- Efeitos: duram poucos quadros e nao mexem em nada do mundo.
+  var EFEITO_MOEDA = 20, EFEITO_CRISTAL = 34;
+
+  function desenharEfeitoMoeda(x, y, t) {
+    var d = 4 + t;                                   // as faiscas se abrindo
+    var lado = Math.max(1, 5 - ((t / 5) | 0));
+    bloco(x - d, y - d, lado, lado, '#fcfcfc');
+    bloco(x + d, y - d, lado, lado, '#fcfcfc');
+    bloco(x - d, y + d, lado, lado, '#fcd800');
+    bloco(x + d, y + d, lado, lado, '#fcd800');
+    if (t < 12) bloco(x - 3, y - 8 - t * 1.5, 6, 10 - t / 2, '#fcd800');
+  }
+
+  function desenharEfeitoCristal(x, y, t) {
+    for (var i = 0; i < 4; i++) {                    // os cacos do bloco
+      var lado = i < 2 ? -1 : 1;
+      var alto = i % 2 ? 1 : 0.6;
+      bloco(x + lado * (6 + t * 1.2) - 3, y - 10 * alto + t * t * 0.05 - 4,
+            6, 6, i % 2 ? '#6844fc' : '#3820a0');
+    }
+    if (t < 24) desenharCristal(x - 8, y - 10 - t * 1.1, t % 6 < 3 ? '#b8f8f8' : '#00e8d8');
+  }
+
+  function desenharEfeitos(cam) {
+    for (var i = 0; i < jogo.efeitos.length; i++) {
+      var f = jogo.efeitos[i];
+      var x = f.x - cam;
+      if (x < -TILE * 2 || x > LARGURA + TILE * 2) continue;
+      var t = f.total - f.vida;                      // quadros desde que nasceu
+      if (f.tipo === 'moeda') desenharEfeitoMoeda(x, f.y, t);
+      else desenharEfeitoCristal(x, f.y, t);
+    }
+  }
+
   function desenharBandeira(cam) {
     var b = fase.bandeira;
     if (!b) return;
@@ -570,6 +842,7 @@
     var cam = jogo.camera;
     desenharFundo(cam);
     desenharMapa(cam);
+    desenharItens(cam);
     desenharBandeira(cam);
 
     var arte;
@@ -579,6 +852,7 @@
     } else arte = HEROI_PARADO;
 
     sprite(arte, jogo.heroi.x - cam, jogo.heroi.y, 2, jogo.heroi.direcao < 0);
+    desenharEfeitos(cam);
   }
 
   // -------------------------------------------------------------- O jogo ----
@@ -588,7 +862,12 @@
     quedas: 0,                          // quantas vezes caiu num buraco
     concluida: false,                   // ja tocou a bandeira?
     camera: 0,
+    pontos: 0,                          // o placar que aparece no HUD
+    vidas: VIDAS_INICIAIS,              // fixo em 3 ate a fase 4 do plano
+    fase: 1,                            // a fase 1 de 3
     heroi: Fisica.novoCorpo(fase.spawn.x, fase.spawn.y),
+    itens: Itens.novoEstado(fase),      // quais moedas/blocos ainda existem
+    efeitos: [],                        // faiscas e cristais, so enfeite
     eventos: []                         // os ultimos avisos (para os testes)
   };
 
@@ -610,22 +889,94 @@
 
   function centroDoHeroi() { return jogo.heroi.x + HEROI_L / 2; }
 
-  /* Volta o heroi para o comeco da fase. Cair num buraco ainda e so isto: o
-     checkpoint e a perda de vida chegam na fase 4 do plano, e o mundo ainda
-     nao guarda nada (moedas e blocos) que precise ser desfeito. */
+  // ----------------------------------------------------------------- HUD ----
+  /* Pontos, vidas e fase ficam no HTML (fora do canvas): assim eles crescem
+     junto com a tela e continuam legiveis no celular. Escrever no DOM so
+     quando o numero muda evita mexer na pagina 60 vezes por segundo. */
+  var CORACAO = '❤️';
+  var hudPintado = { pontos: -1, vidas: -1, fase: -1 };
+
+  function repetir(texto, n) {
+    var saida = '';
+    for (var i = 0; i < n; i++) saida += texto;
+    return saida;
+  }
+
+  function atualizarHud() {
+    if (jogo.pontos !== hudPintado.pontos) {
+      hudPintado.pontos = jogo.pontos;
+      el.pontos.textContent = String(jogo.pontos);
+    }
+    if (jogo.vidas !== hudPintado.vidas) {
+      hudPintado.vidas = jogo.vidas;
+      el.vidas.textContent = repetir(CORACAO, jogo.vidas) || '—';
+    }
+    if (jogo.fase !== hudPintado.fase) {
+      hudPintado.fase = jogo.fase;
+      el.fase.textContent = jogo.fase + ' / ' + TOTAL_FASES;
+    }
+  }
+
+  /* Volta a fase inteira ao comeco: heroi no spawn, moedas e blocos de volta
+     no lugar e o placar zerado. Cair num buraco ainda e so isto - o checkpoint
+     e a perda de vida chegam na fase 4 do plano. */
   function reiniciarFase() {
     jogo.heroi = Fisica.novoCorpo(fase.spawn.x, fase.spawn.y);
+    jogo.itens = Itens.novoEstado(fase);
+    jogo.efeitos.length = 0;
+    jogo.pontos = 0;
     jogo.camera = Camera.seguir(centroDoHeroi(), fase.largura, LARGURA);
     jogo.concluida = false;
     el.fim.classList.add('hidden');
+    atualizarHud();
+  }
+
+  /** Guarda um efeito de tela (faisca da moeda, cristal do bloco). */
+  function soltarEfeito(tipo, item, duracao) {
+    jogo.efeitos.push({
+      tipo: tipo,
+      x: item.x + item.l / 2,
+      y: item.y + item.a / 2,
+      vida: duracao,
+      total: duracao
+    });
+  }
+
+  /** Envelhece os efeitos e joga fora os que ja acabaram. */
+  function envelhecerEfeitos() {
+    for (var i = jogo.efeitos.length - 1; i >= 0; i--) {
+      if (--jogo.efeitos[i].vida <= 0) jogo.efeitos.splice(i, 1);
+    }
+  }
+
+  /* Passa o mundo dos itens um quadro para a frente: soma os pontos das moedas
+     pegas, tira do mapa o bloco quebrado e solta os efeitos na tela. */
+  function atualizarItens(antes) {
+    var r = Itens.passo(jogo.itens, fase, antes, jogo.heroi);
+    if (r.estado === jogo.itens) return;
+
+    jogo.itens = r.estado;
+    jogo.pontos += r.pontos;
+
+    for (var i = 0; i < r.pegou.length; i++) {
+      soltarEfeito('moeda', fase.moedas[r.pegou[i]], EFEITO_MOEDA);
+      emitir('moeda');
+    }
+    if (r.quebrou >= 0) {
+      soltarEfeito('cristal', fase.quebraveis[r.quebrou], EFEITO_CRISTAL);
+      emitir('bloco-quebrado');
+    }
+    atualizarHud();
   }
 
   function atualizar() {
     if (jogo.concluida) return;
 
     jogo.relogio++;
-    jogo.heroi = Fisica.passo(jogo.heroi, entrada, fase.limites);
+    var antes = jogo.heroi;
+    jogo.heroi = Fisica.passo(antes, entrada, jogo.itens.limites);
     jogo.camera = Camera.seguir(centroDoHeroi(), fase.largura, LARGURA);
+    envelhecerEfeitos();
 
     if (Fisica.caiu(jogo.heroi, fase.fundo)) {          // caiu num buraco
       jogo.quedas++;
@@ -634,9 +985,12 @@
       return;
     }
 
+    atualizarItens(antes);
+
     if (Fisica.tocandoCorpo(jogo.heroi, fase.bandeira)) {
       jogo.concluida = true;
       emitir('fase-concluida');
+      el.pontosFim.textContent = String(jogo.pontos);
       el.fim.classList.remove('hidden');
     }
   }
@@ -645,6 +999,8 @@
     jogo.tela = 'jogando';
     jogo.relogio = 0;
     jogo.quedas = 0;
+    jogo.vidas = VIDAS_INICIAIS;
+    jogo.fase = 1;
     jogo.eventos.length = 0;
     entrada.esquerda = entrada.direita = entrada.pular = false;
     reiniciarFase();
@@ -723,6 +1079,7 @@
   }
 
   jogo.camera = Camera.seguir(centroDoHeroi(), fase.largura, LARGURA);
+  atualizarHud();
   ajustarPalco();
   desenharCena();
   requestAnimationFrame(quadro);

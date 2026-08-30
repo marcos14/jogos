@@ -128,6 +128,14 @@ body{
   color: var(--branco);
 }
 
+.placar{
+  margin: -8px 0 18px;
+  font-size: clamp(12px, 2.4vw, 17px);
+  letter-spacing: 2px;
+}
+
+.placar b{ color: var(--amarelo); }
+
 .botao{
   font-family: inherit;
   font-size: clamp(13px, 2.6vw, 18px);

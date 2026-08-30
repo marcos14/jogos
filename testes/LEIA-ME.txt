@@ -10,5 +10,7 @@ sem abrir navegador.
     node testes/super_adventure/fase1-tela.test.mjs   o jogo ligado, sem navegador
     node testes/super_adventure/fase2.test.mjs        tilemap, colisao, camera, bandeira
     node testes/super_adventure/fase2-tela.test.mjs   a fase 1 percorrida ate o fim
+    node testes/super_adventure/fase3.test.mjs        moedas, blocos quebraveis, pontos
+    node testes/super_adventure/fase3-tela.test.mjs   o placar e o HUD em tempo real
 
 O harness.mjs de cada pasta tem o carregador e o corredor de testes.
