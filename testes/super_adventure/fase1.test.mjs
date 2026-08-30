@@ -168,7 +168,8 @@ teste('nao sai do mapa pela esquerda', () => {
 teste('nao sai do mapa pela direita', () => {
   const depois = correr(noChao(), DIREITA, 500);
   assert.equal(depois.x, LIMITES_PADRAO.direita - M.HEROI_L);
-  assert.equal(depois.x + M.HEROI_L, mundo.LARGURA_MUNDO);
+  assert.equal(depois.x + M.HEROI_L, mundo.LARGURA,
+    'a tela de treino tem exatamente uma tela de largura');
 });
 
 // -------------------------------------------------------------- Pureza ------

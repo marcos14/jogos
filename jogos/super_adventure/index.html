@@ -47,9 +47,21 @@
         </ul>
       </div>
     </section>
+
+    <!-- Fim da fase: aparece quando alguém encosta na bandeira. Avançar para a
+         fase 2 é assunto de outra etapa do plano; por enquanto dá para
+         recomeçar a fase 1. -->
+    <section id="tela-fim" class="tela hidden">
+      <div class="painel">
+        <h1 class="titulo"><span class="destaque">FASE 1</span><br>CONCLUÍDA!</h1>
+        <p class="subtitulo">Você chegou na bandeira 🚩</p>
+
+        <button id="btn-de-novo" type="button" class="botao">JOGAR DE NOVO</button>
+      </div>
+    </section>
   </div>
 
-  <footer id="rodape">Fase de treino: teste o pulo antes da aventura começar!</footer>
+  <footer id="rodape">Corra até a bandeira: cuidado com os buracos!</footer>
 </div>
 
 <script src="game.js" charset="utf-8"></script>

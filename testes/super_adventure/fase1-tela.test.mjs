@@ -19,9 +19,9 @@ const M = Fisica.medidas;
 
 const heroi = () => dom.api.jogo.heroi;
 
-/** Cores que so o heroi usa - servem para achar ele entre os pixels pintados. */
-const CORES_HEROI = new Set(['#d82800', '#fcbc9c', '#0d0d17', '#a02000',
-                             '#0058f8', '#fcd800', '#503000']);
+/** Cores que so o heroi usa - servem para achar ele entre os pixels pintados.
+    (o preto, o vermelho e o amarelo tambem aparecem no cenario e na bandeira) */
+const CORES_HEROI = new Set(['#fcbc9c', '#0058f8', '#503000']);
 
 function pixeisDoHeroi() {
   return dom.pintados.filter((p) => CORES_HEROI.has(p.cor));
@@ -125,17 +125,20 @@ teste('trocar de aba solta as teclas (nao fica andando sozinho)', () => {
   assert.equal(heroi().x, x0, 'ninguem anda sozinho depois de perder o foco');
 });
 
-teste('o heroi nao sai da tela pela direita nem pela esquerda', () => {
+teste('o heroi nao sai do mapa pela esquerda nem pela direita', () => {
   soltarTudo();
-  dom.tecla('ArrowRight', true);
-  dom.avancarQuadros(600);
-  dom.tecla('ArrowRight', false);
-  assert.equal(heroi().x + M.HEROI_L, mundo.LARGURA_MUNDO);
-
   dom.tecla('ArrowLeft', true);
   dom.avancarQuadros(600);
   dom.tecla('ArrowLeft', false);
-  assert.equal(heroi().x, LIMITES_PADRAO.esquerda);
+  assert.equal(heroi().x, LIMITES_PADRAO.esquerda, 'travou na borda esquerda');
+
+  // Do outro lado do mundo (o percurso inteiro e assunto da fase 2): logo
+  // depois da bandeira, para o fim da fase nao atrapalhar a conta.
+  heroi().x = mundo.LARGURA_MUNDO - 80;
+  dom.tecla('ArrowRight', true);
+  dom.avancarQuadros(120);
+  dom.tecla('ArrowRight', false);
+  assert.equal(heroi().x + M.HEROI_L, mundo.LARGURA_MUNDO, 'travou na borda direita');
 });
 
 teste('o heroi e desenhado no canvas, dentro da tela, sem imagem nenhuma', () => {
@@ -148,7 +151,8 @@ teste('o heroi e desenhado no canvas, dentro da tela, sem imagem nenhuma', () =>
   const topo = Math.min(...pixeis.map((p) => p.y));
   const base = Math.max(...pixeis.map((p) => p.y + p.a));
 
-  assert.ok(esquerda >= heroi().x && direita <= heroi().x + M.HEROI_L,
+  const naTela = heroi().x - dom.api.jogo.camera;   // a camera desloca o desenho
+  assert.ok(esquerda >= naTela && direita <= naTela + M.HEROI_L,
     'o desenho cabe nos 32px de largura do heroi');
   assert.ok(topo >= heroi().y && base <= heroi().y + M.HEROI_A,
     'o desenho cabe nos 32px de altura do heroi');
