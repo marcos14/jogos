@@ -9,8 +9,9 @@
    `paraAnfitriao()` entrega as teclas dos convidados ao anfitriao.
 
    O alvo aqui e o conteudo da Fase 9: mundo unico, comandos subindo para o
-   anfitriao, estado compacto descendo para os convidados, convidados sem
-   previsao local ainda e cores vindas da sala.
+   anfitriao, estado compacto descendo para os convidados e cores vindas da
+   sala. A previsao local do convidado - o que ele faz ENQUANTO o pacote nao
+   chega - e o assunto do fase10.test.mjs.
    ========================================================================== */
 
 import assert from 'node:assert/strict';
@@ -139,13 +140,9 @@ teste('a sala vira uma lista de jogadores com as cores da plataforma', () => {
   }
 });
 
-teste('o convidado manda comandos e nao preve fisica local nesta fase', () => {
-  const x0 = bento.jogo.heroi.x;
+teste('o convidado manda comandos e o anfitriao passa a andar com eles', () => {
   bento.dom.tecla('ArrowRight', true);
   bento.dom.avancarQuadros(18);
-
-  assert.equal(bento.jogo.heroi.x, x0,
-    'sem retrato do anfitriao, o convidado fica no mesmo lugar');
 
   const entradaRecebida = pacotes.find((p) => p.de === 'bento' && p.para === 'anfitriao' &&
     p.d.k === 'i' && p.d.d === 1);

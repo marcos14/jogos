@@ -222,10 +222,41 @@ corrida. Se o anfitrião fechar a aba no meio, a plataforma avisa todo mundo: os
 convidados voltam ao menu com o recado na tela, sem ninguém preso numa fase que
 acabou.
 
-> **Ainda não nesta etapa:** o mundo compartilhado. Por enquanto cada aparelho
-> roda a própria simulação, então as moedas e os bichos de cada um são os dele.
-> A simulação única do anfitrião, a previsão do convidado, a câmera por jogador
-> e o placar de todos entram nas etapas seguintes do plano.
+### Quem manda no mundo
+
+Começada a sala, existe **um mundo só** e quem roda ele é o **anfitrião**: o
+mapa, as moedas, os blocos, os bichos, as plataformas e o corpo de *todos* os
+jogadores. Vinte vezes por segundo ele manda para a sala um retrato desse mundo
+em números inteiros — os convidados mandam de volta só as três teclas que estão
+apertando.
+
+### A previsão do convidado
+
+Esperar o retrato para sair do lugar deixaria o controle **molenga**: entre
+apertar a seta e ver o herói andar teria o vai-e-volta da rede inteiro. Então o
+convidado **adivinha**. Ele roda a mesma física de sempre no próprio corpo, com
+as teclas que acabou de mandar, e já sai andando no quadro em que o dedo
+aperta — só o corpo dele, mais nada.
+
+Adivinhar erra um pouquinho, porque o retrato que chega foi tirado há alguns
+quadros. Quando ele chega, a posição adivinhada é **puxada para a oficial**:
+
+| Erro | O que acontece |
+|---|---|
+| até **90 px** | anda **25% do caminho**, e o resto vem nos retratos seguintes — o olho não vê |
+| acima de 90 px | **encaixa de uma vez**: o convidado tinha adivinhado outra história (caiu num buraco, levou um pisão, voltou ao checkpoint, mudou de fase) |
+
+São os números da regra 4.1.2 do `AGENTS.md`. Na prática, com uns 6 quadros de
+atraso de cada lado o erro fica na casa dos 25 px e some em menos de dez
+retratos — meio segundo.
+
+O que o convidado **não** adivinha: moeda, bloco quebrado, pisão em bicho,
+checkpoint aceso e coração perdido. Isso daria ponto que o anfitrião não deu —
+ele só fica sabendo pelo retrato, e é do retrato que saem as faíscas na tela.
+
+> **Ainda não nesta etapa:** a câmera de cada jogador dentro do mesmo mundo, a
+> bandeira valendo para a sala inteira e o placar de todos no HUD entram nas
+> etapas seguintes do plano.
 
 ## As plataformas móveis (fase 3)
 
@@ -321,8 +352,9 @@ câmera, para dar sensação de distância.
   da Galinha Feliz. O `index.html` abre direto no navegador, sem servidor.
 - **A física mora em funções puras.** Os módulos `Fisica`, `Mapa`, `Itens` e
   `Camera` não tocam em DOM: recebem um corpo, o que está apertado e os limites
-  do mundo, e devolvem um corpo novo. É o que os testes em Node exercitam, e é o que o
-  convidado vai usar para prever o próprio personagem no multijogador.
+  do mundo, e devolvem um corpo novo. É o que os testes em Node exercitam, e é
+  o que o convidado usa para prever o próprio personagem no multijogador: os
+  dois lados rodam exatamente o mesmo `Fisica.passo()`.
 - **Colisão AABB, resolvendo X e depois Y.** O jeito clássico: anda na
   horizontal e sai de dentro das paredes, depois anda na vertical e pousa na
   superfície mais alta que os pés cruzaram (ou bate a cabeça, se estava
@@ -382,6 +414,21 @@ câmera, para dar sensação de distância.
   funciona igual com o jogo aberto direto e dentro do iframe do catálogo. O
   estado do botão vem do evento `fullscreenchange` do navegador, nunca de um
   palpite nosso — assim sair pelo `ESC` também acerta o ícone.
+- **O convidado prevê o corpo, nunca o placar.** A previsão local roda só o
+  `Fisica.passo()` (e o passo das plataformas móveis, que são previsíveis): não
+  pega moeda, não quebra bloco, não pisa em bicho, não acende checkpoint e não
+  perde vida. Adivinhar isso daria ponto que o anfitrião não deu, e no primeiro
+  desencontro dois jogadores achariam que pegaram a mesma moeda.
+- **Correção de 25%, encaixe acima de 90 px** (regra 4.1.2 do `AGENTS.md`): o
+  erro normal — o retrato é sempre alguns quadros mais velho que o dedo — some
+  aos poucos e ninguém vê teleporte; o erro grande só acontece quando as duas
+  simulações contaram histórias diferentes (morte, respawn, troca de fase), e aí
+  disfarçar seria pior do que encaixar. Abaixo de meio pixel o corpo encosta de
+  vez, para o resto do arredondamento não ficar arrastando para sempre.
+- **No encaixe, `pularPreso` continua sendo o de casa.** É o único pedaço do
+  corpo que o anfitrião não tem como saber melhor que o próprio aparelho: ele
+  diz se a tecla de pular *já estava* apertada. Trocá-lo pelo do retrato faria o
+  herói pular sozinho por estar com o espaço segurado.
 - **A caixa de controles usa as setas (`← →`) no lugar das palavras
   "esquerda/direita":** ocupa menos canto de tela e é mais fácil de ler para
   quem ainda está aprendendo a ler. Ela é `pointer-events: none`, para nunca
@@ -425,6 +472,8 @@ node testes/super_adventure/fase6b-tela.test.mjs    # uma corrida inteira, fase 
 node testes/super_adventure/fase7-tela.test.mjs    # pausa, recomeçar, tela cheia e controles
 node testes/super_adventure/fase8.test.mjs         # o jogo sem a Central (e a fiação do SDK)
 node testes/super_adventure/fase8-tela.test.mjs    # 3 abas numa sala, por WebSocket de verdade
+node testes/super_adventure/fase9.test.mjs         # o mundo único do anfitrião, com 3 jogadores
+node testes/super_adventure/fase10.test.mjs        # a previsão do convidado, com latência
 ```
 
 O `fase8-tela.test.mjs` sobe o **servidor das salas de verdade** dentro do teste
@@ -434,3 +483,10 @@ sua cópia do jogo rodando no DOM de mentira. Uma cria a sala, as outras entram
 pelo código, todas marcam pronto, a anfitriã começa — e as três caem na tela do
 jogo. O lobby em si (que é HTML desenhado pelo SDK) fica de fora: o que o teste
 usa é o miolo do SDK, com as mesmas mensagens e os mesmos ganchos.
+
+O `fase10.test.mjs` põe uma Central de mentira **com latência** entre as abas —
+cada mensagem fica seis quadros na fila antes de ser entregue, nos dois
+sentidos. É o que faz a previsão local aparecer: o convidado anda no quadro em
+que a tecla é apertada, o erro contra o anfitrião chega a uns 25 px e desaparece
+em menos de dez retratos, sem nenhum encaixe seco. Um erro plantado de 200 px
+força o encaixe, como manda a regra dos 90 px.

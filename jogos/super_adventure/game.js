@@ -1,11 +1,12 @@
 /* ==========================================================================
    SUPER ADVENTURE  -  plataforma retro, no estilo dos consoles de 8 bits
    --------------------------------------------------------------------------
-   FASE 9 do plano: a sala passa a jogar A MESMA fase. O anfitriao roda a
-   simulacao unica do mundo - o mapa, as moedas, os bichos e TODOS os
-   personagens - e manda o retrato dele 20 vezes por segundo; o convidado manda
-   as teclas que apertou e desenha o que chega, cada jogador com a cor que a
-   sala deu a ele. A previsao local do convidado e a fase 10.
+   FASE 10 do plano: o controle do convidado deixa de ser "molenga". O
+   anfitriao continua rodando a simulacao unica do mundo - o mapa, as moedas,
+   os bichos e TODOS os personagens - e mandando o retrato dele 20 vezes por
+   segundo; o convidado manda as teclas, mas agora ADIVINHA o proprio corpo com
+   a mesma fisica pura da fase 1 e corrige de leve (25% do erro por retrato, ou
+   de uma vez quando o erro passa de 90px) quando o pacote chega.
 
      - `Fisica`: as funcoes puras do movimento, com colisao AABB contra os
        blocos solidos do mapa (para em cima, nao atravessa, bate a cabeca).
@@ -27,6 +28,9 @@
      - `Camera`: side-scroll, seguindo o heroi sem sair das bordas do mundo.
      - `Corrida`: o caderninho da partida solo - quanto cada fase rendeu, o
        bonus de bandeira e qual e a proxima. So anda para a frente. Puro.
+     - `Previsao`: como a posicao que o convidado adivinhou e casada com a que
+       o anfitriao mandou - 25% do erro por pacote, ou de uma vez acima de
+       90px. Pura tambem.
      - `Pacote`: o tradutor da rede. Transforma o mundo do anfitriao num
        punhado de numeros inteiros (e de volta, do lado do convidado). Puro.
      - As tres fases do PRD, cada uma um degrau mais dificil que a anterior:
@@ -59,9 +63,10 @@
    pessoa da sala, cada uma com o seu corpo, os seus pontos, as suas vidas e os
    seus checkpoints. O anfitriao anda com todos eles no mesmo mapa (as mesmas
    moedas, os mesmos bichos, as mesmas plataformas) e manda o retrato pronto; o
-   convidado nao simula nada nesta fase - ele manda as teclas e copia o que
-   chega. O jogador local continua sendo `jogo.heroi` para o resto do arquivo,
-   e sozinho a lista tem uma linha so: o solo nao muda em nada.
+   convidado manda as teclas, copia o mundo que chega e adivinha por conta
+   propria um corpo so - o dele. O jogador local continua sendo `jogo.heroi`
+   para o resto do arquivo, e sozinho a lista tem uma linha so: o solo nao
+   muda em nada.
 
    Nada disto usa imagem: tudo e retangulo pintado no Canvas 2D.
    ========================================================================== */
@@ -1184,6 +1189,104 @@
     };
   }());
 
+  // ------------------------------------------------ A previsao do convidado -
+  /* O convidado nao pode esperar o pacote do anfitriao para sair do lugar: com
+     o vai-e-volta da rede o controle ficaria "molenga", sempre alguns quadros
+     atras do dedo. Entao ele ADIVINHA - roda a mesma fisica pura da fase 1 no
+     proprio corpo, com as teclas que ele acabou de mandar, e vai andando.
+
+     Adivinhar erra um pouquinho: o retrato que chega foi tirado ha alguns
+     quadros e o anfitriao pode ter visto uma parede (ou um pisao) que o
+     convidado ainda nao viu. Por isso, quando o pacote chega, a posicao
+     adivinhada e puxada para a oficial:
+
+         erro de ate 90px  ->  anda 25% do caminho, e o resto vem nos pacotes
+                               seguintes: ninguem ve teleporte nenhum
+         erro maior        ->  encaixa de uma vez, porque a essa altura o
+                               convidado adivinhou outra historia (caiu num
+                               buraco, levou um pisao, voltou ao checkpoint)
+
+     Sao os numeros da regra 4.1.2 do AGENTS.md. Como todo o resto por aqui,
+     `corrigir()` e funcao pura: nao mexe nos corpos que recebe. */
+  var Previsao = (function () {
+
+    var CORRECAO = 0.25;       // quanto do erro some a cada pacote
+    var ERRO_SNAP = 90;        // acima disto nao da para disfarcar: encaixa
+    var ERRO_ZERO = 0.5;       // menos de meio pixel ja e o lugar certo
+
+    /** A distancia entre a posicao adivinhada e a oficial, em pixels. */
+    function erroEntre(local, oficial) {
+      var dx = oficial.x - local.x, dy = oficial.y - local.y;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    /* O corpo de casa com outro x e outro y. O resto - velocidade, pulo,
+       animacao - continua sendo o que o convidado adivinhou: e dai que vem a
+       resposta instantanea do controle. */
+    function em(corpo, x, y) {
+      return {
+        x: x, y: y, vx: corpo.vx, vy: corpo.vy,
+        noChao: corpo.noChao, subida: corpo.subida,
+        pularPreso: corpo.pularPreso, direcao: corpo.direcao,
+        andando: corpo.andando, apoio: corpo.apoio
+      };
+    }
+
+    /* O encaixe seco: vale o corpo do anfitriao inteirinho, porque um erro
+       desse tamanho quer dizer que as duas simulacoes contaram historias
+       diferentes. So `pularPreso` fica sendo o de casa - quem manda nele e o
+       dedo que esta na tecla, e trocar isso faria o heroi pular sozinho por
+       estar com o espaco apertado. */
+    function encaixar(local, oficial) {
+      return {
+        x: oficial.x, y: oficial.y,
+        vx: local ? local.vx : oficial.vx,
+        vy: oficial.vy,
+        noChao: oficial.noChao,
+        subida: oficial.subida,
+        pularPreso: local ? local.pularPreso : oficial.pularPreso,
+        direcao: oficial.direcao,
+        andando: oficial.andando,
+        apoio: oficial.apoio
+      };
+    }
+
+    /**
+     * Junta a posicao adivinhada com a que o anfitriao mandou. Devolve
+     * `{ corpo, erro, snap }`, com `snap` em `true` quando o erro era grande
+     * demais para disfarcar e o corpo foi encaixado de uma vez so.
+     */
+    function corrigir(local, oficial) {
+      if (!local) return { corpo: encaixar(null, oficial), erro: 0, snap: true };
+
+      var erro = erroEntre(local, oficial);
+      if (erro > ERRO_SNAP) {
+        return { corpo: encaixar(local, oficial), erro: erro, snap: true };
+      }
+      // Perto o bastante para o olho nao ver: encosta de vez e acaba com a
+      // sobra de erro que ficaria se arrastando para sempre.
+      if (erro <= ERRO_ZERO) {
+        return { corpo: em(local, oficial.x, oficial.y), erro: erro, snap: false };
+      }
+      return {
+        corpo: em(local,
+          local.x + (oficial.x - local.x) * CORRECAO,
+          local.y + (oficial.y - local.y) * CORRECAO),
+        erro: erro, snap: false
+      };
+    }
+
+    return {
+      corrigir: corrigir,
+      erroEntre: erroEntre,
+      medidas: {
+        CORRECAO: CORRECAO,
+        ERRO_SNAP: ERRO_SNAP,
+        ERRO_ZERO: ERRO_ZERO
+      }
+    };
+  }());
+
   // -------------------------------------------------------- O pacote da rede -
   /* Numa partida em grupo existe UM mundo so, e quem roda ele e o anfitriao.
      Vinte vezes por segundo ele manda para todos um retrato desse mundo; este
@@ -1285,7 +1388,8 @@
       ];
     }
 
-    /** O corpo que o convidado desenha: so o que se ve, sem fisica nenhuma. */
+    /* O corpo oficial de um jogador, lido do retrato: so o que se ve. E ele
+       que o convidado desenha nos OUTROS - e com que ele acerta o de casa. */
     function corpoDaLinha(linha) {
       var sinais = linha[4];
       return {
@@ -1346,13 +1450,21 @@
      * Copia o retrato recebido por cima do mundo `alvo` (o `jogo` do
      * convidado). Devolve o que mudou desde o pacote anterior:
      *
-     *     { moedas: [i], blocos: [i], inimigos: [i], checkpoints: [i] }
+     *     { moedas: [i], blocos: [i], inimigos: [i], checkpoints: [i],
+     *       correcao: { erro, snap } | null }
      *
      * E com essa lista que o convidado solta as mesmas faiscas que o
      * anfitriao viu, sem precisar receber um pixel sequer.
+     *
+     * Com `preverLocal` ligado (o convidado, desde a fase 10), o corpo de casa
+     * NAO e copiado por cima: ele foi adivinhado aqui e so e puxado para a
+     * posicao oficial por `Previsao.corrigir()` - `correcao` conta o tamanho
+     * desse tranco. Os outros corpos sao sempre os do anfitriao.
      */
-    function aplicar(d, alvo, mapa) {
-      var novidades = { moedas: [], blocos: [], inimigos: [], checkpoints: [] };
+    function aplicar(d, alvo, mapa, preverLocal) {
+      var novidades = {
+        moedas: [], blocos: [], inimigos: [], checkpoints: [], correcao: null
+      };
       var i, linha;
 
       // --- os jogadores: onde estao, quanto fizeram, quantas vidas tem ------
@@ -1360,7 +1472,14 @@
         linha = d.j[i];
         var j = porIndice(alvo.jogadores, linha[0]);
         if (!j) continue;
-        j.corpo = corpoDaLinha(linha);
+        var oficial = corpoDaLinha(linha);
+        if (preverLocal && j.local) {
+          var ajuste = Previsao.corrigir(j.corpo, oficial);
+          j.corpo = ajuste.corpo;
+          novidades.correcao = { erro: ajuste.erro, snap: ajuste.snap };
+        } else {
+          j.corpo = oficial;
+        }
         j.pontos = linha[5];
         j.vidas = linha[6];
         var ativos = deBits(linha[7], mapa.checkpoints.length);
@@ -1561,6 +1680,7 @@
       Moveis: Moveis,
       Camera: Camera,
       Corrida: Corrida,
+      Previsao: Previsao,
       Pacote: Pacote,
       FASE_1: FASE_1,
       FASE_2: FASE_2,
@@ -2721,12 +2841,43 @@
     }
   }
 
+  /* O quadro do convidado. O MUNDO nao e dele - moedas, blocos, bichos,
+     checkpoints e bandeira sao decididos pelo anfitriao - mas o CORPO dele e
+     adivinhado aqui, com a mesma fisica pura de sempre e as mesmas teclas que
+     acabaram de subir pela rede. E isto que tira o "molenga" do controle: o
+     heroi sai andando no quadro em que o dedo aperta, sem esperar o
+     vai-e-volta; o pacote que chega depois so acerta o que ficou torto
+     (`Previsao.corrigir`, la no `Pacote.aplicar`).
+
+     As plataformas moveis andam junto porque sao previsiveis (um trilho, um
+     pixel por quadro): sem isso, quem estivesse em cima de uma escorregaria
+     dela entre um pacote e outro. O retrato seguinte acerta a posicao delas de
+     qualquer jeito.
+
+     O que NAO acontece aqui: pegar moeda, quebrar bloco, pisar em bicho,
+     acender checkpoint, perder vida. Adivinhar isso daria pontos que o
+     anfitriao nao deu - o convidado so fica sabendo pelo pacote. Adivinhar um
+     tombo tambem nao faz mal nenhum: o corpo desce alguns pixels e o proximo
+     retrato encaixa ele de volta no checkpoint, de uma vez, porque um erro
+     desses passa longe dos 90px. */
+  function preverCorpoLocal() {
+    envelhecerEfeitos();
+
+    var passoMoveis = Moveis.andar(jogo.moveis);
+    jogo.moveis = passoMoveis.estado;
+    jogo.limites = Moveis.limitesCom(jogo.itens.limites, jogo.moveis);
+
+    var eu = jogo.eu;
+    var deAntes = Moveis.carregar(eu.corpo, passoMoveis.deltas);
+    eu.corpo = Fisica.passo(deAntes, eu.entrada, jogo.limites);
+  }
+
   function atualizar() {
     if (!jogo.concluida) {
       jogo.relogio++;
-      // O convidado nao simula nada nesta fase: ele so envelhece as faiscas
-      // que ja estao na tela e espera o proximo retrato do anfitriao.
-      if (rede.papel === 'convidado') envelhecerEfeitos();
+      // O convidado nao simula o mundo dos outros: ele adivinha so o proprio
+      // corpo e espera o retrato do anfitriao para acertar o resto.
+      if (rede.papel === 'convidado') preverCorpoLocal();
       else simularMundo();
       seguirCamera();
     }
@@ -2785,14 +2936,14 @@
      Comecada a sala, existe UM mundo so e ele e o do anfitriao:
 
          CONVIDADO                 ANFITRIAO                  CONVIDADO
-         teclas  ───────────────▶  simula o mundo  ─────────▶  desenha
-         (20x/s)                   inteiro, com todos          (20x/s)
+         teclas  ───────────────▶  simula o mundo  ─────────▶  desenha, preve
+         (20x/s)                   inteiro, com todos          (20x/s)  e corrige
 
      O anfitriao roda `simularMundo()` com a lista inteira de jogadores e manda
      o retrato pronto (`Pacote.montar`) na taxa que o manifesto pediu; o
      convidado manda so as tres teclas dele e copia o retrato que chega
-     (`Pacote.aplicar`). Nesta fase o convidado nao adivinha nada - a previsao
-     local dele e a fase 10.
+     (`Pacote.aplicar`) - menos o proprio corpo, que ele adivinha em
+     `preverCorpoLocal()` e so acerta com `Previsao.corrigir()`.
      ========================================================================== */
   var rede = {
     ligada: false,        // o multijogador da plataforma respondeu "de pe"
@@ -2803,7 +2954,10 @@
     enviados: 0,          // pacotes que este aparelho mandou
     seq: 0,               // o numero do ultimo pacote que ele montou
     ultimoRecebido: 0,    // o numero do ultimo retrato aplicado
-    atrasados: 0          // retratos que chegaram velhos e foram para o lixo
+    atrasados: 0,         // retratos que chegaram velhos e foram para o lixo
+    erro: 0,              // o quanto a previsao local errou no ultimo retrato
+    correcoes: 0,         // retratos que puxaram a previsao de leve (25%)
+    snaps: 0              // ... e os que precisaram encaixar de uma vez
   };
 
   var Rede = (function () {
@@ -2859,6 +3013,9 @@
       rede.seq = 0;
       rede.ultimoRecebido = 0;
       rede.atrasados = 0;
+      rede.erro = 0;
+      rede.correcoes = 0;
+      rede.snaps = 0;
       quadrosDesdeEnvio = 0;
       montarJogadores(sala);
       avisar('');
@@ -2927,7 +3084,11 @@
 
     /* O retrato do mundo, do lado do convidado: ele copia tudo por cima do que
        tinha e refaz as faiscas do que mudou (a moeda que sumiu, o bloco que
-       caiu, o bicho que foi pisado) - efeito e local, nao viaja pela rede. */
+       caiu, o bicho que foi pisado) - efeito e local, nao viaja pela rede.
+
+       O corpo de casa e a excecao: aquele o convidado ja adivinhou sozinho, e
+       o retrato so puxa ele para o lugar certo (25% do erro, ou de uma vez se
+       o erro passar de 90px). */
     function aplicarEstado(d) {
       if (jogo.tela !== 'jogando') return;
       if (d.n && d.n <= rede.ultimoRecebido) { rede.atrasados++; return; }
@@ -2937,13 +3098,25 @@
       // senao as moedas e os bichos seriam lidos com o mapa errado.
       if (d.f && d.f !== jogo.fase) irParaFase(d.f);
 
-      efeitosDoPacote(Pacote.aplicar(d, jogo, fase));
+      var novidades = Pacote.aplicar(d, jogo, fase, true);
+      anotarCorrecao(novidades.correcao);
+      efeitosDoPacote(novidades);
       seguirCamera();
       atualizarHud();
 
       // A bandeira: o anfitriao ja chegou nela e o quadro de fim de fase sobe
       // aqui tambem, com os pontos que ESTE jogador fez.
       if (d.q && !jogo.concluida) concluirFase();
+    }
+
+    /* Anota o tranco que o retrato deu na previsao local. Serve de termometro
+       da rede: com a casa em paz o erro fica na casa das dezenas de pixels e
+       os `snaps` sao raros - um por morte, um por troca de fase. */
+    function anotarCorrecao(c) {
+      if (!c) return;
+      rede.erro = c.erro;
+      if (c.snap) rede.snaps++;
+      else rede.correcoes++;
     }
 
     /** As faiscas do que mudou de um pacote para o outro. */
