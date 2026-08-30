@@ -116,7 +116,8 @@ export function carregarJogoComTela(slug = 'super_adventure', opcoes = {}) {
                     'btn-pausa', 'btn-tela-cheia', 'btn-continuar', 'btn-recomecar',
                     'aviso', 'hud-sala', 'hud-sala-codigo',
                     'hud-pontos', 'hud-vidas', 'hud-fase',
-                    'fase-numero', 'fase-pontos', 'fase-bonus', 'fase-proxima',
+                    'fase-numero', 'fase-subtitulo', 'fase-pontos', 'fase-bonus',
+                    'fase-proxima',
                     'fim-fase-1', 'fim-fase-2', 'fim-fase-3', 'fim-total']) {
     elementos[id] = criarElemento(id);
     elementos[id].classList.dono = elementos[id];

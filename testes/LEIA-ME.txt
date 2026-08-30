@@ -26,6 +26,7 @@ sem abrir navegador.
     node testes/super_adventure/fase9.test.mjs       o mundo unico do anfitriao
     node testes/super_adventure/fase10.test.mjs      a previsao local do convidado
     node testes/super_adventure/fase11.test.mjs      o mundo de todos e a camera de cada um
+    node testes/super_adventure/fase12.test.mjs      a bandeira e o checkpoint da sala
 
 O harness.mjs de cada pasta tem o carregador e o corredor de testes. O do
 super_adventure tambem sabe subir o servidor das salas de verdade numa porta

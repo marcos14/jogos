@@ -103,13 +103,15 @@
       </div>
     </section>
 
-    <!-- Fim de fase: aparece quando o herói encosta na bandeira das fases 1 e
+    <!-- Fim de fase: aparece quando alguém encosta na bandeira das fases 1 e
          2, com o que a fase rendeu e o bônus de chegar na bandeira. O único
-         caminho é para a frente — não dá para voltar a uma fase já vencida. -->
+         caminho é para a frente — não dá para voltar a uma fase já vencida.
+         Numa sala a bandeira é do grupo: o subtítulo diz o nome de quem chegou
+         primeiro, porque a fase acaba para todo mundo junto. -->
     <section id="tela-fase" class="tela hidden">
       <div class="painel">
         <h1 class="titulo"><span class="destaque">FASE <b id="fase-numero">1</b></span><br>CONCLUÍDA!</h1>
-        <p class="subtitulo">Você chegou na bandeira 🚩</p>
+        <p id="fase-subtitulo" class="subtitulo">Você chegou na bandeira 🚩</p>
         <p class="placar">
           Pontos da fase: <b id="fase-pontos">0</b><br>
           Bônus da bandeira: <b id="fase-bonus">+50</b>

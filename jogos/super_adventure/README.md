@@ -4,16 +4,18 @@ Um platformer retrô, de 8 bits, para as crianças: corra, pule, junte moedas e
 chegue na bandeira. São 3 fases fixas e dá para jogar sozinho ou com até 8
 amigos na mesma fase, cada um no seu aparelho.
 
-> **Estado: em construção.** Esta é a **fase 11** do plano — o jogo solo está
+> **Estado: em construção.** Esta é a **fase 12** do plano — o jogo solo está
 > completo (as três fases em ordem fixa, o bônus da bandeira, a tela de
 > **PARABÉNS** e a interface inteira: pausa, recomeçar, tela cheia e a caixa de
 > controles) e o multijogador já joga de verdade: o **JOGAR COM AMIGOS** abre o
 > lobby da Central, o anfitrião simula **um mundo só** para a sala inteira, o
 > convidado adivinha o próprio corpo para o controle não ficar molenga, as
-> moedas/blocos/bichos são de todos (quem pega, tira dos outros) e **cada
-> aparelho tem a sua câmera**, centrada no próprio personagem. O que ainda
-> **não** acontece: a bandeira e os checkpoints valendo para a sala inteira, o
-> placar de todos no HUD e a tela de ranking no fim — são as etapas seguintes.
+> moedas/blocos/bichos são de todos (quem pega, tira dos outros), **cada
+> aparelho tem a sua câmera** centrada no próprio personagem e agora a
+> **bandeira e os checkpoints são da sala**: o primeiro que encosta na bandeira
+> fecha a fase para todo mundo e o mastro que um acende vale para o grupo. O que
+> ainda **não** acontece: o placar de todos no HUD e a tela de ranking no fim —
+> são as etapas seguintes.
 
 ## Como jogar
 
@@ -65,11 +67,18 @@ fica verde e solta faíscas. Uma vez aceso, o checkpoint **não expira** — val
 até o fim da tentativa, mesmo que o herói volte atrás ou caia várias vezes. O
 que vale para renascer é sempre o **mais recente** que foi aceso.
 
+Numa partida em grupo o mastro é **da sala**: quem encosta nele **acende para
+todo mundo**, e dali em diante é ali que a sala inteira renasce — mesmo quem
+ainda nem passou por ele. É a regra de checkpoint compartilhado do PRD, e ela
+combina com o mundo compartilhado: se as moedas daquele trecho já foram
+juntadas por alguém, não faz sentido mandar quem caiu de volta para o começo.
+Os **corações**, esses, continuam sendo de cada um.
+
 | Tombos na tentativa | O que acontece |
 |---|---|
 | 1º | −1 ❤️, volta ao último checkpoint (ou ao começo, se nenhum acendeu) |
 | 2º | −1 ❤️, mesma coisa |
-| 3º | acabaram os ❤️: a fase inteira recomeça do zero |
+| 3º | acabaram os ❤️: a fase inteira recomeça do zero (numa sala, só ele volta — com os ❤️ cheios e o checkpoint do grupo) |
 
 *Tombo* aqui é cair num buraco **ou** encostar de frente num inimigo: as duas
 coisas custam o mesmo coração e usam o mesmo caminho de volta.
@@ -268,18 +277,19 @@ com quem pegou**. Vale igual para o bloco que alguém quebra (some da tela de
 todos e deixa de ser sólido para todos) e para o bicho que alguém pisa (some ou
 vira casco para todos, e os +20 são de quem pulou em cima).
 
-O que é de cada um continua sendo de cada um: os **pontos**, os **corações** e
-os **checkpoints acesos**. Cair num buraco é problema de quem caiu — perde um
-coração e volta ao próprio checkpoint, e o mundo dos outros não é mexido: as
-moedas já pegas continuam pegas e os bichos não voltam para o ninho. Quem fica
-sem corações, numa sala, **recomeça sozinho** do início da fase, com os
-corações cheios: a fase inteira não recomeça, senão um tropeço de um jogador
-estragaria a partida dos outros.
+O que é de cada um continua sendo de cada um: os **pontos** e os **corações**.
+Cair num buraco é problema de quem caiu — perde um coração e volta ao
+checkpoint, e o mundo dos outros não é mexido: as moedas já pegas continuam
+pegas e os bichos não voltam para o ninho. Quem fica sem corações, numa sala,
+**recomeça sozinho** no checkpoint do grupo, com os corações cheios: a fase
+inteira não recomeça, senão um tropeço de um jogador estragaria a partida dos
+outros.
 
 | Sozinho | Numa sala |
 |---|---|
-| Sem corações, a fase inteira recomeça (placar zerado) | Sem corações, só ele volta ao começo, com o placar dele |
+| Sem corações, a fase inteira recomeça (placar zerado) | Sem corações, só ele volta ao checkpoint do grupo, com o placar dele |
 | Ao renascer, os bichos vivos voltam ao ninho | Os bichos são de todos: ninguém os move de lugar |
+| O checkpoint aceso é seu | O checkpoint aceso é da sala inteira |
 
 A **câmera é de cada aparelho**. O mundo é um só — o mapa, as posições e as
 medidas são as do anfitrião, e o canvas tem sempre 960×540 por dentro em
@@ -293,9 +303,31 @@ Os **outros jogadores aparecem quando entram no campo de visão**, cada um com a
 está longe demais simplesmente não é desenhado — e o jogador de casa é pintado
 por último, para nunca ficar escondido atrás de outro.
 
-> **Ainda não nesta etapa:** a bandeira e o checkpoint valendo para a sala
-> inteira, o placar de todos numa mini-lista no HUD e o ranking da sala no fim
-> das três fases entram nas etapas seguintes do plano.
+### A bandeira e o checkpoint são da sala
+
+A bandeira é **do grupo**: o **primeiro que encostar nela** — o anfitrião ou um
+convidado do outro lado do mapa, tanto faz — fecha a fase **para todo mundo ao
+mesmo tempo**. O quadro de fim de fase sobe na tela de todos, cada um com os
+pontos que *ele* fez mais o bônus de +50, e diz o nome de quem chegou primeiro
+("**Bento** chegou na bandeira primeiro 🚩"), para ninguém ficar sem entender
+por que a fase acabou. Quem vira a página é o **anfitrião**, no botão **IR PARA
+A FASE N** — nos convidados esse botão fica desligado e a fase nova entra
+sozinha, no retrato seguinte.
+
+O **checkpoint** funciona igual: o mastro que um jogador acende **acende para
+todos** e vira o lugar onde a sala renasce. Ele viaja no mesmo retrato do mundo
+(a lista de mastros acesos é a mesma em todas as linhas do placar), e a faísca
+verde aparece na tela de quem estiver perto o bastante para ver.
+
+| Quem faz | O que acontece com os outros |
+|---|---|
+| Encosta na **bandeira** | a fase acaba para todos, e o anfitrião leva a sala para a próxima |
+| Acende um **checkpoint** | o mastro fica aceso para todos e passa a ser o nascedouro do grupo |
+| Pega uma **moeda** / quebra um **bloco** / pisa num **bicho** | some para todos, mas os pontos são só de quem fez |
+| **Cai** num buraco | ninguém mais é afetado: o mundo não recomeça |
+
+> **Ainda não nesta etapa:** o placar de todos numa mini-lista no HUD e o
+> ranking da sala no fim das três fases entram nas etapas seguintes do plano.
 
 ## As plataformas móveis (fase 3)
 
@@ -486,6 +518,22 @@ câmera, para dar sensação de distância.
 - **"Recomeçar" não larga a sala.** Só o "Jogar solo" sai — é o botão que a
   criança clica quando quer voltar a jogar sozinha, e é o único lugar em que
   sair da sala é o que ela pediu.
+- **A bandeira é de quem chegar primeiro, e o anfitrião é quem confere.** O
+  toque na bandeira é testado para *todos* os jogadores dentro do
+  `simularMundo()` — que só o anfitrião roda —, e não na tela de cada um: assim
+  não há duas fases acabando ao mesmo tempo com histórias diferentes. Se duas
+  pessoas encostam no mesmo quadro, vale a primeira da lista (a ordem do
+  `indice`, que é igual em todos os aparelhos). O retrato leva `q` (a fase
+  acabou) e `w` (quem chegou), e é dali que sai o nome no quadro de fim de fase.
+- **O checkpoint compartilhado é o mesmo `Progresso` de sempre, repetido.**
+  `compartilhar()` acende o mastro na conta de quem *não* encostou nele, e o
+  anfitrião chama isso para os outros jogadores no mesmo quadro
+  (`acenderNoGrupo`). A lista de acesos fica idêntica em todas as linhas, então
+  ela continua viajando no campo que já existia no retrato — nenhum byte novo — e
+  o solo, que tem uma linha só, não muda em nada.
+- **Quem fica sem corações numa sala não perde os mastros do grupo**
+  (`renovarVidas`): eles são da *fase*, não dele. Apagá-los mandaria um jogador
+  sozinho de volta a um começo que a sala inteira já deixou para trás.
 
 ## Testes
 
@@ -514,6 +562,7 @@ node testes/super_adventure/fase8-tela.test.mjs    # 3 abas numa sala, por WebSo
 node testes/super_adventure/fase9.test.mjs         # o mundo único do anfitrião, com 3 jogadores
 node testes/super_adventure/fase10.test.mjs        # a previsão do convidado, com latência
 node testes/super_adventure/fase11.test.mjs        # o mundo compartilhado e a câmera de cada um
+node testes/super_adventure/fase12.test.mjs        # a bandeira e o checkpoint da sala inteira
 ```
 
 O `fase8-tela.test.mjs` sobe o **servidor das salas de verdade** dentro do teste
@@ -531,6 +580,17 @@ para ninguém, um tombo não mexe no mundo dos outros — e, do outro lado, cada
 tem a **sua** câmera: a geometria comparada é idêntica nas três, mas cada uma
 pinta o pedaço do mapa que está debaixo do seu jogador, com os vizinhos
 aparecendo (na cor da sala) só quando entram no campo de visão.
+
+O `fase12.test.mjs` continua com as três abas e fecha as duas regras da sala. No
+checkpoint: o mastro que **Bento** acende aparece aceso nas três abas e para os
+três jogadores, e é lá que **Caio** — que nunca encostou nele — renasce quando
+cai, inclusive depois de ficar sem corações (aí ele volta com os 3 ❤️ e o mastro
+ainda aceso). Na bandeira: quem encosta primeiro é um **convidado**, e mesmo
+assim a fase fecha nas três telas, cada uma com os seus pontos + 50, dizendo o
+nome de quem chegou; o convidado não consegue virar a página sozinho e, quando a
+anfitriã clica em "Ir para a fase 2", as três vão juntas — com os checkpoints
+apagados de novo na fase nova. No fim, um teste sozinho confere que nada disso
+mudou o jogo solo.
 
 O `fase10.test.mjs` põe uma Central de mentira **com latência** entre as abas —
 cada mensagem fica seis quadros na fila antes de ser entregue, nos dois

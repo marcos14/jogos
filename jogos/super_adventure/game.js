@@ -1,15 +1,17 @@
 /* ==========================================================================
    SUPER ADVENTURE  -  plataforma retro, no estilo dos consoles de 8 bits
    --------------------------------------------------------------------------
-   FASE 11 do plano: o mundo da sala e UM SO e a camera e de cada um. As
-   moedas, os blocos quebraveis e os bichos sao entidades do MUNDO do anfitriao
-   (nao de cada jogador): quem pega tira de todo mundo, e os pontos ficam so
-   com quem pegou. A geometria e a mesma para todos - a do anfitriao -, mas
-   cada aparelho olha a fase pela sua propria janela, centrada no personagem de
-   casa: os outros jogadores aparecem, cada um com a sua cor, quando entram no
-   campo de visao. O convidado continua adivinhando so o proprio corpo (fase
-   10) e corrigindo de leve (25% do erro por retrato, ou de uma vez quando o
-   erro passa de 90px) com o retrato que chega 20 vezes por segundo.
+   FASE 12 do plano: a bandeira e o checkpoint sao da SALA. O primeiro jogador
+   que encostar na bandeira - anfitriao ou convidado, tanto faz - fecha a fase
+   para todo mundo junto, e o mastro que um acende passa a valer para o grupo
+   inteiro: dali em diante e nele que a sala renasce. O mundo ja era um so
+   desde a fase 11 (moedas, blocos e bichos do MUNDO do anfitriao: quem pega
+   tira de todos e os pontos ficam so com quem pegou), com a camera de cada
+   aparelho centrada no personagem de casa e os outros jogadores aparecendo,
+   cada um com a sua cor, quando entram no campo de visao. O convidado continua
+   adivinhando so o proprio corpo (fase 10) e corrigindo de leve (25% do erro
+   por retrato, ou de uma vez quando o erro passa de 90px) com o retrato que
+   chega 20 vezes por segundo.
 
      - `Fisica`: as funcoes puras do movimento, com colisao AABB contra os
        blocos solidos do mapa (para em cima, nao atravessa, bate a cabeca).
@@ -20,7 +22,7 @@
        o estado dos itens e devolve um estado NOVO, com o que aconteceu.
      - `Progresso`: as vidas e os checkpoints. Cair custa uma vida e devolve o
        heroi ao ultimo checkpoint ligado; sem vidas, a fase inteira recomeca.
-       Puro tambem.
+       Numa sala o mastro aceso e do grupo (`compartilhar`). Puro tambem.
      - `Inimigos`: a patrulha do goomba e da turtle (ida e volta na plataforma,
        2px por quadro) e o que acontece no contato: pisar em cima derrota
        (+20 pontos; a turtle vira casco), encostar de frente custa uma vida.
@@ -65,8 +67,10 @@
 
    Com uma sala aberta, o mundo passa a ser UM SO e quem manda nele e o
    anfitriao: `jogo.jogadores` deixa de ter uma linha e passa a ter uma por
-   pessoa da sala, cada uma com o seu corpo, os seus pontos, as suas vidas e os
-   seus checkpoints. O anfitriao anda com todos eles no mesmo mapa (as mesmas
+   pessoa da sala, cada uma com o seu corpo, os seus pontos e as suas vidas (os
+   checkpoints acesos sao os mesmos para todos, porque o mastro e do grupo, e a
+   bandeira fecha a fase para a sala inteira). O anfitriao anda com todos eles
+   no mesmo mapa (as mesmas
    moedas, os mesmos bichos, as mesmas plataformas) e manda o retrato pronto; o
    convidado manda as teclas, copia o mundo que chega e adivinha por conta
    propria um corpo so - o dele. O jogador local continua sendo `jogo.heroi`
@@ -74,13 +78,20 @@
    muda em nada.
 
    O que e do MUNDO fica solto no `jogo` (`itens`, `inimigos`, `moveis`,
-   `limites`) e o que e de cada um fica na linha dele (`corpo`, `pontos`,
-   `vidas`, `progresso`, `entrada`). Dai sai a regra do mundo compartilhado:
-   moeda pega some para todos, bloco quebrado cai para todos, bicho pisado nao
-   volta para ninguem - e so o placar de quem fez e que sobe. Cair num buraco,
-   ao contrario, e problema de quem caiu: o mundo dos outros nao e mexido (e
-   por isso `reiniciarFase()` e `Inimigos.reposicionar()` so acontecem sozinho,
-   nunca numa sala).
+   `limites`, `quemChegou`) e o que e de cada um fica na linha dele (`corpo`,
+   `pontos`, `vidas`, `progresso`, `entrada`). Dai sai a regra do mundo
+   compartilhado: moeda pega some para todos, bloco quebrado cai para todos,
+   bicho pisado nao volta para ninguem - e so o placar de quem fez e que sobe.
+   Cair num buraco, ao contrario, e problema de quem caiu: o mundo dos outros
+   nao e mexido (e por isso `reiniciarFase()` e `Inimigos.reposicionar()` so
+   acontecem sozinho, nunca numa sala).
+
+   Da mesma familia sao a BANDEIRA e o CHECKPOINT, que desde a fase 12 valem
+   para a sala inteira: o primeiro que encosta na bandeira fecha a fase de
+   todos (o retrato leva o `q` e o `w` - que a bandeira caiu e quem a tocou), e
+   o mastro que um acende entra na conta de todo mundo (`acenderNoGrupo`), de
+   modo que a lista de checkpoints e a mesma em todas as linhas. Os coracoes,
+   esses, continuam sendo de cada um.
 
    A camera, essa, e de cada aparelho: `seguirCamera()` centra a janela no
    personagem de casa, dentro da MESMA geometria que o anfitriao esta usando -
@@ -808,15 +819,20 @@
            ativos: [true, false, ...],  // quais checkpoints ja foram ligados
            atual: 0 }                   // o ultimo que ligou (-1 = nenhum)
 
-     As regras do PRD, em duas funcoes puras:
+     As regras do PRD, em funcoes puras:
 
        - `tocar()`  liga o checkpoint em que o heroi encostou. Uma vez ligado,
          ele fica ligado ate o fim da tentativa: checkpoint nao expira.
        - `perderVida()` tira um coracao. Sobrando vida, o heroi volta ao ultimo
          checkpoint ligado; sem nenhuma, a tentativa acaba e a fase inteira
          recomeca - vidas cheias de novo e todos os checkpoints apagados.
+       - `compartilhar()` liga o mesmo checkpoint na conta de OUTRO jogador:
+         numa sala o mastro e do grupo, quem acende acende para todos (PRD).
+       - `renovarVidas()` devolve os coracoes cheios SEM apagar os mastros -
+         e o que acontece com quem fica sem vidas numa sala, onde os
+         checkpoints acesos sao da fase e nao dele.
 
-     Como todo o resto, nenhuma das duas mexe no estado que recebe. */
+     Como todo o resto, nenhuma delas mexe no estado que recebe. */
   var Progresso = (function () {
 
     /** Um array de `n` posicoes, todas com `false`. */
@@ -862,12 +878,32 @@
     function tocar(estado, mapa, corpo) {
       var i = checkpointTocado(estado, mapa, corpo);
       if (i < 0) return { estado: estado, ativou: -1 };
+      return { estado: compartilhar(estado, i), ativou: i };
+    }
 
+    /**
+     * Liga o checkpoint `indice` neste estado, tenha ele encostado no mastro
+     * ou nao - e assim que o checkpoint de um jogador vale para o grupo
+     * inteiro. As vidas nao se misturam: cada um tem as suas. Devolve o
+     * MESMO estado quando o mastro ja estava aceso para ele.
+     */
+    function compartilhar(estado, indice) {
+      if (indice < 0 || estado.ativos[indice]) return estado;
       var ativos = estado.ativos.slice();
-      ativos[i] = true;
+      ativos[indice] = true;
+      return { vidas: estado.vidas, ativos: ativos, atual: indice };
+    }
+
+    /**
+     * Os coracoes cheios de novo, com os checkpoints como estao. Numa sala os
+     * mastros acesos sao da fase (do grupo), entao apagar os de quem ficou sem
+     * vidas o mandaria de volta para um comeco que o grupo ja deixou para tras.
+     */
+    function renovarVidas(estado) {
       return {
-        estado: { vidas: estado.vidas, ativos: ativos, atual: i },
-        ativou: i
+        vidas: VIDAS_INICIAIS,
+        ativos: estado.ativos,
+        atual: estado.atual
       };
     }
 
@@ -893,6 +929,8 @@
       nascedouro: nascedouro,
       checkpointTocado: checkpointTocado,
       tocar: tocar,
+      compartilhar: compartilhar,
+      renovarVidas: renovarVidas,
       perderVida: perderVida,
       VIDAS_INICIAIS: VIDAS_INICIAIS
     };
@@ -1326,6 +1364,7 @@
            f: 2,                   // a fase em jogo
            t: 940,                 // o relogio do anfitriao
            q: 0,                   // 1 = a bandeira ja foi tocada
+           w: -1,                  // quem tocou nela (indice; -1 = ninguem)
            j: [[i, x, y, dir, sinais, pontos, vidas, checkpoints], ...],
            m: [ ... ],             // as moedas que ainda existem, em bits
            b: [ ... ],             // idem para os blocos quebraveis
@@ -1333,8 +1372,9 @@
            v: [[x, y], ...] }               // as plataformas moveis
 
      `sinais` sao os dois bits que o desenho precisa (1 = com os pes no chao,
-     2 = andando) e `checkpoints` e a lista de acesos daquele jogador cabendo
-     num numero so. Cem moedas viram quatro numeros: cada um carrega 30 bits.
+     2 = andando) e `checkpoints` e a lista de mastros acesos cabendo num
+     numero so - ela e a mesma para todo mundo, porque o checkpoint e do grupo.
+     Cem moedas viram quatro numeros: cada um carrega 30 bits.
 
      Tudo aqui e funcao pura de conversao: `aplicar()` mexe no mundo que
      recebe, mas nao sabe desenhar nem tocar em tela nenhuma - o que ele
@@ -1446,6 +1486,7 @@
         k: 'e', n: numero | 0,
         f: estado.fase, t: estado.relogio | 0,
         q: estado.concluida ? 1 : 0,
+        w: estado.quemChegou >= 0 ? estado.quemChegou : -1,
         j: jogadores,
         m: empacotar(estado.itens.moedas),
         b: empacotar(estado.itens.blocos),
@@ -1507,7 +1548,9 @@
         j.pontos = linha[5];
         j.vidas = linha[6];
         var ativos = deBits(linha[7], mapa.checkpoints.length);
-        // As faiscas do checkpoint sao so de quem acendeu ele.
+        /* As faiscas do checkpoint saem uma vez so, na linha do jogador de
+           casa - e a lista dele ja traz os mastros que os OUTROS acenderam,
+           porque o checkpoint e do grupo. */
         if (j.local) {
           for (var c = 0; c < ativos.length; c++) {
             if (ativos[c] && !j.progresso.ativos[c]) novidades.checkpoints.push(c);
@@ -1555,6 +1598,9 @@
       alvo.moveis = { lista: pontes };
       alvo.limites = Moveis.limitesCom(alvo.itens.limites, alvo.moveis);
       alvo.relogio = d.t | 0;
+      // Quem chegou na bandeira: a fase e da sala, entao todos veem o mesmo
+      // nome no quadro de fim de fase - mesmo quem estava do outro lado do mapa.
+      alvo.quemChegou = typeof d.w === 'number' ? d.w : -1;
 
       return novidades;
     }
@@ -1937,6 +1983,7 @@
     vidas: $('hud-vidas'),
     fase: $('hud-fase'),
     faseNumero: $('fase-numero'),
+    faseSubtitulo: $('fase-subtitulo'),
     fasePontos: $('fase-pontos'),
     faseBonus: $('fase-bonus'),
     faseProxima: $('fase-proxima'),
@@ -2327,6 +2374,7 @@
     relogio: 0,                         // quadros desde o inicio da partida
     tentativas: 1,                      // sobe toda vez que as vidas acabam
     concluida: false,                   // ja tocou a bandeira?
+    quemChegou: -1,                     // o indice de quem tocou nela (-1 = ninguem)
     camera: 0,
     fase: 1,                            // a fase 1 de 3
     corrida: Corrida.novoEstado(),      // o caderninho das tres fases
@@ -2477,6 +2525,7 @@
     jogo.limites = Moveis.limitesCom(jogo.itens.limites, jogo.moveis);
     jogo.efeitos.length = 0;
     jogo.concluida = false;
+    jogo.quemChegou = -1;
 
     for (var i = 0; i < jogo.jogadores.length; i++) {
       var j = jogo.jogadores[i];
@@ -2573,12 +2622,14 @@
     emitir('vida-perdida');
   }
 
-  /* Numa partida em grupo, quem fica sem coracoes volta sozinho para o comeco
-     da fase - vidas cheias e checkpoints apagados de novo. O mundo NAO
-     recomeca (as moedas e os bichos sao de todos), e por isso os pontos que
-     ele ja fez continuam com ele: aquelas moedas nao voltaram para o mapa. */
+  /* Numa partida em grupo, quem fica sem coracoes ganha os coracoes de volta e
+     renasce no checkpoint do GRUPO. O mundo NAO recomeca (as moedas e os
+     bichos sao de todos), e por isso os pontos que ele ja fez continuam com
+     ele: aquelas moedas nao voltaram para o mapa. Os mastros acesos tambem
+     ficam onde estao - eles sao da fase, e apaga-los mandaria um jogador so de
+     volta para um comeco que a sala inteira ja deixou para tras. */
   function recomecarJogador(j) {
-    aplicarProgresso(j, Progresso.novoEstado(fase));
+    aplicarProgresso(j, Progresso.renovarVidas(j.progresso));
     nascer(j);
     emitir('jogador-recomecou');
   }
@@ -2652,14 +2703,28 @@
   }
 
   /* Encostou num checkpoint apagado? Ele acende - e fica aceso ate o fim da
-     tentativa, mesmo depois de o jogador passar direto por ele. Nesta fase
-     cada um tem os seus; o checkpoint do grupo e a fase 12. */
+     tentativa, mesmo depois de o jogador passar direto por ele. Numa sala o
+     mastro e do GRUPO: quem encosta acende para todo mundo, e dali em diante
+     e nele que a sala inteira renasce (o PRD pede checkpoint compartilhado).
+     Sozinho a lista tem uma linha so e nada muda. */
   function atualizarCheckpoints(j) {
     var r = Progresso.tocar(j.progresso, fase, j.corpo);
     if (r.ativou < 0) return;
     aplicarProgresso(j, r.estado);
+    acenderNoGrupo(j, r.ativou);
     soltarEfeito('checkpoint', fase.checkpoints[r.ativou], EFEITO_CHECKPOINT);
     emitir('checkpoint');
+  }
+
+  /* Passa o mastro que `quemAcendeu` ligou para os outros jogadores da fase.
+     So os checkpoints viajam: os coracoes continuam sendo de cada um. */
+  function acenderNoGrupo(quemAcendeu, indice) {
+    for (var i = 0; i < jogo.jogadores.length; i++) {
+      var outro = jogo.jogadores[i];
+      if (outro === quemAcendeu) continue;
+      var novo = Progresso.compartilhar(outro.progresso, indice);
+      if (novo !== outro.progresso) aplicarProgresso(outro, novo);
+    }
   }
 
   // ------------------------------------------------- Pausa e tela cheia ----
@@ -2764,8 +2829,18 @@
     atualizarControles();
   }
 
+  /* A linha de baixo do quadro de fim de fase. Sozinho e sempre "você"; numa
+     sala, o nome de quem tocou a bandeira primeiro - ela vale para o grupo
+     inteiro, entao quem ficou para tras precisa saber por que a fase acabou. */
+  function recadoDaBandeira() {
+    var quem = emGrupo() ? Pacote.porIndice(jogo.jogadores, jogo.quemChegou) : null;
+    if (!quem || quem.local) return 'Você chegou na bandeira 🚩';
+    return (quem.apelido || 'Outro jogador') + ' chegou na bandeira primeiro 🚩';
+  }
+
   function mostrarFimDeFase(linha) {
     atualizarControles();
+    el.faseSubtitulo.textContent = recadoDaBandeira();
     el.faseNumero.textContent = String(linha.numero);
     el.fasePontos.textContent = String(linha.pontos);
     el.faseBonus.textContent = '+' + linha.bonus;
@@ -2803,9 +2878,15 @@
 
   /* Encostou na bandeira: a fase entra no caderno com o bonus de +50 e o jogo
      para (o `atualizar()` volta na primeira linha enquanto `concluida` for
-     verdade), esperando o clique que leva para a fase seguinte. */
-  function concluirFase() {
+     verdade), esperando o clique que leva para a fase seguinte.
+
+     `quemChegou` e a linha de quem tocou a bandeira, e so o anfitriao (ou quem
+     joga sozinho) sabe disso na hora: no convidado a chamada vem do retrato,
+     que ja trouxe o indice de quem chegou. O caderno e sempre o DAQUI - cada
+     um fecha a fase com os pontos que ele mesmo fez. */
+  function concluirFase(quemChegou) {
     jogo.concluida = true;
+    if (quemChegou) jogo.quemChegou = quemChegou.indice;
     jogo.corrida = Corrida.concluir(jogo.corrida, jogo.fase, jogo.pontos);
     emitir('fase-concluida');
 
@@ -2856,10 +2937,12 @@
       j = seguem[i];
       if (atualizarInimigos(j, antes[i])) continue;    // o contato custou uma vida
       atualizarCheckpoints(j);
-      // Nesta fase quem fecha a fase e o jogador de casa; a bandeira valendo
-      // para a sala inteira e a fase 12.
-      if (j.local && Fisica.tocandoCorpo(j.corpo, fase.bandeira)) {
-        concluirFase();
+      /* A bandeira e da sala: o PRIMEIRO que encostar nela fecha a fase para
+         todo mundo, seja ele o anfitriao ou um convidado do outro lado do
+         mapa. Se dois encostarem no mesmo quadro, vale quem vem antes na
+         lista (a ordem do `indice`, igual em todos os aparelhos). */
+      if (Fisica.tocandoCorpo(j.corpo, fase.bandeira)) {
+        concluirFase(j);
         return;
       }
     }
@@ -3128,8 +3211,8 @@
       seguirCamera();
       atualizarHud();
 
-      // A bandeira: o anfitriao ja chegou nela e o quadro de fim de fase sobe
-      // aqui tambem, com os pontos que ESTE jogador fez.
+      // A bandeira: alguem da sala ja chegou nela (o `w` diz quem) e o quadro
+      // de fim de fase sobe aqui tambem, com os pontos que ESTE jogador fez.
       if (d.q && !jogo.concluida) concluirFase();
     }
 
