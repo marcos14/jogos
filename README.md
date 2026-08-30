@@ -7,6 +7,7 @@ novos enviando um `.zip`.
 ```
 docker-compose.yml   sobe tudo com um comando
 .env                 senha do admin e configurações (você cria a partir do .env.example)
+AGENTS.md            leia antes de criar um jogo novo — o passo a passo e o checklist
 PLATAFORMA.md        o padrão que os jogos seguem (multijogador, ranking, privacidade)
 jogos/               é aqui que os jogos moram — uma pasta por jogo
   galinha_feliz/     o jogo que já existia, agora no padrão
@@ -83,7 +84,8 @@ Se a conexão cair ou quem criou a sala fechar a aba, todo mundo volta para a
 sala e um novo anfitrião assume — ninguém fica preso numa tela parada.
 
 Para colocar multijogador (e, mais para a frente, ranking e políticas) num jogo
-novo, veja [PLATAFORMA.md](PLATAFORMA.md).
+novo, comece por [AGENTS.md](AGENTS.md) — é o passo a passo com o checklist do
+que será cobrado. O detalhe da plataforma está em [PLATAFORMA.md](PLATAFORMA.md).
 
 ## O arquivo `jogo.json`
 
