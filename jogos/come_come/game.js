@@ -1,12 +1,14 @@
 /* ==========================================================================
    COME-COME  -  labirinto de fliperama, no clima dos consoles de 8 bits
    --------------------------------------------------------------------------
-   FASE 7 do plano: A INTERFACE COMPLETA.
-   A corrida das tres fases ja estava de pe desde a fase 6b, mas o jogo abria
-   direto no labirinto e so saia dele recarregando a pagina. Agora ele tem a
-   MOLDURA inteira: o menu de entrada com o campo do nome, os botoes de pausa e
-   de tela cheia no HUD, o quadro de pausa que congela o mundo e oferece voltar
-   ou recomecar, e o cartaz com o lembrete dos controles no canto do palco.
+   FASE 8 do plano: ENTRAR NA CENTRAL.
+   A partida solo inteira ja estava de pe desde a fase 7. Agora o menu tem duas
+   portas: JOGAR SOZINHO, que e o jogo de sempre, e JOGAR COM AMIGOS, que abre
+   o lobby da Central (criar sala, codigo de 4 letras, quem chegou, comecar) e
+   leva a turma inteira para o labirinto junta. O que muda no jogo, nesta fase,
+   e so a MOLDURA da sala: o codigo no HUD, o papel de cada aparelho e as
+   saidas de emergencia (a sala acabou, o anfitriao caiu). O mundo unico do
+   anfitriao - um come-come por pessoa no mesmo labirinto - e a fase 9.
 
    O chao de tudo (fase 1) continua sendo o mesmo:
 
@@ -194,11 +196,38 @@
    aparece na tela) e escolhido pelo CSS, mantendo a proporcao: as contas do
    jogo acontecem sempre nos mesmos 448 x 496, em qualquer aparelho.
 
+   E o que a fase 8 poe por cima - A CENTRAL, no fim do arquivo:
+
+     - O `index.html` carrega o `/plataforma/sdk.js`, o unico caminho absoluto
+       do jogo. Servido pela Central ele existe; aberto direto do disco, nao -
+       e ai `window.Plataforma` e `undefined`, o botao dos amigos continua
+       escondido e o resto do arquivo nem fica sabendo que existe rede. Essa e
+       a regra de ouro da plataforma, e e por isso que TODO o codigo de rede
+       mora atras de um portao so, na ultima linha do arquivo.
+     - `Rede`: o pedaco que fala com a Central. Ele liga o SDK (`iniciar`),
+       mostra o botao, abre o lobby com os quatro ganchos do contrato
+       (`aoComecar`, `aoReceber`, `aoTerminar`, `aoAbortar`, com
+       `voltarAoLobby: false` - depois da partida quem manda na tela e o jogo)
+       e guarda o instantaneo da sala em `rede`.
+     - O lobby e da PLATAFORMA, inteiro: nome, criar sala, entrar pelo codigo
+       de 4 letras, lista de salas abertas na rede de casa, quem ja chegou e o
+       botao de comecar. O jogo nao redesenha nada disso.
+     - Comecada a sala, todo mundo cai no labirinto 1 pelo mesmo
+       `comecarPartida()` de sempre, com o codigo da sala no HUD e cada
+       aparelho sabendo se e `anfitriao` ou `convidado`. NESTA FASE cada um
+       ainda simula o seu proprio labirinto - o mundo unico e a fase 9.
+     - As saidas de emergencia, que nunca podem deixar ninguem preso numa tela
+       parada: o anfitriao caindo (`aoAbortar`) devolve todo mundo ao menu com
+       o motivo na tarja vermelha; a partida encerrada pela Central
+       (`aoTerminar`) faz o mesmo; e "JOGAR SOZINHO" larga a sala a qualquer
+       momento e volta a ser o jogo de um jogador so.
+
    O que da para fazer hoje e a partida solo INTEIRA, do menu ao fim: os tres
    labirintos em fila, comendo as pastilhas todas e fugindo dos quatro, virando
    o jogo com a bolota do canto - e ou se chega ao PARABENS com o total das
-   tres fases, ou os fantasmas cobram as tres vidas antes disso. A Central
-   (jogar com amigos) e a proxima fase do plano.
+   tres fases, ou os fantasmas cobram as tres vidas antes disso. E, com a
+   Central no ar, da para abrir uma sala e levar a turma para o mesmo labirinto
+   - cada um no seu mundo por enquanto: dividi-lo e a fase 9.
    ========================================================================== */
 
 (function () {
@@ -2185,6 +2214,13 @@
     btnPausa: $('btn-pausa'),
     btnTelaCheia: $('btn-tela-cheia'),
 
+    // A sala (fase 8): o codigo de 4 letras no HUD, so nas partidas em grupo,
+    // e a tarja de recado do menu (a sala acabou, o anfitriao caiu).
+    hudSala: $('hud-sala'),
+    hudSalaCodigo: $('hud-sala-codigo'),
+    btnAmigos: $('btn-amigos'),
+    aviso: $('aviso'),
+
     // A moldura da fase 7: o menu de entrada, o quadro de pausa e o cartaz
     // com o lembrete dos controles.
     menu: $('tela-menu'),
@@ -2867,11 +2903,13 @@
   }
 
   /* Comeca (ou recomeca) a corrida inteira: caderno em branco, vidas cheias,
-     labirinto 1. E o que fazem o "JOGAR" do menu, o "RECOMECAR" da pausa e os
-     dois "JOGAR DE NOVO" das telas de fim - um caminho so, para nao existir
-     duas maneiras diferentes de comecar uma partida. */
+     labirinto 1. E o que fazem o "JOGAR SOZINHO" do menu, o "RECOMECAR" da
+     pausa, os dois "JOGAR DE NOVO" das telas de fim e a sala que comeca - um
+     caminho so, para nao existir duas maneiras diferentes de comecar uma
+     partida. Ele NAO mexe na sala: quem entra e quem sai de uma e o `Rede`. */
   function comecarPartida() {
     definirPausa(false);               // recomecar pela pausa descongela tudo
+    Rede.avisar('');                   // nenhuma tarja de sala sobra na partida
     jogo.apelido = apelidoDoCampo();
     guardarApelido(jogo.apelido);
     jogo.corrida = Corrida.novoEstado();
@@ -2883,19 +2921,58 @@
     ajustarPalco();
   }
 
-  el.btnJogar.addEventListener('click', comecarPartida);
-  el.btnDeNovo.addEventListener('click', comecarPartida);
-  el.btnFimDeNovo.addEventListener('click', comecarPartida);
+  /* "JOGAR SOZINHO": larga qualquer sala em que se esteja e comeca a corrida
+     de um jogador so. Sem a Central no ar isto e literalmente o botao JOGAR de
+     sempre - `sairDaSala()` nao tem sala nenhuma para largar. */
+  function comecarSolo() {
+    Rede.sairDaSala();
+    comecarPartida();
+  }
+
+  /* Os dois "JOGAR DE NOVO" das telas de fim. Sozinho eles recomecam a corrida
+     na hora. Numa sala a partida e de todos: quando ela acaba, a Central
+     devolve a sala ao lobby - entao o caminho e voltar para la, onde o
+     anfitriao pode comecar outra com a turma inteira. */
+  function jogarDeNovo() {
+    if (rede.sala) {
+      voltarAoMenu();
+      Rede.abrirLobby();
+      return;
+    }
+    comecarPartida();
+  }
+
+  /* Volta para a tela inicial, com o mundo parado atras dela. So a rede precisa
+     disto: quando a sala acaba ou o anfitriao cai, ninguem pode ficar preso
+     numa partida que nao existe mais. A tarja de recado NAO e limpa aqui - e
+     ela que vai explicar, no menu, por que a partida terminou. */
+  function voltarAoMenu() {
+    definirPausa(false);
+    jogo.tela = 'menu';
+    entrada.desejada = null;
+    exibir(el.telaFase, false);
+    exibir(el.telaFim, false);
+    exibir(el.telaParabens, false);
+    exibir(el.hud, false);
+    exibir(el.menu, true);
+    atualizarControles();
+  }
+
+  el.btnJogar.addEventListener('click', comecarSolo);
+  el.btnDeNovo.addEventListener('click', jogarDeNovo);
+  el.btnFimDeNovo.addEventListener('click', jogarDeNovo);
+  // "Recomecar" nao larga a sala: quem quer voltar a jogar sozinho clica em
+  // "JOGAR SOZINHO", no menu.
   el.btnRecomecar.addEventListener('click', comecarPartida);
   el.btnPausa.addEventListener('click', alternarPausa);
   el.btnContinuar.addEventListener('click', function () { definirPausa(false); });
   el.btnTelaCheia.addEventListener('click', alternarTelaCheia);
 
-  // Digitar o nome e apertar Enter e o mesmo que clicar em JOGAR.
+  // Digitar o nome e apertar Enter e o mesmo que clicar em JOGAR SOZINHO.
   el.campoApelido.addEventListener('keydown', function (ev) {
     if (ev.key !== 'Enter') return;
     ev.preventDefault();
-    comecarPartida();
+    comecarSolo();
   });
 
   document.addEventListener('fullscreenchange', aoMudarTelaCheia);
@@ -2904,6 +2981,182 @@
   // Os testes dirigem a moldura por aqui, sem precisar do DOM inteiro.
   window.ComeCome.alternarPausa = function () { alternarPausa(); };
   window.ComeCome.comecarPartida = function () { comecarPartida(); };
+  window.ComeCome.voltarAoMenu = function () { voltarAoMenu(); };
+
+  /* ==========================================================================
+     A CENTRAL  -  o jogo em cima da Plataforma da rede de casa
+     --------------------------------------------------------------------------
+     Todo o codigo de rede mora aqui dentro, e nada disto acontece se o
+     `window.Plataforma` nao existir (jogo aberto direto do disco, ou servidor
+     fora do ar): o botao "JOGAR COM AMIGOS" continua escondido e o resto do
+     arquivo nem sabe que a rede existe. O portao e um so, e e a ultima coisa
+     do arquivo.
+
+     NESTA FASE a sala e so a moldura: o lobby da Central, o codigo no HUD, o
+     papel de cada aparelho e as saidas de emergencia. Cada aparelho ainda
+     simula o seu proprio labirinto. Dividir o mundo - um come-come por pessoa,
+     o anfitriao simulando todos - e a fase 9:
+
+         CONVIDADO                 ANFITRIAO                  CONVIDADO
+         teclas  ---------------->  simula o mundo  -------->  desenha, preve
+         (20x/s)                    inteiro, com todos         (20x/s)  e corrige
+     ========================================================================== */
+  var rede = {
+    ligada: false,        // o multijogador da plataforma respondeu "de pe"
+    sala: null,           // o instantaneo da sala, numa partida em grupo
+    papel: 'solo',        // 'solo' | 'anfitriao' | 'convidado'
+    recebidas: 0,         // pacotes que chegaram de outros jogadores
+    ultimaMensagem: null  // o ultimo deles, cru
+  };
+
+  var Rede = (function () {
+    var P = null;         // o SDK da Central, ja iniciado
+    var mj = null;        // P.multijogador
+
+    /* Liga o jogo na plataforma. Devolve `false` (e nao muda nada na tela)
+       quando o multijogador nao esta disponivel - e o caso do servidor fora do
+       ar, em que o jogo segue sendo o de sempre, so sozinho. */
+    function iniciar(plataforma) {
+      P = plataforma || null;
+      mj = P && P.multijogador;
+      if (!mj || !mj.disponivel) return false;
+
+      rede.ligada = true;
+      // O erro que o servidor devolve (sala cheia, codigo que nao existe) vira
+      // a tarja do menu: a crianca precisa saber o que aconteceu.
+      mj.em('erro', function (texto) { avisar(texto); });
+
+      el.btnAmigos.classList.remove('hidden');
+      el.btnAmigos.addEventListener('click', abrirLobby);
+      return true;
+    }
+
+    /* O lobby e da plataforma, inteiro: nome do jogador, criar sala, entrar
+       com o codigo de 4 letras, lista de salas abertas na rede de casa, quem
+       ja chegou e o botao de comecar. O jogo so diz o que fazer nos quatro
+       momentos que interessam a ele. */
+    function abrirLobby() {
+      if (!mj) return;
+      definirPausa(false);
+      avisar('');
+      /* O nome digitado no menu e o apelido da sala: a crianca escreve o nome
+         dela uma vez so. Campo vazio nao apaga o que ja estava guardado - o
+         proprio lobby tem um campo de nome, e quem chega nele com o nome
+         preenchido nao precisa digitar nada. */
+      var nome = apelidoDoCampo();
+      if (nome && P && P.perfil) P.perfil.definirApelido(nome);
+      mj.abrirLobby({
+        aoComecar: comecar,
+        aoReceber: receber,
+        aoTerminar: terminar,
+        aoAbortar: abortar,
+        // Depois da partida quem manda na tela e o jogo (a tela de PARABENS);
+        // o lobby so volta quando a crianca clicar em "JOGAR COM AMIGOS".
+        voltarAoLobby: false
+      });
+    }
+
+    /* A sala comecou: todo mundo cai no labirinto 1 junto, pelo mesmo caminho
+       de sempre, com o codigo da sala no HUD. O apelido passa a ser o que ficou
+       na sala (o lobby deixa trocar), e nao mais o do campo do menu. */
+    function comecar(sala) {
+      rede.sala = sala;
+      rede.papel = sala.souAnfitriao ? 'anfitriao' : 'convidado';
+      rede.recebidas = 0;
+      rede.ultimaMensagem = null;
+      mostrarSala();
+      comecarPartida();
+
+      // O lobby deixa trocar o nome: quem manda e o que ficou na sala, e ele
+      // fica guardado aqui tambem - o menu da proxima vez ja abre com ele.
+      var naSala = apelidoNaSala(sala);
+      if (naSala) {
+        jogo.apelido = naSala;
+        el.campoApelido.value = naSala;
+        guardarApelido(naSala);
+      }
+    }
+
+    /** O apelido deste aparelho dentro da sala, como os outros o veem. */
+    function apelidoNaSala(sala) {
+      var todos = (sala && sala.jogadores) || [];
+      for (var i = 0; i < todos.length; i++) {
+        if (todos[i].id === sala.eu) return todos[i].apelido || '';
+      }
+      return '';
+    }
+
+    /* Chegou um pacote de outro jogador. Na fase 8 o cano ja esta aberto nos
+       dois sentidos, mas ninguem tem o que dizer ainda: o conteudo dos pacotes
+       (o mundo do anfitriao, as teclas do convidado) e a fase 9. Aqui eles so
+       ficam anotados - e pacote de uma sala que ja acabou vai para o lixo. */
+    function receber(msg) {
+      if (!rede.sala) return;
+      rede.recebidas++;
+      rede.ultimaMensagem = msg;
+    }
+
+    /* A partida da sala foi encerrada pela Central. Ninguem pode ficar preso
+       numa partida que nao existe mais: todo mundo volta ao menu com o recado.
+       (O ranking da sala nesta tela e a fase 13.) */
+    function terminar() {
+      if (!rede.sala) return;
+      limparSala();
+      voltarAoMenu();
+      avisar('A partida da sala terminou.');
+    }
+
+    /* O anfitriao caiu (ou a sala se desfez). Era a maquina dele que mandava na
+       sala, entao nao ha partida em grupo para continuar: todo mundo volta ao
+       menu com o motivo na tarja vermelha, e dali da para jogar sozinho ou
+       abrir o lobby de novo (a Central ja escolheu um anfitriao novo). O que
+       nao pode acontecer, de jeito nenhum, e alguem ficar preso numa tela
+       parada. */
+    function abortar(motivo) {
+      if (!rede.sala) return;
+      var recado = (motivo && motivo.motivo) || 'A sala foi encerrada.';
+      limparSala();
+      voltarAoMenu();
+      avisar(recado);
+    }
+
+    /** Larga a sala e volta a ser um jogo de um jogador so. */
+    function sairDaSala() {
+      if (!rede.sala) return;
+      limparSala();
+      if (mj) mj.sair();
+    }
+
+    function limparSala() {
+      rede.sala = null;
+      rede.papel = 'solo';
+      mostrarSala();
+    }
+
+    /** O codigo da sala no HUD - so nas partidas em grupo. */
+    function mostrarSala() {
+      if (rede.sala) el.hudSalaCodigo.textContent = rede.sala.codigo;
+      exibir(el.hudSala, !!rede.sala);
+    }
+
+    /* A tarja de recado do menu. Texto vazio apaga e esconde. O que chega aqui
+       vem de outro aparelho (ou do servidor): e DADO, e por isso entra por
+       `textContent` - nunca por `innerHTML`. */
+    function avisar(texto) {
+      el.aviso.textContent = texto || '';
+      exibir(el.aviso, !!texto);
+    }
+
+    return {
+      iniciar: iniciar,
+      abrirLobby: abrirLobby,
+      sairDaSala: sairDaSala,
+      avisar: avisar
+    };
+  }());
+
+  window.ComeCome.rede = rede;
+  window.ComeCome.abrirLobby = function () { Rede.abrirLobby(); };
 
   // ----------------------------------------------------------------- HUD ----
   /* Pontos, vidas, fase e quantas pastilhas faltam ficam no HTML (fora do
@@ -3055,4 +3308,23 @@
   aoMudarTelaCheia();      // e o botao de tela cheia comeca no estado certo
   desenharCena();
   requestAnimationFrame(quadro);
+
+  /* --------------------------------------------------------- A Plataforma --
+     O SDK so existe quando o jogo e servido pela Central (`/plataforma/sdk.js`
+     e um caminho absoluto: aberto direto do disco ele nem carrega). E mesmo
+     tendo o SDK, `iniciar()` pode voltar dizendo que o multijogador nao esta
+     de pe - e ai tambem fica so o "JOGAR SOZINHO". Nos dois casos o jogo
+     inteiro continua funcionando; e por isso que este pedaco e o ULTIMO do
+     arquivo e nao segura nada: quando ele roda, o labirinto ja esta na tela.
+
+     O apelido guardado no aparelho vai junto: quem ja jogou aqui antes chega
+     ao lobby com o nome preenchido. */
+  window.ComeCome.pronta = window.Plataforma
+    ? window.Plataforma.iniciar({ jogo: 'come_come', apelido: lerApelidoGuardado() })
+        .then(function (P) { Rede.iniciar(P); return P; })
+        ['catch'](function (erro) {
+          console.warn('[come-come] plataforma fora do ar:', erro);
+          return null;
+        })
+    : null;
 }());

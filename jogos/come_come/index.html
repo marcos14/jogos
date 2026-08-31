@@ -22,7 +22,8 @@
        jeito que estava) e, quando as três acabam, o jogo termina.
 
        O HUD nasce escondido: no menu não há pontos, nem vidas, nem nada para
-       pausar. Ele entra junto com o labirinto, no clique do "JOGAR". -->
+       pausar. Ele entra junto com o labirinto, quando a partida começa — pelo
+       "JOGAR SOZINHO" ou pela sala da Central. -->
   <header id="hud" class="hidden">
     <div class="hud-box">
       <span class="hud-label">Pontos</span>
@@ -39,6 +40,14 @@
     <div class="hud-box">
       <span class="hud-label">Faltam</span>
       <strong id="hud-faltam">244</strong>
+    </div>
+
+    <!-- Só existe nas partidas em grupo: o código da sala em que você está,
+         para quem chegou depois conseguir digitar o mesmo. Jogando sozinho
+         esta caixa nem aparece. -->
+    <div id="hud-sala" class="hud-box hidden">
+      <span class="hud-label">Sala</span>
+      <strong id="hud-sala-codigo">----</strong>
     </div>
 
     <!-- Os dois botões da partida. Eles moram no HUD, então só aparecem com o
@@ -87,10 +96,10 @@
       </div>
     </section>
 
-    <!-- Tela inicial: é por onde o jogo começa. O nome fica guardado no
-         aparelho (localStorage) para a criança não ter que digitar de novo a
-         cada partida — e é ele que vai virar o apelido da sala quando o jogo
-         entrar na Central. -->
+    <!-- Tela inicial: é por onde o jogo começa, pelas duas portas. O nome fica
+         guardado no aparelho (localStorage) para a criança não ter que digitar
+         de novo a cada partida — e é ele que vira o apelido dela na sala da
+         Central. -->
     <section id="tela-menu" class="tela">
       <div class="painel">
         <h1 class="titulo">COME<br><span class="destaque">COME</span></h1>
@@ -101,14 +110,25 @@
                placeholder="Digite seu nome">
 
         <div class="botoes">
-          <button id="btn-jogar" type="button" class="botao">JOGAR</button>
+          <button id="btn-jogar" type="button" class="botao">JOGAR SOZINHO</button>
+
+          <!-- Só aparece quando a Central está no ar e o multijogador da
+               plataforma está de pé. Aberto direto do disco (sem servidor), o
+               /plataforma/sdk.js nem carrega, este botão continua escondido e
+               o jogo inteiro funciona sozinho. -->
+          <button id="btn-amigos" type="button" class="botao botao-claro hidden">JOGAR COM AMIGOS</button>
         </div>
+
+        <!-- Os recados da sala (a partida do grupo acabou, o anfitrião caiu,
+             deu erro na hora de entrar). Fica vazio e escondido no dia a dia. -->
+        <p id="aviso" class="aviso hidden"></p>
 
         <ul class="ajuda">
           <li><b>&larr; &uarr; &rarr; &darr;</b> ou <b>W A S D</b> — virar nas esquinas</li>
           <li><b>P</b> ou <b>ESC</b> — pausar &nbsp;·&nbsp; <b>F</b> — tela cheia</li>
           <li>🟡 coma todas as pastilhas para limpar o labirinto</li>
           <li>⬤ a bolota grande deixa os fantasmas azuis: corra atrás deles!</li>
+          <li>👥 <b>JOGAR COM AMIGOS</b> abre uma sala para até 5 na rede de casa</li>
         </ul>
       </div>
     </section>
@@ -172,6 +192,11 @@
   <footer id="rodape">Setas ou W A S D para virar nas esquinas — coma todas as pastilhas e use o túnel dos lados. Morda uma bolota grande e os fantasmas ficam azuis: aí é você que corre atrás deles! Quando eles piscarem em branco, o feitiço está acabando — e aí é melhor correr: encostar num fantasma bravo custa uma vida. <b>P</b> ou <b>ESC</b> pausa, <b>F</b> abre em tela cheia. Limpe os três labirintos para chegar ao PARABÉNS!</footer>
 </div>
 
+<!-- O SDK da Central. É o único caminho absoluto do jogo: servido pela
+     plataforma ele carrega e o "JOGAR COM AMIGOS" aparece; aberto direto do
+     disco (file://) ele simplesmente não existe, e o game.js segue sem ele —
+     nada aqui é obrigatório para o jogo funcionar. -->
+<script src="/plataforma/sdk.js" charset="utf-8"></script>
 <script src="game.js" charset="utf-8"></script>
 </body>
 </html>

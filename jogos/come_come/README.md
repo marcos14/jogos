@@ -5,9 +5,12 @@ corredores, coma todas as pastilhas e escape dos quatro fantasmas. Três
 labirintos, cada um mais difícil que o anterior — sozinho ou com até 5 amigos
 na mesma sala.
 
-> **Estado de hoje: fase 7 do plano.** A **partida solo está inteira, com a
-> moldura toda**: o jogo abre num **menu** (nome do jogo, campo do nome e o
-> botão JOGAR), tem **pausa** (botão do HUD, `P` ou `ESC`) que congela o mundo
+> **Estado de hoje: fase 8 do plano.** A **partida solo está inteira, com a
+> moldura toda**, e o menu já tem as **duas portas**: *JOGAR SOZINHO* e *JOGAR
+> COM AMIGOS*, que abre o lobby da Central e leva a turma para o mesmo
+> labirinto (o mundo de cada um ainda é o dele — dividi-lo é a fase 9). O jogo
+> abre num **menu** (nome do jogo, campo do nome e os dois botões),
+> tem **pausa** (botão do HUD, `P` ou `ESC`) que congela o mundo
 > e oferece continuar ou recomeçar, **tela cheia** (botão do HUD ou `F`) e um
 > **cartaz com o lembrete dos controles** no canto do labirinto. Dentro dela,
 > os três labirintos vêm em fila, cada um limpo abrindo o seguinte, e limpar o
@@ -19,15 +22,20 @@ na mesma sala.
 > por 200, 400, 800 e 1600; **o jogo machuca** — encostar num fantasma que não
 > está assustado custa uma vida, e quando as três acabam a partida termina numa
 > tela de fim de jogo; e cada labirinto é **mais difícil que o anterior**, por
-> uma tabela de dificuldade que mora num lugar só. Falta jogar **com amigos**:
-> a Central e a sala são a fase 8.
+> uma tabela de dificuldade que mora num lugar só. Falta o **mundo dividido**:
+> um come-come por pessoa no labirinto do anfitrião, que é a fase 9.
 
 ---
 
 ## Como se joga
 
-Digite o seu nome na tela inicial e clique em **JOGAR** (o `Enter` no campo faz
-o mesmo). O nome fica guardado no aparelho: da próxima vez ele já vem escrito.
+Digite o seu nome na tela inicial e clique em **JOGAR SOZINHO** (o `Enter` no
+campo faz o mesmo). O nome fica guardado no aparelho: da próxima vez ele já vem
+escrito.
+
+Se o jogo estiver aberto **pela Central** (e não direto do arquivo), aparece
+também o botão **JOGAR COM AMIGOS** — é ele que abre a sala. Veja a seção
+[Jogar com amigos](#jogar-com-amigos) mais abaixo.
 
 | Tecla | O que faz |
 |---|---|
@@ -348,6 +356,42 @@ tempos de saída e os ciclos daquela fase.
 
 ---
 
+## Jogar com amigos
+
+O botão **JOGAR COM AMIGOS** só existe quando o jogo é servido pela Central: o
+`index.html` carrega o `/plataforma/sdk.js` — o **único caminho absoluto** do
+jogo — e, aberto direto do disco, esse arquivo simplesmente não existe. Sem
+ele, `window.Plataforma` é `undefined`, o botão continua escondido e o jogo é
+exatamente o de sempre, inteiro, do menu ao PARABÉNS.
+
+Com a Central no ar, clicar nele abre o **lobby da plataforma** — que o jogo
+não redesenha: o nome, o botão de criar sala, o código de 4 letras, a lista de
+salas abertas na rede de casa, quem já chegou e o botão de começar são todos
+dela. O nome digitado no menu vira o apelido da sala (campo vazio não apaga o
+nome que já estava guardado — o próprio lobby tem um campo para isso).
+
+Começada a sala, as telas viram a página juntas: todo mundo cai no **labirinto
+1**, com o **código da sala no HUD** e cada aparelho sabendo se é `anfitriao`
+ou `convidado`. Daí em diante o jogo tem sempre por onde sair, porque ninguém
+pode ficar preso numa tela parada:
+
+| O que aconteceu | O que o jogo faz |
+|---|---|
+| **JOGAR SOZINHO**, a qualquer momento | larga a sala (`sair()`) e recomeça a corrida de um jogador só |
+| A Central encerra a partida (`aoTerminar`) | todos voltam ao menu com o recado na tarja |
+| O anfitrião cai (`aoAbortar`) | todos voltam ao menu com o **motivo** na tarja vermelha, prontos para jogar sozinhos ou abrir outra sala |
+| Chega pacote de uma sala que já acabou | é ignorado, sem barulho |
+
+Apelido, cor e motivo **vêm de outro aparelho**: são dados, não código. Tudo o
+que vem de fora entra na tela por `textContent`, nunca por `innerHTML`.
+
+O que **ainda não** existe é o mundo dividido: nesta fase cada aparelho simula
+o seu próprio labirinto, e o cano de mensagens está aberto mas vazio. Um
+come-come por pessoa no mundo do anfitrião, com as pastilhas disputadas, é a
+fase 9 em diante.
+
+---
+
 ## Decisões técnicas
 
 **Sem build, sem dependência, sem imagem.** O `index.html` abre sozinho, direto
@@ -414,11 +458,13 @@ mundo inteiro (inclusive o relógio, que é o mesmo dos fantasmas e do feitiço)
 mora nesse `atualizar()`, pausar é literalmente não chamá-lo: nada precisa ser
 salvo nem restaurado na volta.
 
-**Começar uma partida é um caminho só.** O `JOGAR` do menu, o `RECOMEÇAR` da
-pausa e os dois `JOGAR DE NOVO` (o do fim de jogo e o do PARABÉNS) passam todos
-pelo mesmo `comecarPartida()`, que zera o caderno da corrida, enche as vidas e
-carrega o labirinto 1. Não existem duas maneiras diferentes de recomeçar — e
-por isso não existe uma que esqueça de zerar alguma coisa.
+**Começar uma partida é um caminho só.** O `JOGAR SOZINHO` do menu, o
+`RECOMEÇAR` da pausa, os dois `JOGAR DE NOVO` (o do fim de jogo e o do
+PARABÉNS) e a sala que começa passam todos pelo mesmo `comecarPartida()`, que
+zera o caderno da corrida, enche as vidas e carrega o labirinto 1. Não existem
+duas maneiras diferentes de recomeçar — e por isso não existe uma que esqueça
+de zerar alguma coisa. Quem entra e quem sai de uma **sala** é outro pedaço (o
+`Rede`): `comecarPartida()` não encosta nela.
 
 **A tela cheia é do navegador, e o botão obedece a ele.** O pedido é feito para
 o documento inteiro (`documentElement`), que é o que funciona tanto com o
@@ -455,6 +501,8 @@ node testes/come_come/fase6a-tela.test.mjs  # os labirintos 2 e 3 percorridos at
 node testes/come_come/fase6b.test.mjs       # a corrida das três fases e o bônus
 node testes/come_come/fase6b-tela.test.mjs  # uma partida inteira, 1 → 2 → 3, até o PARABÉNS
 node testes/come_come/fase7-tela.test.mjs   # menu, pausa, recomeçar, tela cheia e controles
+node testes/come_come/fase8.test.mjs        # o jogo sem a Central, e a fiação do SDK
+node testes/come_come/fase8-tela.test.mjs   # 3 abas numa sala, pelo servidor de verdade
 ```
 
 O `fase2-tela.test.mjs` põe um **piloto automático** no volante: a cada centro
@@ -534,3 +582,25 @@ caderno em branco, vidas cheias, labirinto 1 cheio. No fim ele larga a
 imortalidade e prova a outra saída da corrida: perdendo as vidas no labirinto
 2, a tela de fim de jogo mostra os pontos da **corrida inteira**, e não só os
 daquela fase.
+
+O `fase8.test.mjs` cobre o lado que mais importa da plataforma: o jogo **sem
+ela**. Sem `window.Plataforma` o botão dos amigos fica escondido, `rede.ligada`
+é falso e o piloto automático atravessa a corrida inteira, do menu ao PARABÉNS,
+sem esbarrar em nada; com o SDK na página mas o multijogador fora do ar é a
+mesma coisa; e o SDK falhando em `iniciar()` também não derruba nada. Ele
+confere ainda que o `game.js` toca em `window.Plataforma` **em um lugar só** (o
+portão da última linha do arquivo), que `iniciar()` leva o slug e o apelido
+guardado, e que o lobby é aberto com os quatro ganchos e `voltarAoLobby:
+false`. Com uma Central de mentira, ele percorre cada gancho: a sala começando
+(labirinto 1, código no HUD, papel certo), o anfitrião caindo e a partida
+terminando — os dois devolvendo todo mundo ao menu com o recado.
+
+O `fase8-tela.test.mjs` sobe o **servidor de salas de verdade** (o mesmo
+`salas.js` e o mesmo WebSocket escrito à mão do `server/src/plataforma/`) numa
+porta sorteada e põe **três abas** conversando com ele: Ana cria a sala, Bento
+e Caio entram pelo código de 4 letras, os três marcam pronto, a anfitriã começa
+e as três caem no labirinto 1 — com o código no HUD, o papel de cada uma e o
+cano de mensagens aberto nos dois sentidos. No fim ele desmancha a sala: Caio
+sai pelo *JOGAR SOZINHO* e continua jogando, e a anfitriã fecha a aba, o que
+devolve os outros ao menu com o motivo na tarja — jogáveis na hora, sem
+recarregar nada.

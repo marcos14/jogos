@@ -12,6 +12,7 @@
   --rosa:     #ffb8de;
   --branco:   #fcfcfc;
   --cinza:    #6c6c74;
+  --vermelho: #d02020;
 }
 
 *{ box-sizing: border-box; }
@@ -293,6 +294,28 @@ body{
 
 .ajuda li{ margin: 4px 0; }
 .ajuda b{ color: var(--amarelo); }
+
+/* ------------------------------------------------------------- A sala -- */
+/* A tarja do menu: o motivo de uma partida em grupo ter acabado, ou o erro que
+   o servidor devolveu na hora de entrar numa sala. Vermelha para ser lida sem
+   procurar, e escondida enquanto não há recado nenhum. */
+.aviso{
+  margin: 16px auto 0;
+  max-width: 420px;
+  background: var(--vermelho);
+  border: 3px solid var(--branco);
+  padding: 6px 10px;
+  font-size: clamp(10px, 2vw, 13px);
+  letter-spacing: 1px;
+  line-height: 1.4;
+}
+
+/* O código da sala no HUD: amarelo e espaçado, para a criança do lado
+   conseguir copiar olhando a tela do amigo. */
+#hud-sala strong{
+  color: var(--amarelo);
+  letter-spacing: 3px;
+}
 
 /* ------------------------------------------------------------ Tela cheia -- */
 /* O pedido de tela cheia é feito para o documento inteiro (`<html>`), que é o
