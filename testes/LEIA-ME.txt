@@ -46,6 +46,8 @@ sem abrir navegador.
     node testes/come_come/fase4-tela.test.mjs        a bolota e os 200 + 400 no HUD
     node testes/come_come/fase5.test.mjs             as vidas, o tombo e o reinicio da rodada
     node testes/come_come/fase5-tela.test.mjs        perder as tres vidas ate o fim de jogo
+    node testes/come_come/fase6a.test.mjs            os tres desenhos e a tabela de dificuldade
+    node testes/come_come/fase6a-tela.test.mjs       os labirintos 2 e 3 ate ficarem limpos
 
 O harness.mjs de cada pasta tem o carregador e o corredor de testes. O do
 super_adventure tambem sabe subir o servidor das salas de verdade numa porta

@@ -1,11 +1,13 @@
 /* ==========================================================================
    COME-COME  -  labirinto de fliperama, no clima dos consoles de 8 bits
    --------------------------------------------------------------------------
-   FASE 5 do plano: AS VIDAS, O TOMBO E O REINICIO DA RODADA. Ate aqui os
-   quatro eram enfeite perigoso - davam susto e nao machucavam. Agora encostar
-   num CACADOR custa uma vida: o mundo para por um segundo e meio, o come-come
-   vai embora abrindo a boca, todo mundo volta para o lugar de comeco e o
-   labirinto continua do jeito que estava. Sem vidas, a partida solo acaba.
+   FASE 6a do plano: OS TRES LABIRINTOS, CADA UM MAIS DIFICIL QUE O ANTERIOR.
+   Ate aqui o jogo inteiro acontecia num labirinto so. Agora sao tres desenhos
+   diferentes - a Praca Redonda, a Vila Estreita e a Avenida Longa -, cada um
+   com o seu tunel numa linha diferente, e uma TABELA DE DIFICULDADE que diz,
+   num lugar so, o que muda de um para o outro: o feitico encurta, os
+   fantasmas apertam o passo, eles saem da casa mais cedo e a caca come o
+   tempo da dispersao.
 
    O chao de tudo (fase 1) continua sendo o mesmo:
 
@@ -120,16 +122,40 @@
        ser diferente - quem zera vira espectador ate a proxima fase -, mas isso
        e assunto de uma fase mais adiante.
 
-   O labirinto tem 28 colunas por 31 linhas de quadrados de 16px - 448 x 496
+   E o que a fase 6a poe por cima:
+
+     - Mais dois DESENHOS, no mesmo tamanho e com a mesma legenda do primeiro.
+       O labirinto 2 tem quarteiroes pequenos e o tunel na rua debaixo da casa;
+       o 3 tem quarteiroes grandes, de corredor comprido, e o tunel passando
+       bem na frente da porta de onde os fantasmas saem. Como o `Mapa` le tudo
+       do desenho (a casa, a porta, o nascimento, as linhas de tunel), um
+       labirinto novo e um texto novo - e nada mais.
+     - A TABELA DE DIFICULDADE, uma linha por fase, la em cima no arquivo: o
+       feitico (8s, 6s, 4s), a pressa de cada fantasma, os tempos de saida da
+       casa e a tabela dispersar/cacar. A linha viaja grudada no mapa
+       (`mapa.dificuldade`), entao quem carrega um labirinto carrega junto as
+       regras dele.
+     - A PRESSA e o degrau de velocidade, e ela e o oposto exato da meia
+       velocidade do medo: em vez de pular um quadro, o fantasma anda DUAS
+       vezes num quadro, de tantos em tantos. E o unico jeito de correr mais
+       sem sair da grade de 2px - com 3px por quadro o corpo nunca mais
+       acertaria o centro de um quadrado. No labirinto 1 ninguem apressa; no 2
+       os dois da frente; no 3 os quatro. Nunca mais do que isso: fantasma bem
+       mais rapido que o come-come nao e dificuldade, e beco sem saida.
+     - `irParaFase(n)` carrega um dos tres e comeca do zero. Ele so CARREGA;
+       quem manda na ordem, no bonus e na tela de Parabens e a corrida das tres
+       fases, que e a fase 6b do plano.
+
+   Todo labirinto tem 28 colunas por 31 linhas de quadrados de 16px - 448 x 496
    pixels, que e o tamanho de dentro do canvas. O tamanho de FORA (o quanto ele
    aparece na tela) e escolhido pelo CSS, mantendo a proporcao: as contas do
    jogo acontecem sempre nos mesmos 448 x 496, em qualquer aparelho.
 
-   O labirinto ainda e um so (fase 6a) e a tela entra direto no jogo, sem menu
-   (fase 7). O que da para fazer hoje e uma partida de fliperama inteira dentro
-   de um labirinto: comer as 244 pastilhas fugindo dos quatro, virar o jogo com
-   a bolota do canto e - quando eles alcancam - perder as tres vidas ate a tela
-   de fim de jogo.
+   A tela ainda entra direto no jogo, sem menu (fase 7), e uma fase limpa ainda
+   nao chama a seguinte (fase 6b). O que da para fazer hoje e uma partida de
+   fliperama inteira dentro de qualquer um dos tres labirintos: comer as
+   pastilhas todas fugindo dos quatro, virar o jogo com a bolota do canto e -
+   quando eles alcancam - perder as tres vidas ate a tela de fim de jogo.
    ========================================================================== */
 
 (function () {
@@ -169,7 +195,9 @@
 
   /* Quanto cada fantasma espera dentro da casa antes de abrir a porta, em
      quadros (60 = 1 segundo). O primeiro ja nasce na rua; os outros tres saem
-     escalonados, para a crianca ter tempo de comecar a comer. */
+     escalonados, para a crianca ter tempo de comecar a comer. Estes sao os
+     tempos do labirinto 1; os outros dois tem os seus, na tabela de
+     dificuldade logo abaixo. */
   var SAIDAS = [0, 120, 240, 360];
 
   /* Os ciclos do fliperama: os fantasmas nao cacam a partida inteira - de
@@ -177,8 +205,7 @@
      deles. Sao os respiros que fazem o jogo ser jogavel: sem eles a crianca
      seria cercada em dez segundos. A tabela e a do arcade original, em
      quadros (60 = 1 segundo), e o -1 do fim quer dizer "daqui em diante e
-     caca para sempre". A tabela de dificuldade da fase 6a vai encurtar as
-     dispersoes labirinto a labirinto. */
+     caca para sempre". */
   var CICLOS = [
     { modo: 'dispersar', quadros:  7 * 60 },
     { modo: 'cacar',     quadros: 20 * 60 },
@@ -190,11 +217,68 @@
     { modo: 'cacar',     quadros: -1 }
   ];
 
+  /* As mesmas linhas, mais apertadas, para os labirintos 2 e 3: o respiro da
+     dispersao encolhe e a caca estica. */
+  var CICLOS_2 = [
+    { modo: 'dispersar', quadros:  5 * 60 },
+    { modo: 'cacar',     quadros: 25 * 60 },
+    { modo: 'dispersar', quadros:  5 * 60 },
+    { modo: 'cacar',     quadros: 25 * 60 },
+    { modo: 'dispersar', quadros:  4 * 60 },
+    { modo: 'cacar',     quadros: 25 * 60 },
+    { modo: 'dispersar', quadros:  4 * 60 },
+    { modo: 'cacar',     quadros: -1 }
+  ];
+
+  var CICLOS_3 = [
+    { modo: 'dispersar', quadros:  4 * 60 },
+    { modo: 'cacar',     quadros: 30 * 60 },
+    { modo: 'dispersar', quadros:  4 * 60 },
+    { modo: 'cacar',     quadros: 30 * 60 },
+    { modo: 'dispersar', quadros:  3 * 60 },
+    { modo: 'cacar',     quadros: 30 * 60 },
+    { modo: 'dispersar', quadros:  3 * 60 },
+    { modo: 'cacar',     quadros: -1 }
+  ];
+
   /* Quanto tempo a pastilha de poder vale, em quadros, quando o labirinto nao
-     disser nada. Cada labirinto tem o SEU numero (`poder` na lista de
-     labirintos, que vira `mapa.duracaoPoder`): os labirintos 2 e 3 vao
-     encurtar o feitico sem mexer em mais nada. */
+     disser nada. Cada labirinto tem o SEU numero (`poder` na tabela de
+     dificuldade, que vira `mapa.duracaoPoder`): e assim que os labirintos 2 e
+     3 encurtam o feitico sem mexer em mais nada. */
   var PODER_QUADROS = 8 * 60;
+
+  /* --------------------------------------------- A TABELA DE DIFICULDADE ---
+     Tudo o que muda de um labirinto para o outro mora AQUI, nesta tabela e em
+     nenhum outro lugar - da para conferir as tres fases de uma olhada so. O
+     desenho de cada labirinto fica no fim do arquivo; o que vem aqui e o
+     ajuste fino, e ele so anda para um lado: cada coluna aperta da fase 1
+     para a 3.
+
+       poder    quanto a pastilha de poder vale, em quadros - 8s, 6s, 4s
+       pressa   quantos passos A MAIS cada um dos quatro da a cada 16 quadros,
+                na ordem vermelho, rosa, azul, laranja: 0 e a velocidade do
+                come-come (2px por quadro) e 1 sao 106% dela. No labirinto 1
+                ninguem tem pressa; no 2 os dois da frente apertam o passo; no
+                3 os quatro correm. Mais do que isso ninguem escapa: um
+                fantasma bem mais rapido que o come-come nao e dificuldade, e
+                beco sem saida - o fliperama original nunca passou disso.
+                Por dentro e o mesmo truque da meia velocidade do medo, ao
+                contrario (andar duas vezes num quadro em vez de nenhuma), e
+                pelo mesmo motivo: com 3px por quadro o corpo sairia da grade
+                de 2px e nunca mais acertaria o centro de um quadrado.
+       saidas   quanto cada um espera na casa antes de abrir a porta
+       ciclos   a tabela dispersar/cacar da fase (menos respiro, mais caca)
+  */
+  var DIFICULDADE = [
+    { fase: 1, poder: 8 * 60, pressa: [0, 0, 0, 0], saidas: [0, 120, 240, 360], ciclos: CICLOS },
+    { fase: 2, poder: 6 * 60, pressa: [1, 1, 0, 0], saidas: [0,  90, 180, 270], ciclos: CICLOS_2 },
+    { fase: 3, poder: 4 * 60, pressa: [1, 1, 1, 1], saidas: [0,  60, 120, 180], ciclos: CICLOS_3 }
+  ];
+
+  /* De quantos em quantos quadros a pressa da a volta. Dezesseis quadros sao
+     dois quadrados de corredor, entao `pressa` se le direto: 1 e "um quadrado
+     a mais a cada dois". */
+  var COMPASSO_PRESSA = 16;
 
   /* O aviso de que o feitico esta acabando: nos ultimos dois segundos os
      fantasmas piscam entre o azul e o branco, meio segundo de cada vez... quer
@@ -430,6 +514,8 @@
      */
     function ler(grade, opcoes) {
       var op = opcoes || {};
+      // Sem dizer nada, um desenho solto vale pelas regras da fase 1.
+      var dif = op.dificuldade || DIFICULDADE[0];
       var colunas = 0, c, l;
       for (l = 0; l < grade.length; l++) colunas = Math.max(colunas, grade[l].length);
 
@@ -447,10 +533,18 @@
         tuneis: [],             // tuneis[linha] = true na linha do tunel
         nascimento: null,       // onde o come-come nasce
         casa: null,             // a casa dos fantasmas (montada la embaixo)
-        // Quanto tempo a pastilha de poder vale NESTE labirinto: e o que vai
-        // deixar os labirintos 2 e 3 mais dificeis sem uma linha de codigo
-        // nova. Sem dizer nada, vale o padrao.
-        duracaoPoder: op.poder > 0 ? op.poder : PODER_QUADROS,
+        /* A linha da TABELA DE DIFICULDADE deste labirinto - o quanto o
+           feitico dura, a pressa dos fantasmas, os tempos de saida da casa e
+           a tabela de ciclos. Ela viaja grudada no mapa de proposito: quem
+           joga um labirinto nao precisa lembrar de buscar os ajustes em outro
+           canto, e um desenho solto (os testes fazem isso o tempo todo) vale
+           pelas regras da fase 1. */
+        dificuldade: dif,
+        // Quanto tempo a pastilha de poder vale NESTE labirinto: e o que
+        // deixa os labirintos 2 e 3 mais dificeis sem uma linha de codigo
+        // nova. Vale o da dificuldade, e `poder` troca so por cima (os testes
+        // gostam de encurtar o feitico a mao).
+        duracaoPoder: op.poder > 0 ? op.poder : (dif.poder || PODER_QUADROS),
         nome: op.nome || ''
       };
 
@@ -846,15 +940,34 @@
     /**
      * As velocidades de um quadro, a partir do que o jogo pediu. Aceita um
      * numero (o jeito antigo: so a velocidade normal) ou um objeto com
-     * `velocidade`, `olhos` e a posicao de quem foge (`fuga`).
+     * `velocidade`, `olhos`, a posicao de quem foge (`fuga`), a `pressa` da
+     * fase e o `quadro` em que estamos (e ele que da o compasso da pressa).
      */
     function opcoesDe(opcoes) {
       var op = (typeof opcoes === 'number') ? { velocidade: opcoes } : (opcoes || {});
       return {
         normal: op.velocidade || VEL_FANTASMA,
         olhos: op.olhos || VEL_OLHOS,
-        fuga: op.fuga || null
+        fuga: op.fuga || null,
+        pressa: op.pressa || null,      // um numero por fantasma: a pressa da fase
+        quadro: op.quadro || 0
       };
+    }
+
+    /**
+     * Este fantasma anda DUAS vezes neste quadro? E a pressa das fases mais
+     * dificeis (a tabela de dificuldade la em cima), e vale so para quem esta
+     * solto na rua e sem medo: quem espera na casa, quem sobe a porta e o par
+     * de olhos voltando tem cada um o seu compasso proprio.
+     *
+     * O compasso sai do relogio dos quatro, e nao dos passos de cada um: assim
+     * os quatro apressam no mesmo quadro e a conta continua a mesma depois de
+     * um tombo, de um susto ou de uma volta para casa.
+     */
+    function comPressa(f, op) {
+      if (f.etapa !== 'livre' || f.assustado) return false;
+      var quanto = (op.pressa && op.pressa[f.indice]) || 0;
+      return quanto > 0 && (op.quadro % COMPASSO_PRESSA) < quanto;
     }
 
     /** Um quadro de um fantasma so. Devolve um fantasma NOVO. */
@@ -1001,9 +1114,17 @@
     /** Um quadro dos quatro. `alvos` e um por fantasma, ou um so para todos. */
     function passo(estado, mapa, alvos, opcoes) {
       var op = opcoesDe(opcoes);
+      op.quadro = estado.relogio;
       var lista = [];
       for (var i = 0; i < estado.lista.length; i++) {
-        lista.push(passoDeUm(estado.lista[i], mapa, alvoDe(alvos, i), op));
+        var f = estado.lista[i], alvo = alvoDe(alvos, i);
+        var apressado = comPressa(f, op);
+        f = passoDeUm(f, mapa, alvo, op);
+        // O passo a mais da pressa e o passo inteiro de novo, com a esquina
+        // conferida outra vez: e o unico jeito de o corpo continuar caindo nos
+        // centros dos quadrados e virando onde deve.
+        if (apressado) f = passoDeUm(f, mapa, alvo, op);
+        lista.push(f);
       }
       return { lista: lista, relogio: estado.relogio + 1 };
     }
@@ -1152,6 +1273,7 @@
       acalmar: acalmar,
       comido: comido,
       comestivel: comestivel,
+      comPressa: comPressa,
       encostou: encostou,
       todosNaRua: todosNaRua,
       TIPOS: TIPOS,
@@ -1224,8 +1346,11 @@
      (`Fantasmas.inverter`), o sinal mais visivel do jogo. */
   var Ciclos = (function () {
 
+    /* A tabela da vez: a que o jogo mandou (`tabela`), a do labirinto em jogo
+       (`ciclos`, que e como a tabela de dificuldade chama a coluna dela) ou,
+       sem nenhuma das duas, a do labirinto 1. */
     function tabelaDe(opcoes) {
-      var tabela = opcoes && opcoes.tabela;
+      var tabela = opcoes && (opcoes.tabela || opcoes.ciclos);
       return tabela && tabela.length ? tabela : CICLOS;
     }
 
@@ -1728,13 +1853,94 @@
     '############################'
   ];
 
-  // Os labirintos do jogo, na ordem em que sao jogados. Os outros dois entram
-  // na fase 6a do plano; por ora a corrida tem um so.
+  // ------------------------------------------------------- O labirinto 2 ----
+  /* O segundo: as ruas do meio ficam mais estreitas e os quarteiroes se
+     repetem em blocos pequenos, entao a esquina de fuga esta sempre um passo
+     mais longe do que se espera. O tunel desceu para a rua DEBAIXO da casa
+     (linha 17), e por isso a volta pelo outro lado da tela passa raspando na
+     porta de onde eles saem. As quatro bolotas continuam onde tem de estar:
+     nas quatro pontas do labirinto, uma por quadrante. */
+  var LABIRINTO_2 = [
+    '############################',
+    '#..........................#',
+    '#.##.####.##.##.##.####.##.#',
+    '#o##.####.##.##.##.####.##o#',
+    '#.##.####.##.##.##.####.##.#',
+    '#......##..........##......#',
+    '#.####.##.########.##.####.#',
+    '#.####.##.########.##.####.#',
+    '#.####....##....##....####.#',
+    '#.####.##.##.##.##.##.####.#',
+    '#.####.##.##.##.##.##.####.#',
+    '#.####                ####.#',
+    '#.####.## ###--### ##.####.#',
+    '#.####.## #      # ##.####.#',
+    '#.####.## #      # ##.####.#',
+    '#.####.## #      # ##.####.#',
+    '#.####.## ######## ##.####.#',
+    'T    ..................    T',
+    '#.####.#####.##.#####.####.#',
+    '#.####.#####.##.#####.####.#',
+    '#.##......##....##......##.#',
+    '#.##.####.##.##.##.####.##.#',
+    '#o##.####.##.##.##.####.##o#',
+    '#......##.##.P .##.##......#',
+    '#.####.##.##.##.##.##.####.#',
+    '#.####.##.##.##.##.##.####.#',
+    '#.##...##..........##...##.#',
+    '#.##.####.##.##.##.####.##.#',
+    '#.##.####.##.##.##.####.##.#',
+    '#....####..........####....#',
+    '############################'
+  ];
+
+  // ------------------------------------------------------- O labirinto 3 ----
+  /* O ultimo: os quarteiroes de cima viraram blocos grandes, de corredor
+     comprido - e corredor comprido e onde quem corre mais alcanca. O tunel
+     subiu para a linha 11, a rua que passa BEM na frente da porta da casa:
+     escapar por ele e passar na boca do lobo. */
+  var LABIRINTO_3 = [
+    '############################',
+    '#..........................#',
+    '#.####.#####.##.#####.####.#',
+    '#o####.#####.##.#####.####o#',
+    '#.####.#####.##.#####.####.#',
+    '#......#####....#####......#',
+    '#.####.#####.##.#####.####.#',
+    '#.####.#####.##.#####.####.#',
+    '#.####....##....##....####.#',
+    '#.####.##.##.##.##.##.####.#',
+    '#.####.##.##.##.##.##.####.#',
+    'T    ..................    T',
+    '#.####.## ###--### ##.####.#',
+    '#.####.## #      # ##.####.#',
+    '#.####.## #      # ##.####.#',
+    '#.####.## #      # ##.####.#',
+    '#.####.## ######## ##.####.#',
+    '#......##.##....##.##......#',
+    '#.####.##.##.##.##.##.####.#',
+    '#.####.##.##.##.##.##.####.#',
+    '#......##.##....##.##......#',
+    '#.##.####.##.##.##.####.##.#',
+    '#.##.####.##.##.##.####.##.#',
+    '#....####.##.P .##.####....#',
+    '#.##.####.##.##.##.####.##.#',
+    '#.##.####.##.##.##.####.##.#',
+    '#o##......##....##......##o#',
+    '#.####.##.##.##.##.##.####.#',
+    '#.####.##.##.##.##.##.####.#',
+    '#......##..........##......#',
+    '############################'
+  ];
+
+  /* Os tres labirintos do jogo, na ordem em que sao jogados. O desenho e o
+     nome moram aqui; o ajuste fino de cada fase (o feitico, a pressa dos
+     quatro, os tempos de saida e os ciclos) vem inteiro da TABELA DE
+     DIFICULDADE la de cima - um lugar so para conferir os tres. */
   var LABIRINTOS = [
-    // `poder` e quanto tempo a pastilha de poder vale NESTE labirinto, em
-    // quadros. Oito segundos e uma folga generosa para o primeiro: da para
-    // atravessar meio labirinto atras dos quatro.
-    { numero: 1, nome: 'Praca Redonda', desenho: LABIRINTO_1, poder: 8 * 60 }
+    { numero: 1, nome: 'Praca Redonda', desenho: LABIRINTO_1, dificuldade: DIFICULDADE[0] },
+    { numero: 2, nome: 'Vila Estreita', desenho: LABIRINTO_2, dificuldade: DIFICULDADE[1] },
+    { numero: 3, nome: 'Avenida Longa', desenho: LABIRINTO_3, dificuldade: DIFICULDADE[2] }
   ];
 
   var mapas = [];
@@ -1758,7 +1964,10 @@
       Ciclos: Ciclos,
       Personalidades: Personalidades,
       LABIRINTO_1: LABIRINTO_1,
+      LABIRINTO_2: LABIRINTO_2,
+      LABIRINTO_3: LABIRINTO_3,
       LABIRINTOS: LABIRINTOS,
+      DIFICULDADE: DIFICULDADE,
       mapas: mapas,
       labirinto: labirinto,
       mundo: {
@@ -1769,7 +1978,8 @@
         PAUSA_TOMBO: PAUSA_TOMBO,
         PODER_QUADROS: PODER_QUADROS, AVISO_PODER: AVISO_PODER,
         PISCA_PODER: PISCA_PODER, PREMIOS: PREMIOS,
-        SAIDAS: SAIDAS, CICLOS: CICLOS, TROCA_SORTEIO: TROCA_SORTEIO,
+        SAIDAS: SAIDAS, CICLOS: CICLOS, CICLOS_2: CICLOS_2, CICLOS_3: CICLOS_3,
+        COMPASSO_PRESSA: COMPASSO_PRESSA, TROCA_SORTEIO: TROCA_SORTEIO,
         PASSOS_A_FRENTE: PASSOS_A_FRENTE, DISTANCIA_TIMIDO: DISTANCIA_TIMIDO,
         SEMENTE_PADRAO: SEMENTE_PADRAO,
         PONTOS_PASTILHA: PONTOS_PASTILHA, PONTOS_PODER: PONTOS_PODER,
@@ -2141,8 +2351,11 @@
     vidas: VIDAS_INICIAIS,           // a copia que o HUD le (quem manda e a rodada)
     come: Movimento.novoCorpo(labirinto.nascimento.c, labirinto.nascimento.l),
     pastilhas: Pastilhas.novoEstado(labirinto),
-    fantasmas: Fantasmas.novoEstado(labirinto),
-    ciclo: Ciclos.novoEstado(),              // dispersar ou cacar, e ha quanto tempo
+    // Os fantasmas e o relogio dos humores ja nascem com os numeros da FASE:
+    // os tempos de saida da casa e a tabela de ciclos saem da dificuldade do
+    // labirinto em jogo, e nao de um padrao solto.
+    fantasmas: Fantasmas.novoEstado(labirinto, labirinto.dificuldade),
+    ciclo: Ciclos.novoEstado(labirinto.dificuldade),  // dispersar ou cacar, e ha quanto tempo
     miras: Personalidades.novoEstado(),      // a semente e o alvo sorteado do laranja
     poder: Poder.novoEstado(),               // o cronometro da pastilha de poder
     rodada: Rodada.novoEstado()              // as vidas e a pausa do tombo
@@ -2199,7 +2412,7 @@
       jogo.poder = tique.estado;
       if (tique.acabou) jogo.fantasmas = Fantasmas.acalmar(jogo.fantasmas);
     } else {
-      jogo.ciclo = Ciclos.passo(jogo.ciclo);
+      jogo.ciclo = Ciclos.passo(jogo.ciclo, labirinto.dificuldade);
       if (jogo.ciclo.trocou) jogo.fantasmas = Fantasmas.inverter(jogo.fantasmas);
     }
 
@@ -2213,8 +2426,12 @@
       come: quadradoDoCome
     });
     jogo.miras = mira.estado;
+    /* A PRESSA e o degrau de velocidade da fase: no labirinto 1 os quatro
+       correm como o come-come, e nos outros dois eles dao um passo a mais de
+       vez em quando (a tabela de dificuldade diz quantos). */
     jogo.fantasmas = Fantasmas.passo(jogo.fantasmas, labirinto, mira.alvos, {
-      fuga: quadradoDoCome
+      fuga: quadradoDoCome,
+      pressa: labirinto.dificuldade.pressa
     });
 
     comerFantasmas();
@@ -2267,6 +2484,50 @@
   }
 
   /**
+   * Carrega o labirinto 1, 2 ou 3 e comeca ele do zero: o desenho da vez, as
+   * pastilhas todas de pe, o come-come no nascimento, os quatro na casa e o
+   * relogio dos humores zerado - tudo ja com os numeros da fase, que vem da
+   * tabela de dificuldade grudada no mapa.
+   *
+   * Este e o degrau de baixo: ele CARREGA uma fase, nao decide qual vem
+   * depois. Quem manda na ordem (o bonus por limpar, a proxima, a tela de
+   * Parabens) e a corrida das tres fases, que e a fase 6b do plano. Os testes
+   * chamam esta funcao direto para entrar na 2 ou na 3 sem jogar as
+   * anteriores.
+   */
+  function irParaFase(numero) {
+    var n = Math.min(Math.max(numero | 0, 1), TOTAL_FASES);
+    labirinto = mapas[n - 1];
+    window.ComeCome.labirinto = labirinto;
+
+    jogo.fase = n;
+    jogo.pontos = 0;
+    jogo.relogio = 0;
+    jogo.tela = 'jogando';
+    jogo.pastilhas = Pastilhas.novoEstado(labirinto);
+    // As vidas atravessam a fase: quem chegou aqui com duas continua com duas.
+    // So depois de um fim de jogo a rodada volta cheia.
+    jogo.rodada = jogo.rodada.acabou
+      ? Rodada.novoEstado()
+      : { vidas: jogo.rodada.vidas, pausa: 0, pego: -1, acabou: false };
+    jogo.vidas = jogo.rodada.vidas;
+
+    var novo = Rodada.reiniciar(labirinto, labirinto.dificuldade);
+    jogo.come = novo.come;
+    jogo.fantasmas = novo.fantasmas;
+    jogo.ciclo = novo.ciclo;
+    jogo.poder = novo.poder;
+    entrada.desejada = null;
+
+    el.telaFase.classList.add('hidden');
+    el.telaFim.classList.add('hidden');
+    atualizarHud();
+  }
+
+  // Os testes entram direto na fase 2 ou na 3 por aqui.
+  window.ComeCome.irParaFase = function (n) { irParaFase(n); };
+
+  /**
    * Passada a pausa, todo mundo volta para o lugar de comeco: o come-come no
    * nascimento, os quatro na casa e o relogio dos humores do zero. O labirinto
    * NAO se refaz - as pastilhas ja comidas continuam comidas -, e o pedido de
@@ -2274,7 +2535,7 @@
    * para o lado em que acabou de ser pega.
    */
   function recomecarRodada() {
-    var novo = Rodada.reiniciar(labirinto);
+    var novo = Rodada.reiniciar(labirinto, labirinto.dificuldade);
     jogo.come = novo.come;
     jogo.fantasmas = novo.fantasmas;
     jogo.ciclo = novo.ciclo;

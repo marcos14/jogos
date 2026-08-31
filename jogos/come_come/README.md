@@ -5,16 +5,18 @@ corredores, coma todas as pastilhas e escape dos quatro fantasmas. Três
 labirintos, cada um mais difícil que o anterior — sozinho ou com até 5 amigos
 na mesma sala.
 
-> **Estado de hoje: fase 5 do plano.** Já dá para correr pelo labirinto 1
-> comendo todas as pastilhas, ver o placar subir no HUD e limpar o labirinto;
-> os **quatro fantasmas** moram na casa do centro, saem um a um pela porta e
-> caçam cada um do seu jeito, alternando com os respiros de dispersão pelos
-> cantos; a **pastilha de poder** vira o jogo do avesso — os quatro ficam
-> azuis, fogem em meia velocidade e podem ser comidos por 200, 400, 800 e
-> 1600; e agora **o jogo machuca**: encostar num fantasma que não está
+> **Estado de hoje: fase 6a do plano.** Já dá para correr por qualquer um dos
+> **três labirintos** comendo todas as pastilhas, ver o placar subir no HUD e
+> limpar o labirinto; os **quatro fantasmas** moram na casa do centro, saem um
+> a um pela porta e caçam cada um do seu jeito, alternando com os respiros de
+> dispersão pelos cantos; a **pastilha de poder** vira o jogo do avesso — os
+> quatro ficam azuis, fogem em meia velocidade e podem ser comidos por 200,
+> 400, 800 e 1600; **o jogo machuca** — encostar num fantasma que não está
 > assustado custa uma vida, e quando as três acabam a partida termina numa
-> tela de fim de jogo. O labirinto ainda é um só (fase 6a) e a partida ainda
-> entra direto no jogo, sem menu (fase 7).
+> tela de fim de jogo; e cada labirinto é **mais difícil que o anterior**, por
+> uma tabela de dificuldade que mora num lugar só. Limpar um labirinto ainda
+> não chama o seguinte (fase 6b) e a partida ainda entra direto no jogo, sem
+> menu (fase 7).
 
 ---
 
@@ -29,16 +31,18 @@ O pedido **fica guardado**: dá para apertar a seta um pouco antes da esquina
 que a curva sai certinha quando o corredor abrir. É assim nos fliperamas, e é
 assim aqui.
 
-Os dois lados da linha do meio são o **túnel**: quem sai por uma ponta entra
-pela outra sem parar de andar.
+Uma das linhas do labirinto é o **túnel**: quem sai por uma ponta dela entra
+pela outra sem parar de andar. Cada labirinto tem o seu, e em cada um ele passa
+por um lugar diferente.
 
-O objetivo é **limpar o labirinto**: comer todas as 244 pastilhas. Quando a
-última some, a fase acabou.
+O objetivo é **limpar o labirinto**: comer todas as pastilhas (244 no primeiro,
+284 no segundo, 292 no terceiro). Quando a última some, a fase acabou.
 
-As quatro **bolotas grandes** dos cantos são as pastilhas de poder: morder uma
-deixa os fantasmas azuis e comestíveis por 8 segundos. Enquanto elas piscam
-azul, corra atrás deles; quando começarem a **piscar em branco**, o feitiço
-está acabando — largue a caça e volte a comer pastilha.
+As quatro **bolotas grandes** são as pastilhas de poder: morder uma deixa os
+fantasmas azuis e comestíveis — por 8 segundos no labirinto 1, 6 no 2 e só 4
+no 3. Enquanto elas piscam azul, corra atrás deles; quando começarem a
+**piscar em branco**, o feitiço está acabando — largue a caça e volte a comer
+pastilha.
 
 Fora do feitiço, **encostar num fantasma custa uma vida**. São três: quando a
 última se vai, o jogo acaba.
@@ -57,6 +61,8 @@ Fora do feitiço, **encostar num fantasma custa uma vida**. São três: quando a
 | 4º | **1 600** pontos |
 | os quatro na mesma pastilha | **3 000** — mais que 300 pastilhas comuns |
 | **as pastilhas do labirinto 1** | **2 600** (240 × 10 + 4 × 50) |
+| **as pastilhas do labirinto 2** | **3 000** (280 × 10 + 4 × 50) |
+| **as pastilhas do labirinto 3** | **3 080** (288 × 10 + 4 × 50) |
 
 Cada pastilha conta **uma vez só**: o come-come come a que estiver debaixo dos
 pés dele, ela some da tela e o quadrado fica limpo para sempre — voltar por
@@ -236,6 +242,35 @@ frente do plano.)
 
 ---
 
+## Os três labirintos
+
+| # | Nome | Pastilhas | Túnel | O que muda |
+|---|---|---|---|---|
+| 1 | **Praça Redonda** | 244 | na linha do meio, atravessando a casa | corredores largos e muita volta para dar |
+| 2 | **Vila Estreita** | 284 | na rua **debaixo** da casa | quarteirões pequenos: a esquina de fuga está sempre um passo mais longe |
+| 3 | **Avenida Longa** | 292 | na rua **em frente à porta** da casa | quarteirões grandes, de corredor comprido — e corredor comprido é onde quem corre mais alcança |
+
+E a **tabela de dificuldade**, que mora num lugar só no `game.js` (a lista
+`DIFICULDADE`, uma linha por fase):
+
+| | Fase 1 | Fase 2 | Fase 3 |
+|---|---|---|---|
+| a pastilha de poder dura | 8 s | 6 s | 4 s |
+| pressa dos fantasmas (vermelho, rosa, azul, laranja) | 0, 0, 0, 0 | 1, 1, 0, 0 | 1, 1, 1, 1 |
+| eles saem da casa em | 0, 2, 4, 6 s | 0, 1½, 3, 4½ s | 0, 1, 2, 3 s |
+| tempo total dispersando | 24 s | 18 s | 14 s |
+| tempo total caçando (antes da caça sem fim) | 60 s | 75 s | 90 s |
+
+A **pressa** é o degrau de velocidade, e é o oposto exato da meia velocidade do
+medo: em vez de *pular* um quadro, o fantasma anda **duas vezes** num quadro,
+de 16 em 16 quadros. Pressa 1 são 106% da velocidade do come-come. É o único
+jeito de correr mais sem sair da grade de 2px — com 3px por quadro o corpo
+nunca mais acertaria o centro de um quadrado, e um corpo fora dos centros não
+vira nas esquinas nem enxerga parede. Ninguém passa disso: um fantasma bem mais
+rápido que o come-come não é dificuldade, é beco sem saída.
+
+---
+
 ## O labirinto, escrito como texto
 
 Cada labirinto do jogo é um desenho em texto dentro do `game.js`, uma letra por
@@ -274,6 +309,13 @@ Ler o desenho também monta a tabela `quadrado → pastilha dali`, que é o que
 `Mapa.pastilhaEm()` consulta. É a pergunta que o come-come faz **a cada
 quadro** ("tem comida debaixo dos meus pés?"), então ela é uma consulta direta,
 e não uma varredura nas 244.
+
+Como tudo sai do desenho — a casa, a porta, o nascimento, as bolotas e a linha
+do túnel —, **um labirinto novo é um texto novo, e nada mais**. A linha da
+tabela de dificuldade viaja grudada no mapa (`mapa.dificuldade`), então quem
+carrega um labirinto carrega junto as regras dele: `irParaFase(n)` troca o
+desenho, repõe as pastilhas e recomeça a rodada já com o feitiço, a pressa, os
+tempos de saída e os ciclos daquela fase.
 
 ---
 
@@ -323,9 +365,10 @@ porque a célula de trás acabou de ser visitada e está livre com certeza.
 
 **A grade também manda na dificuldade.** Toda velocidade do jogo divide os 16px
 do quadrado: 2px para o come-come e para os fantasmas, 4px para os olhos de
-quem foi comido, e a metade do medo feita pulando quadros em vez de andar 1px.
-Nenhuma exceção — uma velocidade que não divide o quadrado tira o corpo dos
-centros, e um corpo fora dos centros não vira nas esquinas nem enxerga parede.
+quem foi comido, a metade do medo feita pulando quadros em vez de andar 1px e a
+pressa das fases 2 e 3 feita andando duas vezes num quadro. Nenhuma exceção —
+uma velocidade que não divide o quadrado tira o corpo dos centros, e um corpo
+fora dos centros não vira nas esquinas nem enxerga parede.
 
 **A geometria é sempre a mesma.** O canvas tem 448×496 por dentro em qualquer
 aparelho; o CSS só decide de que tamanho ele *aparece*, mantendo a proporção.
@@ -350,6 +393,8 @@ node testes/come_come/fase4.test.mjs        # o poder, o susto, a escada e os ol
 node testes/come_come/fase4-tela.test.mjs   # a bolota e os 200 + 400 no HUD
 node testes/come_come/fase5.test.mjs        # as vidas, o tombo e o reinício
 node testes/come_come/fase5-tela.test.mjs   # perder as três vidas até o fim de jogo
+node testes/come_come/fase6a.test.mjs       # os três desenhos e a tabela de dificuldade
+node testes/come_come/fase6a-tela.test.mjs  # os labirintos 2 e 3 percorridos até ficarem limpos
 ```
 
 O `fase2-tela.test.mjs` põe um **piloto automático** no volante: a cada centro
@@ -395,3 +440,20 @@ anda), os fantasmas sumindo da tela e o come-come encolhendo até desaparecer �
 e fecha com o caminho mais honesto de todos: um jogo **deixado sozinho**, sem
 uma seta apertada, que perde as três vidas e chega à tela de fim de jogo por
 conta própria.
+
+O `fase6a.test.mjs` prova que os **três desenhos são válidos**, e não só
+parecidos com um labirinto: 28×31 quadrados, só as letras da legenda, a borda
+fechada menos as duas bocas do túnel, um nascimento fora da casa, quatro
+bolotas, a casa com a porta virada para a rua — e, o que interessa mesmo, uma
+busca em largura a partir do `P` mostrando que **toda pastilha é alcançável**,
+que **nenhuma célula fica solta**, que **não existe beco sem saída** (a regra
+"descarte a meia-volta" dos fantasmas conta com isso) e que o miolo da casa não
+vaza para a rua. Confere também que a tabela de dificuldade **cresce fase a
+fase** nas quatro colunas e que ela chega inteira no labirinto.
+
+O `fase6a-tela.test.mjs` põe o piloto automático da fase 2 no volante e
+percorre os labirintos **2 e 3** até deixá-los limpos, contando os passos do
+vermelho para ver a pressa da tabela chegar no mundo. Ali o come-come é
+imortal, como no `fase3b-tela`: nas fases 2 e 3 os fantasmas andam mais rápido
+do que ele, e o assunto deste arquivo é **percorrer** os labirintos novos —
+quem prova o tombo e as vidas é o `fase5-tela`.
