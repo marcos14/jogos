@@ -1,12 +1,12 @@
 /* ==========================================================================
    COME-COME  -  labirinto de fliperama, no clima dos consoles de 8 bits
    --------------------------------------------------------------------------
-   FASE 6b do plano: A CORRIDA DAS TRES FASES E A TELA DE PARABENS.
-   Os tres labirintos existiam desde a fase 6a, mas soltos: limpar um deles
-   parava o jogo numa tela sem saida, e so a porta dos fundos (`irParaFase`)
-   levava aos outros. Agora eles sao UMA CORRIDA - do labirinto 1 ao 3, cada
-   um limpo abrindo o proximo, e o terceiro fechando a partida solo com o
-   PARABENS e o resumo do que cada fase rendeu.
+   FASE 7 do plano: A INTERFACE COMPLETA.
+   A corrida das tres fases ja estava de pe desde a fase 6b, mas o jogo abria
+   direto no labirinto e so saia dele recarregando a pagina. Agora ele tem a
+   MOLDURA inteira: o menu de entrada com o campo do nome, os botoes de pausa e
+   de tela cheia no HUD, o quadro de pausa que congela o mundo e oferece voltar
+   ou recomecar, e o cartaz com o lembrete dos controles no canto do palco.
 
    O chao de tudo (fase 1) continua sendo o mesmo:
 
@@ -144,7 +144,7 @@
      - `irParaFase(n)` carrega um dos tres e comeca do zero. Ele so CARREGA;
        quem manda na ordem, no bonus e na tela de Parabens e a corrida.
 
-   E o que a fase 6b poe por cima:
+   O que a fase 6b pos por cima:
 
      - `Corrida`: o caderninho da partida solo - quanto cada labirinto rendeu,
        o bonus de 500 por deixa-lo sem nenhuma pastilha de pe, o total ate
@@ -162,16 +162,43 @@
        numero que a crianca acompanha enquanto joga. O total da corrida so
        aparece nas telas de fim - a de Parabens e a de fim de jogo.
 
+   E o que a fase 7 poe por cima - a MOLDURA, no fim do arquivo:
+
+     - O jogo abre no MENU, e nao mais no labirinto. Ele tem o nome do jogo, o
+       campo do nome da crianca (guardado no aparelho, para nao ter que digitar
+       de novo) e o botao JOGAR. Enquanto o menu esta na tela nao existe HUD,
+       nem mundo andando: o `quadro()` so simula com a tela em 'jogando'.
+     - A PAUSA (botao do HUD, `P` ou `ESC`) congela o mundo INTEIRO e mais
+       nada: `atualizar()` para de ser chamado - entao o relogio, os fantasmas
+       e o feitico ficam onde estavam - mas o laco continua desenhando, e o
+       labirinto fica ali paradinho atras do quadro. Dele saem os dois
+       caminhos: CONTINUAR volta do mesmo ponto e RECOMECAR joga a corrida
+       inteira fora e devolve o jogo ao labirinto 1.
+     - Comecar uma partida e um caminho SO (`comecarPartida`): o JOGAR do menu,
+       o RECOMECAR da pausa e os dois JOGAR DE NOVO das telas de fim passam
+       todos por ele. Nao existem duas maneiras diferentes de zerar a corrida.
+     - A TELA CHEIA (botao do HUD ou `F`) e a Fullscreen API do navegador,
+       pedida para o documento inteiro - o que funciona tanto com o jogo aberto
+       direto quanto dentro do iframe do catalogo. Quem manda no desenho do
+       botao e o navegador, pelo `fullscreenchange`: sair pelo `ESC` tambem o
+       acerta.
+     - O CARTAZ dos controles no canto de baixo do palco, so com o labirinto
+       rolando: qualquer tela que suba por cima (menu, pausa, fim de fase, fim
+       de jogo, Parabens) o esconde.
+     - Perder o foco PAUSA sozinho, e girar o aparelho so refaz a conta do
+       tamanho do palco. Nem um nem outro toca em uma linha do mundo: a partida
+       continua exatamente de onde parou.
+
    Todo labirinto tem 28 colunas por 31 linhas de quadrados de 16px - 448 x 496
    pixels, que e o tamanho de dentro do canvas. O tamanho de FORA (o quanto ele
    aparece na tela) e escolhido pelo CSS, mantendo a proporcao: as contas do
    jogo acontecem sempre nos mesmos 448 x 496, em qualquer aparelho.
 
-   A tela ainda entra direto no jogo, sem menu e sem pausa (isso e a fase 7).
-   O que da para fazer hoje e a partida solo INTEIRA: os tres labirintos em
-   fila, comendo as pastilhas todas e fugindo dos quatro, virando o jogo com a
-   bolota do canto - e ou se chega ao PARABENS com o total das tres fases, ou
-   os fantasmas cobram as tres vidas antes disso.
+   O que da para fazer hoje e a partida solo INTEIRA, do menu ao fim: os tres
+   labirintos em fila, comendo as pastilhas todas e fugindo dos quatro, virando
+   o jogo com a bolota do canto - e ou se chega ao PARABENS com o total das
+   tres fases, ou os fantasmas cobram as tres vidas antes disso. A Central
+   (jogar com amigos) e a proxima fase do plano.
    ========================================================================== */
 
 (function () {
@@ -2150,10 +2177,23 @@
     palco: $('palco'),
 
     // O HUD: os numeros que a crianca acompanha sem tirar o olho do labirinto.
+    hud: $('hud'),
     pontos: $('hud-pontos'),
     vidas: $('hud-vidas'),
     fase: $('hud-fase'),
     faltam: $('hud-faltam'),
+    btnPausa: $('btn-pausa'),
+    btnTelaCheia: $('btn-tela-cheia'),
+
+    // A moldura da fase 7: o menu de entrada, o quadro de pausa e o cartaz
+    // com o lembrete dos controles.
+    menu: $('tela-menu'),
+    campoApelido: $('campo-apelido'),
+    btnJogar: $('btn-jogar'),
+    controles: $('controles'),
+    telaPausa: $('tela-pausa'),
+    btnContinuar: $('btn-continuar'),
+    btnRecomecar: $('btn-recomecar'),
 
     // Fim de fase: um labirinto limpo, e o botao que abre o proximo.
     telaFase: $('tela-fase'),
@@ -2167,6 +2207,7 @@
     telaFim: $('tela-fim'),
     fimPontos: $('fim-pontos'),
     fimFase: $('fim-fase'),
+    btnFimDeNovo: $('btn-fim-de-novo'),
 
     // Parabens: os tres labirintos limpos, com o resumo da corrida.
     telaParabens: $('tela-parabens'),
@@ -2433,7 +2474,9 @@
   var entrada = { desejada: null };
 
   var jogo = {
-    tela: 'jogando',                 // o menu chega na fase 7
+    tela: 'menu',                    // 'menu' | 'jogando' | 'fase' | 'fim' | 'parabens'
+    pausado: false,                  // pausa: o mundo congela, a tela nao
+    apelido: '',                     // o nome digitado no menu
     relogio: 0,                      // quadros desde o inicio da partida
     fase: 1,                         // o labirinto 1 de 3
     pontos: 0,                       // o que a fase rendeu ate agora
@@ -2613,6 +2656,7 @@
     el.telaFim.classList.add('hidden');
     el.telaParabens.classList.add('hidden');
     atualizarHud();
+    atualizarControles();
   }
 
   // Os testes entram direto na fase 2 ou na 3 por aqui.
@@ -2646,6 +2690,7 @@
     el.fimPontos.textContent = String(jogo.corrida.total + jogo.pontos);
     el.fimFase.textContent = String(jogo.fase);
     el.telaFim.classList.remove('hidden');
+    atualizarControles();
   }
 
   /**
@@ -2666,6 +2711,7 @@
     el.faseBonus.textContent = '+' + PONTOS_LIMPOU;
     el.faseProxima.textContent = String(jogo.corrida.fase);
     el.telaFase.classList.remove('hidden');
+    atualizarControles();
   }
 
   /**
@@ -2683,6 +2729,7 @@
     el.parabensTotal.textContent = String(jogo.corrida.total);
     el.telaFase.classList.add('hidden');
     el.telaParabens.classList.remove('hidden');
+    atualizarControles();
   }
 
   /**
@@ -2695,19 +2742,168 @@
     irParaFase(jogo.corrida.fase);
   }
 
-  /**
-   * O botao da tela de Parabens: caderno em branco, vidas cheias e de volta ao
-   * labirinto 1. E o unico jeito de a corrida voltar para tras - recomecando
-   * do zero.
-   */
-  function recomecarCorrida() {
+  el.btnProxima.addEventListener('click', avancarFase);
+
+  /* ==========================================================================
+     A MOLDURA  -  menu, pausa, tela cheia e o lembrete dos controles
+     --------------------------------------------------------------------------
+     Nada daqui mexe no mundo: o mundo continua sendo o `atualizar()` la de
+     cima. O que esta parte faz e decidir QUANDO ele anda (o menu e a pausa
+     seguram; o `quadro()` so simula com a tela em 'jogando' e sem pausa) e o
+     que a crianca ve por cima do labirinto.
+     ========================================================================== */
+
+  /** Mostra ou esconde um elemento - a mesma classe `hidden` do CSS. */
+  function exibir(elemento, mostrar) {
+    if (mostrar) elemento.classList.remove('hidden');
+    else elemento.classList.add('hidden');
+  }
+
+  /* O cartaz do canto so aparece com o labirinto rolando: no menu, na pausa e
+     nas telas de fim ha sempre um quadro por cima, e o lembrete atras dele so
+     sujaria a tela. */
+  function atualizarControles() {
+    exibir(el.controles, jogo.tela === 'jogando' && !jogo.pausado);
+  }
+
+  /* Pausar so faz sentido com um labirinto em andamento: no menu nao ha o que
+     congelar, e nas telas de fim o mundo ja esta parado atras do quadro. */
+  function podePausar() {
+    return jogo.tela === 'jogando';
+  }
+
+  /* A pausa congela o mundo e nada mais: o laco continua desenhando (o
+     labirinto fica ali, paradinho) mas `atualizar()` nao roda, entao nem o
+     relogio - que e o mesmo dos fantasmas - anda.
+
+     O pedido de curva guardado se perde junto: uma seta apertada antes da
+     pausa nao pode virar o come-come numa esquina minutos depois, quando a
+     crianca voltar. */
+  function definirPausa(pausado) {
+    if (jogo.pausado === pausado || (pausado && !podePausar())) return;
+
+    jogo.pausado = pausado;
+    entrada.desejada = null;
+    exibir(el.telaPausa, pausado);
+    pintarBotaoPausa();
+    atualizarControles();
+  }
+
+  function alternarPausa() { definirPausa(!jogo.pausado); }
+
+  /** O botao do HUD conta em que pe a pausa esta: ⏸ pausa, ▶ continua. */
+  function pintarBotaoPausa() {
+    el.btnPausa.textContent = jogo.pausado ? '▶' : '⏸';
+    el.btnPausa.title = jogo.pausado ? 'Continuar (P ou ESC)' : 'Pausar (P ou ESC)';
+    el.btnPausa.setAttribute('aria-label', jogo.pausado ? 'Continuar' : 'Pausar');
+  }
+
+  /* Chama o primeiro nome que existir (as versoes antigas do Safari usam
+     `webkit...`). Se a promessa da API for recusada - alguns navegadores
+     recusam fora de um clique - o erro morre aqui, sem sujar o console. */
+  function chamarPrimeiro(alvo, nomes) {
+    if (!alvo) return false;
+    for (var i = 0; i < nomes.length; i++) {
+      if (typeof alvo[nomes[i]] !== 'function') continue;
+      var promessa = alvo[nomes[i]]();
+      if (promessa && typeof promessa['catch'] === 'function') {
+        promessa['catch'](function () {});
+      }
+      return true;
+    }
+    return false;
+  }
+
+  function emTelaCheia() {
+    return !!(document.fullscreenElement || document.webkitFullscreenElement);
+  }
+
+  /* Tela cheia pela API do navegador, pedida para o documento inteiro: assim
+     funciona tanto com o jogo aberto direto quanto dentro do iframe do
+     catalogo (`/jogar/come_come`), que ja vem com `allowfullscreen`. */
+  function alternarTelaCheia() {
+    if (emTelaCheia()) {
+      chamarPrimeiro(document, ['exitFullscreen', 'webkitExitFullscreen']);
+      return;
+    }
+    chamarPrimeiro(document.documentElement,
+      ['requestFullscreen', 'webkitRequestFullscreen']);
+  }
+
+  /* Quem manda no botao e o navegador: ele avisa quando entrou ou saiu (a
+     crianca pode sair pelo ESC, sem passar por aqui). O palco e remedido junto,
+     porque a janela acabou de mudar de tamanho. */
+  function aoMudarTelaCheia() {
+    var cheia = emTelaCheia();
+    el.btnTelaCheia.textContent = cheia ? '🗗' : '⛶';
+    el.btnTelaCheia.title = cheia ? 'Sair da tela cheia (F)' : 'Tela cheia (F)';
+    el.btnTelaCheia.setAttribute('aria-label',
+      cheia ? 'Sair da tela cheia' : 'Tela cheia');
+    ajustarPalco();
+  }
+
+  // ------------------------------------------------------------- O menu ----
+  /* O nome fica guardado no aparelho para a crianca nao ter que digitar de
+     novo a cada partida. E so isto que o jogo guarda - o `jogo.json` declara
+     exatamente isso em `privacidade.coleta`. Navegador em modo privado (ou
+     `index.html` aberto do disco em alguns navegadores) faz o storage
+     explodir: o `try` engole, e o campo comeca vazio. */
+  var CHAVE_APELIDO = 'come_come:apelido';
+  var APELIDO_MAX = 14;              // o mesmo `maxlength` do campo no HTML
+
+  function lerApelidoGuardado() {
+    try { return window.localStorage.getItem(CHAVE_APELIDO) || ''; }
+    catch (e) { return ''; }
+  }
+
+  function guardarApelido(nome) {
+    try { window.localStorage.setItem(CHAVE_APELIDO, nome); } catch (e) {}
+  }
+
+  /** O que a crianca digitou, limpo: sem espaco sobrando e no maximo 14 letras. */
+  function apelidoDoCampo() {
+    var nome = String(el.campoApelido.value || '').replace(/^\s+|\s+$/g, '');
+    return nome.slice(0, APELIDO_MAX);
+  }
+
+  /* Comeca (ou recomeca) a corrida inteira: caderno em branco, vidas cheias,
+     labirinto 1. E o que fazem o "JOGAR" do menu, o "RECOMECAR" da pausa e os
+     dois "JOGAR DE NOVO" das telas de fim - um caminho so, para nao existir
+     duas maneiras diferentes de comecar uma partida. */
+  function comecarPartida() {
+    definirPausa(false);               // recomecar pela pausa descongela tudo
+    jogo.apelido = apelidoDoCampo();
+    guardarApelido(jogo.apelido);
     jogo.corrida = Corrida.novoEstado();
     jogo.rodada = Rodada.novoEstado();
     irParaFase(1);
+    exibir(el.menu, false);
+    exibir(el.hud, true);
+    atualizarControles();
+    ajustarPalco();
   }
 
-  el.btnProxima.addEventListener('click', avancarFase);
-  el.btnDeNovo.addEventListener('click', recomecarCorrida);
+  el.btnJogar.addEventListener('click', comecarPartida);
+  el.btnDeNovo.addEventListener('click', comecarPartida);
+  el.btnFimDeNovo.addEventListener('click', comecarPartida);
+  el.btnRecomecar.addEventListener('click', comecarPartida);
+  el.btnPausa.addEventListener('click', alternarPausa);
+  el.btnContinuar.addEventListener('click', function () { definirPausa(false); });
+  el.btnTelaCheia.addEventListener('click', alternarTelaCheia);
+
+  // Digitar o nome e apertar Enter e o mesmo que clicar em JOGAR.
+  el.campoApelido.addEventListener('keydown', function (ev) {
+    if (ev.key !== 'Enter') return;
+    ev.preventDefault();
+    comecarPartida();
+  });
+
+  document.addEventListener('fullscreenchange', aoMudarTelaCheia);
+  document.addEventListener('webkitfullscreenchange', aoMudarTelaCheia);
+
+  // Os testes dirigem a moldura por aqui, sem precisar do DOM inteiro.
+  window.ComeCome.alternarPausa = function () { alternarPausa(); };
+  window.ComeCome.comecarPartida = function () { comecarPartida(); };
 
   // ----------------------------------------------------------------- HUD ----
   /* Pontos, vidas, fase e quantas pastilhas faltam ficam no HTML (fora do
@@ -2754,11 +2950,43 @@
     ArrowDown: 'baixo', s: 'baixo', S: 'baixo'
   };
 
+  /* Os atalhos das tres teclas de interface. O `Esc` so PAUSA: sair da pausa
+     por ele nao daria certo em tela cheia, onde o navegador rouba o `Esc` para
+     si e a crianca ficaria com o jogo andando sem ter mandado. */
+  var ATALHOS = {
+    p: alternarPausa, P: alternarPausa,
+    Escape: function () { definirPausa(true); },
+    Esc: function () { definirPausa(true); },
+    f: alternarTelaCheia, F: alternarTelaCheia
+  };
+
   window.addEventListener('keydown', function (ev) {
+    // Digitando o nome no menu, a tecla e do campo: nada de pausar o jogo
+    // porque o nome da crianca tem um "p" (nem de virar por causa do "a").
+    if (ev.target === el.campoApelido) return;
+
+    var atalho = ATALHOS[ev.key];
+    if (atalho) { ev.preventDefault(); atalho(); return; }
+
     var dir = TECLAS[ev.key];
     if (!dir) return;
     ev.preventDefault();
+    // No menu, na pausa e nas telas de fim a seta nao guarda nada: sem isto,
+    // uma tecla apertada atras do quadro viraria o come-come na volta.
+    if (jogo.tela !== 'jogando' || jogo.pausado) return;
     entrada.desejada = dir;
+  });
+
+  /* Perder o foco pausa sozinho (a crianca trocou de aba, chegou uma ligacao,
+     o tablet apagou a tela): ninguem volta e encontra as tres vidas gastas por
+     fantasmas que andaram enquanto a tela estava em outro lugar. E, como a
+     pausa nao mexe em nada do mundo, a partida continua exatamente de onde
+     parou. */
+  function pausarPorFalta() { definirPausa(true); }
+
+  window.addEventListener('blur', pausarPorFalta);
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) pausarPorFalta();
   });
 
   // ------------------------------------------------------- Tamanho da tela --
@@ -2775,8 +3003,13 @@
     el.palco.style.height = Math.floor(ALTURA * escala) + 'px';
   }
 
+  /* Girar o aparelho nao mexe no mundo - so na conta do tamanho do palco. A
+     medida e refeita duas vezes de proposito: na hora (para a tela nao ficar
+     torta nenhum quadro) e de novo um instantinho depois, porque no celular a
+     janela ainda esta reportando o tamanho ANTIGO quando o evento chega. */
   window.addEventListener('resize', ajustarPalco);
   window.addEventListener('orientationchange', function () {
+    ajustarPalco();
     setTimeout(ajustarPalco, 120);
   });
 
@@ -2791,7 +3024,10 @@
     var dt = ultimo ? Math.min(200, agora - ultimo) : 0;
     ultimo = agora;
 
-    if (jogo.tela === 'jogando') {
+    // Pausado, o mundo nao anda - mas a cena continua sendo desenhada, entao o
+    // labirinto fica ali paradinho atras do quadro de pausa. O acumulador zera
+    // no `else`: ao continuar, ninguem leva um punhado de quadros de uma vez.
+    if (jogo.tela === 'jogando' && !jogo.pausado) {
       acumulado += dt;
       var passos = 0;
       // A fase pode acabar no meio da rajada (a ultima pastilha some): dai em
@@ -2810,8 +3046,13 @@
     desenharCena();
   }
 
-  ajustarPalco();
+  // O campo do menu ja comeca com o nome da ultima partida.
+  el.campoApelido.value = lerApelidoGuardado();
+
   atualizarHud();
+  atualizarControles();
+  pintarBotaoPausa();
+  aoMudarTelaCheia();      // e o botao de tela cheia comeca no estado certo
   desenharCena();
   requestAnimationFrame(quadro);
 }());

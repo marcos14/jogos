@@ -19,8 +19,11 @@
        400, 800 e 1600; quando eles começam a piscar em branco, o feitiço está
        acabando. Encostar num fantasma que NÃO está assustado custa uma vida:
        o mundo para, todo mundo volta para o lugar (o labirinto continua do
-       jeito que estava) e, quando as três acabam, o jogo termina. -->
-  <header id="hud">
+       jeito que estava) e, quando as três acabam, o jogo termina.
+
+       O HUD nasce escondido: no menu não há pontos, nem vidas, nem nada para
+       pausar. Ele entra junto com o labirinto, no clique do "JOGAR". -->
+  <header id="hud" class="hidden">
     <div class="hud-box">
       <span class="hud-label">Pontos</span>
       <strong id="hud-pontos">0</strong>
@@ -37,6 +40,15 @@
       <span class="hud-label">Faltam</span>
       <strong id="hud-faltam">244</strong>
     </div>
+
+    <!-- Os dois botões da partida. Eles moram no HUD, então só aparecem com o
+         labirinto em andamento — no menu não há nada para pausar. -->
+    <div class="hud-botoes">
+      <button id="btn-pausa" type="button" class="botao-icone"
+              title="Pausar (P ou ESC)" aria-label="Pausar">⏸</button>
+      <button id="btn-tela-cheia" type="button" class="botao-icone"
+              title="Tela cheia (F)" aria-label="Tela cheia">⛶</button>
+    </div>
   </header>
 
   <!-- ---------------------------------------------------------- Palco ----- -->
@@ -46,6 +58,60 @@
        que é o que vai deixar anfitrião e convidado batendo certo lá na frente. -->
   <div id="palco">
     <canvas id="tela" width="448" height="496"></canvas>
+
+    <!-- Lembrete dos controles, no canto de baixo à direita. Fica só com o
+         labirinto rolando; qualquer tela por cima (menu, pausa, fim de fase)
+         o esconde. Não recebe clique: é só um cartaz. -->
+    <aside id="controles" class="hidden">
+      <span><b>← ↑ → ↓</b> = Virar</span>
+      <span class="separador">|</span>
+      <span><b>P</b> = Pausa</span>
+      <span class="separador">|</span>
+      <span><b>F</b> = Tela cheia</span>
+    </aside>
+
+    <!-- Pausa: o mundo congela onde está e ficam os dois caminhos — voltar
+         para o mesmo lugar ou recomeçar a corrida inteira, do labirinto 1.
+         Perder o foco da janela (trocar de aba, chegar uma ligação) pausa
+         sozinho, para ninguém voltar e encontrar as vidas gastas. -->
+    <section id="tela-pausa" class="tela hidden">
+      <div class="painel">
+        <h1 class="titulo"><span class="destaque">PAUSA</span></h1>
+        <p class="subtitulo">O labirinto está esperando você ⏸</p>
+
+        <div class="botoes">
+          <button id="btn-continuar" type="button" class="botao">CONTINUAR</button>
+          <button id="btn-recomecar" type="button" class="botao botao-claro">RECOMEÇAR</button>
+        </div>
+        <p class="legenda">Recomeçar volta para o labirinto 1 e zera os pontos</p>
+      </div>
+    </section>
+
+    <!-- Tela inicial: é por onde o jogo começa. O nome fica guardado no
+         aparelho (localStorage) para a criança não ter que digitar de novo a
+         cada partida — e é ele que vai virar o apelido da sala quando o jogo
+         entrar na Central. -->
+    <section id="tela-menu" class="tela">
+      <div class="painel">
+        <h1 class="titulo">COME<br><span class="destaque">COME</span></h1>
+        <p class="subtitulo">Três labirintos, quatro fantasmas 👻</p>
+
+        <label class="rotulo" for="campo-apelido">Qual é o seu nome?</label>
+        <input id="campo-apelido" type="text" maxlength="14" autocomplete="off"
+               placeholder="Digite seu nome">
+
+        <div class="botoes">
+          <button id="btn-jogar" type="button" class="botao">JOGAR</button>
+        </div>
+
+        <ul class="ajuda">
+          <li><b>&larr; &uarr; &rarr; &darr;</b> ou <b>W A S D</b> — virar nas esquinas</li>
+          <li><b>P</b> ou <b>ESC</b> — pausar &nbsp;·&nbsp; <b>F</b> — tela cheia</li>
+          <li>🟡 coma todas as pastilhas para limpar o labirinto</li>
+          <li>⬤ a bolota grande deixa os fantasmas azuis: corra atrás deles!</li>
+        </ul>
+      </div>
+    </section>
 
     <!-- Fim de fase: sobe quando a última pastilha do labirinto some, nos
          labirintos 1 e 2. Mostra o que a fase rendeu, o bônus por limpar e o
@@ -66,9 +132,9 @@
     </section>
 
     <!-- Fim de jogo: as três vidas acabaram. No jogo de um jogador só a
-         partida termina aqui, com os pontos da corrida inteira na tela. (Em
-         grupo, quem zera as vidas vira espectador até a próxima fase — isso
-         ainda vai ser escrito.) -->
+         partida termina aqui, com os pontos da corrida inteira na tela e o
+         botão que recomeça do labirinto 1. (Em grupo, quem zera as vidas vira
+         espectador até a próxima fase — isso ainda vai ser escrito.) -->
     <section id="tela-fim" class="tela hidden">
       <div class="painel">
         <h1 class="titulo"><span class="destaque">FIM DE</span><br>JOGO</h1>
@@ -77,7 +143,8 @@
           Você chegou até a fase <b id="fim-fase">1</b><br>
           Pontos: <b id="fim-pontos">0</b>
         </p>
-        <p class="legenda">Recarregue a página para tentar de novo</p>
+
+        <button id="btn-fim-de-novo" type="button" class="botao">JOGAR DE NOVO</button>
       </div>
     </section>
 
@@ -102,7 +169,7 @@
     </section>
   </div>
 
-  <footer id="rodape">Setas ou W A S D para virar nas esquinas — coma todas as pastilhas e use o túnel dos lados. Morda uma bolota grande e os fantasmas ficam azuis: aí é você que corre atrás deles! Quando eles piscarem em branco, o feitiço está acabando — e aí é melhor correr: encostar num fantasma bravo custa uma vida. Limpe os três labirintos para chegar ao PARABÉNS!</footer>
+  <footer id="rodape">Setas ou W A S D para virar nas esquinas — coma todas as pastilhas e use o túnel dos lados. Morda uma bolota grande e os fantasmas ficam azuis: aí é você que corre atrás deles! Quando eles piscarem em branco, o feitiço está acabando — e aí é melhor correr: encostar num fantasma bravo custa uma vida. <b>P</b> ou <b>ESC</b> pausa, <b>F</b> abre em tela cheia. Limpe os três labirintos para chegar ao PARABÉNS!</footer>
 </div>
 
 <script src="game.js" charset="utf-8"></script>

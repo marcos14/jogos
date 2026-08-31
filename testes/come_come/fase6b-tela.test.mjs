@@ -28,6 +28,8 @@ import assert from 'node:assert/strict';
 import { carregarJogoComTela, teste, fim } from './harness.mjs';
 
 const dom = carregarJogoComTela('come_come');
+// Desde a fase 7 o jogo abre no MENU: quem comeca a partida e o botao JOGAR.
+dom.comecarPartida();
 const { Mapa, Movimento, Pastilhas, Rodada, mundo } = dom.api;
 
 const BONUS = mundo.PONTOS_LIMPOU;

@@ -21,6 +21,8 @@ import assert from 'node:assert/strict';
 import { carregarJogoComTela, teste, fim } from './harness.mjs';
 
 const dom = carregarJogoComTela('come_come');
+// Desde a fase 7 o jogo abre no MENU: quem comeca a partida e o botao JOGAR.
+dom.comecarPartida();
 const { Mapa, Movimento, Fantasmas, Pastilhas, Poder, Rodada, mundo } = dom.api;
 const mapa = dom.api.mapas[0];
 
@@ -312,6 +314,7 @@ teste('com o jogo acabado o mundo nao anda mais, mas a tela continua viva', () =
 // ------------------------------------------------------ Um jogo novo em paz -
 teste('um jogo recem-aberto nasce com as tres vidas de volta', () => {
   const novo = carregarJogoComTela('come_come');
+  novo.comecarPartida();
   novo.avancarQuadros(1);
 
   assert.equal(novo.api.jogo.vidas, 3);
@@ -327,6 +330,7 @@ teste('deixado sozinho, o jogo sabe acabar sem ninguem tocar em nada', () => {
      vidas a tela de fim de jogo sobe sozinha. E o caminho que uma crianca que
      largou o tablet percorreria. */
   const novo = carregarJogoComTela('come_come');
+  novo.comecarPartida();
   const dele = () => novo.api.jogo;
 
   for (let q = 0; q < 6000 && dele().tela === 'jogando'; q++) novo.avancarQuadros(1);
@@ -340,6 +344,7 @@ teste('deixado sozinho, o jogo sabe acabar sem ninguem tocar em nada', () => {
 teste('dois jogos deixados sozinhos dao exatamente o mesmo filme', () => {
   const filme = () => {
     const outro = carregarJogoComTela('come_come');
+    outro.comecarPartida();
     outro.avancarQuadros(1200);
     return JSON.stringify({
       rodada: outro.api.jogo.rodada,

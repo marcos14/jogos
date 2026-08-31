@@ -12,7 +12,11 @@
      - `carregarJogoComTela()` da o canvas: o jogo liga de verdade (teclado,
        laco de quadros e desenho) sem navegador nenhum. O "canvas" e um
        gravador - guarda cada retangulo pintado, e da para conferir onde o
-       come-come foi parar na tela.
+       come-come foi parar na tela. Desde a fase 7 ele tambem tem uma
+       Fullscreen API de mentira (`dom.telaCheia` conta os pedidos e as
+       saidas), porque o pedido de verdade so vale dentro de um clique num
+       navegador - e um atalho, `dom.comecarPartida()`, que clica no JOGAR do
+       menu, que agora e por onde toda partida comeca.
      - `teste()` / `fim()`: um corredor de testes de dez linhas.
 
    Rodar:  node testes/come_come/fase1.test.mjs
@@ -87,6 +91,9 @@ function criarElemento(tag, id) {
       remove(c) { this.dono.classes.delete(c); },
       contains(c) { return this.dono.classes.has(c); },
     },
+    // O campo do nome do menu (fase 7): so o `value` mesmo, que e o unico
+    // pedaco de `<input>` que o jogo usa.
+    value: '',
     setAttribute(nome, valor) { this.atributos[nome] = valor; },
     getAttribute(nome) { return this.atributos[nome] ?? null; },
     addEventListener(tipo, fn) { (this.ouvintes[tipo] = this.ouvintes[tipo] || []).push(fn); },
@@ -128,9 +135,12 @@ export function carregarJogoComTela(slug = 'come_come', opcoes = {}) {
   const elementos = {};
   for (const id of ['app', 'palco', 'rodape', 'hud',
                     'hud-pontos', 'hud-vidas', 'hud-fase', 'hud-faltam',
+                    'btn-pausa', 'btn-tela-cheia',
+                    'tela-menu', 'campo-apelido', 'btn-jogar', 'controles',
+                    'tela-pausa', 'btn-continuar', 'btn-recomecar',
                     'tela-fase', 'fase-numero', 'fase-pontos',
                     'fase-bonus', 'fase-proxima', 'btn-proxima',
-                    'tela-fim', 'fim-fase', 'fim-pontos',
+                    'tela-fim', 'fim-fase', 'fim-pontos', 'btn-fim-de-novo',
                     'tela-parabens', 'parabens-total', 'btn-de-novo',
                     'parabens-fase-1', 'parabens-fase-2', 'parabens-fase-3']) {
     elementos[id] = criarElemento('div', id);
@@ -139,6 +149,11 @@ export function carregarJogoComTela(slug = 'come_come', opcoes = {}) {
   elementos['tela-fase'].classes.add('hidden');
   elementos['tela-fim'].classes.add('hidden');
   elementos['tela-parabens'].classes.add('hidden');
+  // E, desde a fase 7, o HUD, o quadro de pausa e o cartaz dos controles
+  // tambem: quem comeca na tela e o menu.
+  elementos.hud.classes.add('hidden');
+  elementos['tela-pausa'].classes.add('hidden');
+  elementos.controles.classes.add('hidden');
 
   elementos.tela = criarElemento('canvas', 'tela');
   elementos.tela.getContext = () => contexto2d;
@@ -160,13 +175,34 @@ export function carregarJogoComTela(slug = 'come_come', opcoes = {}) {
     navigator: { maxTouchPoints: opcoes.toque ? 5 : 0 },
   };
 
+  /* A Fullscreen API de mentira (fase 7). O navegador de verdade nao deixa
+     entrar em tela cheia fora de um clique, entao aqui so ficam registradas as
+     chamadas - e o `fullscreenchange` e disparado na hora, como ele faz. */
+  const raiz = criarElemento('html', 'html');
+  const telaCheia = { pedidos: 0, saidas: 0 };
+
   const documento = {
+    documentElement: raiz,
+    fullscreenElement: null,
+    hidden: false,               // o `visibilitychange` da aba que sai de cena
     createElement(tag) { return criarElemento(tag, ''); },
+    exitFullscreen() {
+      telaCheia.saidas++;
+      documento.fullscreenElement = null;
+      dom.eventoDocumento('fullscreenchange');
+      return Promise.resolve();
+    },
     getElementById(id) { return elementos[id] || null; },
     ouvintes: {},
     addEventListener(tipo, fn) {
       (documento.ouvintes[tipo] = documento.ouvintes[tipo] || []).push(fn);
     },
+  };
+  raiz.requestFullscreen = () => {
+    telaCheia.pedidos++;
+    documento.fullscreenElement = raiz;
+    dom.eventoDocumento('fullscreenchange');
+    return Promise.resolve();
   };
   janela.window = janela;
   janela.document = documento;
@@ -188,8 +224,18 @@ export function carregarJogoComTela(slug = 'come_come', opcoes = {}) {
   const dom = {
     elementos,
     pintados,
+    telaCheia,
     documento,
     api: contexto.window.ComeCome,
+
+    /**
+     * Comeca a partida pelo menu - o caminho de verdade desde a fase 7. O
+     * `apelido` e o que a crianca digitaria no campo antes de clicar.
+     */
+    comecarPartida(apelido = '') {
+      elementos['campo-apelido'].value = apelido;
+      elementos['btn-jogar'].disparar('click');
+    },
 
     /** Dispara um evento no documento. */
     eventoDocumento(tipo, evento = {}) {

@@ -14,6 +14,8 @@ import assert from 'node:assert/strict';
 import { carregarJogoComTela, teste, fim } from './harness.mjs';
 
 const dom = carregarJogoComTela('come_come');
+// Desde a fase 7 o jogo abre no MENU: quem comeca a partida e o botao JOGAR.
+dom.comecarPartida();
 const { Mapa, Movimento, mundo } = dom.api;
 const TILE = mundo.TILE;
 
@@ -58,7 +60,7 @@ function dirigir(tecla, chegou, max = 900) {
 
 console.log('Come-Come - fase 1 (tela)\n');
 
-teste('o jogo abre ja jogando, com o come-come no nascimento', () => {
+teste('comecada a partida, o come-come nasce no lugar dele', () => {
   assert.equal(jogo().tela, 'jogando');
   assert.equal(jogo().fase, 1);
   assert.equal(coluna(), 13);
@@ -175,6 +177,7 @@ teste('o labirinto e desenhado no canvas, sem imagem nenhuma', () => {
   // cima ja levaram o come-come a passear, e desde a fase 2 passear come
   // pastilha. Uma copia nova do jogo devolve o desenho como ele nasce.
   const novo = carregarJogoComTela('come_come');
+  novo.comecarPartida();
   novo.avancarQuadros(1);
   const pastilhas = novo.pintados.filter((p) => p.cor === COR_PASTILHA);
   assert.equal(pastilhas.length, novo.api.mapas[0].totalPastilhas,

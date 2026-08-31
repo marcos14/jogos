@@ -15,6 +15,8 @@ import assert from 'node:assert/strict';
 import { carregarJogoComTela, teste, fim } from './harness.mjs';
 
 const dom = carregarJogoComTela('come_come');
+// Desde a fase 7 o jogo abre no MENU: quem comeca a partida e o botao JOGAR.
+dom.comecarPartida();
 const { Mapa, Fantasmas, Ciclos, Personalidades, mundo } = dom.api;
 const mapa = dom.api.mapas[0];
 
@@ -230,6 +232,7 @@ teste('a fase acabada congela tambem o relogio dos humores', () => {
 teste('dois jogos recem-abertos dao exatamente o mesmo filme', () => {
   const filme = () => {
     const outro = carregarJogoComTela('come_come');
+    outro.comecarPartida();
     outro.avancarQuadros(600);
     return JSON.stringify({
       ciclo: outro.api.jogo.ciclo,
@@ -243,6 +246,7 @@ teste('dois jogos recem-abertos dao exatamente o mesmo filme', () => {
 
 teste('um jogo recem-aberto comeca dispersando e com a semente no lugar', () => {
   const novo = carregarJogoComTela('come_come');
+  novo.comecarPartida();
   novo.avancarQuadros(1);
   assert.equal(novo.api.jogo.ciclo.modo, 'dispersar');
   assert.equal(novo.api.jogo.ciclo.etapa, 0);

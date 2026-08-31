@@ -14,6 +14,8 @@ import assert from 'node:assert/strict';
 import { carregarJogoComTela, teste, fim } from './harness.mjs';
 
 const dom = carregarJogoComTela('come_come');
+// Desde a fase 7 o jogo abre no MENU: quem comeca a partida e o botao JOGAR.
+dom.comecarPartida();
 const { Mapa, Movimento, Fantasmas, mundo } = dom.api;
 const mapa = dom.api.mapas[0];
 const TILE = mundo.TILE;
@@ -275,6 +277,7 @@ teste('quando a fase acaba, os fantasmas congelam junto com o mundo', () => {
 // ------------------------------------------------------ Um jogo novo em paz --
 teste('um jogo recem-aberto poe os quatro de volta na casa', () => {
   const novo = carregarJogoComTela('come_come');
+  novo.comecarPartida();
   novo.avancarQuadros(1);
   const lista = novo.api.jogo.fantasmas.lista;
   assert.equal(lista.length, 4);

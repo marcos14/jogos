@@ -152,8 +152,14 @@ teste('o index.html traz as tres telas de fim e os dois botoes', () => {
                         'PARABÉNS']) {
     assert.ok(html.includes(trecho), `faltou ${trecho} no index.html`);
   }
-  assert.equal(html.match(/class="tela hidden"/g).length, 3,
-    'e as tres telas de fim nascem escondidas');
+  // Fim de fase, fim de jogo e Parabens nascem escondidas - e, desde a fase 7,
+  // o quadro de pausa tambem. A unica tela que comeca de pe e o menu.
+  for (const tela of ['tela-fase', 'tela-fim', 'tela-parabens', 'tela-pausa']) {
+    assert.ok(new RegExp(`id="${tela}" class="tela hidden"`).test(html),
+      `a ${tela} tinha de nascer escondida`);
+  }
+  assert.ok(/id="tela-menu" class="tela"/.test(html),
+    'e o menu, de pe: e por ele que o jogo abre');
 });
 
 await fim('Fase 6b');

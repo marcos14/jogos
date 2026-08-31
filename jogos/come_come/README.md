@@ -5,28 +5,46 @@ corredores, coma todas as pastilhas e escape dos quatro fantasmas. Três
 labirintos, cada um mais difícil que o anterior — sozinho ou com até 5 amigos
 na mesma sala.
 
-> **Estado de hoje: fase 6b do plano.** A **partida solo está inteira**: os
-> três labirintos vêm em fila, cada um limpo abrindo o seguinte, e limpar o
+> **Estado de hoje: fase 7 do plano.** A **partida solo está inteira, com a
+> moldura toda**: o jogo abre num **menu** (nome do jogo, campo do nome e o
+> botão JOGAR), tem **pausa** (botão do HUD, `P` ou `ESC`) que congela o mundo
+> e oferece continuar ou recomeçar, **tela cheia** (botão do HUD ou `F`) e um
+> **cartaz com o lembrete dos controles** no canto do labirinto. Dentro dela,
+> os três labirintos vêm em fila, cada um limpo abrindo o seguinte, e limpar o
 > terceiro fecha a corrida numa tela de **PARABÉNS** com o que cada fase rendeu
-> e o total — com o botão de jogar de novo. Pelo caminho: os **quatro
-> fantasmas** moram na casa do centro, saem um a um pela porta e caçam cada um
-> do seu jeito, alternando com os respiros de dispersão pelos cantos; a
-> **pastilha de poder** vira o jogo do avesso — os quatro ficam azuis, fogem em
-> meia velocidade e podem ser comidos por 200, 400, 800 e 1600; **o jogo
-> machuca** — encostar num fantasma que não está assustado custa uma vida, e
-> quando as três acabam a partida termina numa tela de fim de jogo; e cada
-> labirinto é **mais difícil que o anterior**, por uma tabela de dificuldade
-> que mora num lugar só. Falta a moldura: a partida ainda entra direto no jogo,
-> sem menu e sem pausa (fase 7).
+> e o total. Pelo caminho: os **quatro fantasmas** moram na casa do centro,
+> saem um a um pela porta e caçam cada um do seu jeito, alternando com os
+> respiros de dispersão pelos cantos; a **pastilha de poder** vira o jogo do
+> avesso — os quatro ficam azuis, fogem em meia velocidade e podem ser comidos
+> por 200, 400, 800 e 1600; **o jogo machuca** — encostar num fantasma que não
+> está assustado custa uma vida, e quando as três acabam a partida termina numa
+> tela de fim de jogo; e cada labirinto é **mais difícil que o anterior**, por
+> uma tabela de dificuldade que mora num lugar só. Falta jogar **com amigos**:
+> a Central e a sala são a fase 8.
 
 ---
 
 ## Como se joga
 
+Digite o seu nome na tela inicial e clique em **JOGAR** (o `Enter` no campo faz
+o mesmo). O nome fica guardado no aparelho: da próxima vez ele já vem escrito.
+
 | Tecla | O que faz |
 |---|---|
 | `←` `→` `↑` `↓` | virar para aquele lado |
 | `A` `D` `W` `S` | a mesma coisa |
+| `P` ou `ESC` | pausar |
+| `F` | tela cheia |
+
+A **pausa** congela o labirinto inteiro — o come-come, os fantasmas e o relógio
+do feitiço ficam exatamente onde estavam — e traz dois caminhos: *CONTINUAR*,
+que volta do mesmo ponto, e *RECOMEÇAR*, que joga a corrida fora e devolve o
+jogo ao labirinto 1. Sair da aba (ou o tablet apagar a tela) **pausa sozinho**,
+para ninguém voltar e encontrar as três vidas gastas. Girar o aparelho não
+pausa nada: só refaz a conta do tamanho da tela.
+
+O `ESC` só pausa, nunca despausa: em tela cheia ele é do navegador, e sair
+dela não pode largar o jogo andando sem ninguém ter mandado.
 
 O pedido **fica guardado**: dá para apertar a seta um pouco antes da esquina
 que a curva sai certinha quando o corredor abrir. É assim nos fliperamas, e é
@@ -387,6 +405,33 @@ aparelho; o CSS só decide de que tamanho ele *aparece*, mantendo a proporção.
 As contas do jogo acontecem sempre nos mesmos pixels — que é o que vai deixar
 anfitrião e convidado batendo certo quando o multijogador entrar.
 
+**A moldura não sabe simular.** Menu, pausa, tela cheia e o cartaz dos
+controles não encostam em uma linha do mundo: o que eles fazem é decidir
+*quando* ele anda. O laço de quadros só chama `atualizar()` com a tela em
+`'jogando'` e sem pausa — mas continua **desenhando sempre**, e é por isso que
+o labirinto fica ali paradinho atrás do quadro de pausa em vez de sumir. Como o
+mundo inteiro (inclusive o relógio, que é o mesmo dos fantasmas e do feitiço)
+mora nesse `atualizar()`, pausar é literalmente não chamá-lo: nada precisa ser
+salvo nem restaurado na volta.
+
+**Começar uma partida é um caminho só.** O `JOGAR` do menu, o `RECOMEÇAR` da
+pausa e os dois `JOGAR DE NOVO` (o do fim de jogo e o do PARABÉNS) passam todos
+pelo mesmo `comecarPartida()`, que zera o caderno da corrida, enche as vidas e
+carrega o labirinto 1. Não existem duas maneiras diferentes de recomeçar — e
+por isso não existe uma que esqueça de zerar alguma coisa.
+
+**A tela cheia é do navegador, e o botão obedece a ele.** O pedido é feito para
+o documento inteiro (`documentElement`), que é o que funciona tanto com o
+`index.html` aberto direto quanto dentro do iframe do catálogo. Quem redesenha
+o botão é o evento `fullscreenchange`, nunca o clique: assim sair pelo `ESC` —
+que não passa pelo jogo — também acerta o ícone.
+
+**O campo do nome não briga com o teclado do jogo.** Enquanto o dedo está no
+`<input>`, o atalho global desiste (`ev.target === el.campoApelido`): senão
+digitar *Pedro* pausaria o jogo no "p" e *Ana* viraria o come-come no "a". É a
+única coisa que fica guardada no aparelho (`localStorage`), exatamente o que o
+`jogo.json` declara em `privacidade.coleta`.
+
 ---
 
 ## Testes
@@ -409,6 +454,7 @@ node testes/come_come/fase6a.test.mjs       # os três desenhos e a tabela de di
 node testes/come_come/fase6a-tela.test.mjs  # os labirintos 2 e 3 percorridos até ficarem limpos
 node testes/come_come/fase6b.test.mjs       # a corrida das três fases e o bônus
 node testes/come_come/fase6b-tela.test.mjs  # uma partida inteira, 1 → 2 → 3, até o PARABÉNS
+node testes/come_come/fase7-tela.test.mjs   # menu, pausa, recomeçar, tela cheia e controles
 ```
 
 O `fase2-tela.test.mjs` põe um **piloto automático** no volante: a cada centro

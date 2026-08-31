@@ -23,6 +23,8 @@ import assert from 'node:assert/strict';
 import { carregarJogoComTela, teste, fim } from './harness.mjs';
 
 const dom = carregarJogoComTela('come_come');
+// Desde a fase 7 o jogo abre no MENU: quem comeca a partida e o botao JOGAR.
+dom.comecarPartida();
 const { Mapa, Movimento, Pastilhas, Rodada, mundo } = dom.api;
 const mapa = dom.api.mapas[0];
 const TILE = mundo.TILE;
@@ -298,6 +300,7 @@ teste('com a fase concluida o mundo congela, mas a tela continua sendo pintada',
 // ----------------------------------------------------- Um jogo novo em paz --
 teste('um jogo recem-aberto nasce com o labirinto cheio de novo', () => {
   const novo = carregarJogoComTela('come_come');
+  novo.comecarPartida();
   novo.avancarQuadros(1);
   assert.equal(Pastilhas.faltam(novo.api.jogo.pastilhas), 244);
   assert.equal(novo.api.jogo.pontos, 0);

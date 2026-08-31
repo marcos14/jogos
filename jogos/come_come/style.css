@@ -76,6 +76,28 @@ body{
   letter-spacing: 1px;
 }
 
+/* Os botões de pausa e tela cheia, do lado dos números. Quadrados e grandes o
+   bastante para o dedo de uma criança (44px é o mínimo confortável). */
+.hud-botoes{
+  display: flex;
+  gap: 6px;
+}
+
+.botao-icone{
+  font-family: inherit;
+  font-size: 18px;
+  line-height: 1;
+  width: 44px;
+  height: 44px;
+  color: var(--preto);
+  background: var(--amarelo);
+  border: 3px solid var(--branco);
+  cursor: pointer;
+  padding: 0;
+}
+
+.botao-icone:active{ background: var(--branco); }
+
 /* ----------------------------------------------------------------- Palco -- */
 #palco{
   position: relative;
@@ -94,10 +116,33 @@ body{
   image-rendering: crisp-edges;
 }
 
+/* --------------------------------------------------- Caixa dos controles -- */
+/* Um cartaz no canto de baixo à direita do palco, por cima do canvas. Não
+   recebe clique (`pointer-events: none`) para nunca roubar o toque do jogo. */
+#controles{
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  background: rgba(13, 13, 23, .78);
+  border: 3px solid var(--branco);
+  padding: 4px 9px;
+  font-size: clamp(8px, 1.6vw, 11px);
+  line-height: 1.4;
+  letter-spacing: 1px;
+  color: var(--branco);
+  pointer-events: none;
+}
+
+#controles b{ color: var(--amarelo); }
+#controles .separador{ color: var(--cinza); }
+
 /* ----------------------------------------------------------------- Telas -- */
-/* As telas que sobem POR CIMA do labirinto: o fim de fase, o fim de jogo e o
-   PARABÉNS. Elas ocupam o palco inteiro, com o mundo congelado aparecendo por
-   trás. */
+/* As telas que sobem POR CIMA do labirinto: o menu, a pausa, o fim de fase, o
+   fim de jogo e o PARABÉNS. Elas ocupam o palco inteiro, com o mundo congelado
+   aparecendo por trás. */
 .tela{
   position: absolute;
   inset: 0;
@@ -191,6 +236,73 @@ body{
   box-shadow: 3px 3px 0 var(--preto);
 }
 
+/* O segundo botão de uma tela (o "Recomeçar" da pausa): branco, para o caminho
+   de sempre continuar sendo o amarelo. */
+.botao-claro{ background: var(--branco); }
+
+/* Dois botões lado a lado; em tela estreita eles empilham. */
+.botoes{
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+/* ------------------------------------------------------------------ Menu -- */
+/* O campo do nome da tela inicial. Fonte grande de propósito: quem digita aqui
+   está aprendendo a escrever o próprio nome. */
+.rotulo{
+  display: block;
+  margin-bottom: 6px;
+  font-size: clamp(10px, 2.2vw, 13px);
+  letter-spacing: 2px;
+  color: var(--amarelo);
+  text-transform: uppercase;
+}
+
+#campo-apelido{
+  font-family: inherit;
+  font-size: clamp(13px, 2.8vw, 18px);
+  letter-spacing: 2px;
+  text-align: center;
+  width: min(100%, 260px);
+  margin-bottom: 14px;
+  padding: 9px 10px;
+  color: var(--branco);
+  background: var(--preto);
+  border: 4px solid var(--branco);
+}
+
+#campo-apelido:focus{
+  outline: none;
+  border-color: var(--amarelo);
+}
+
+#campo-apelido::placeholder{ color: var(--cinza); letter-spacing: 1px; }
+
+.ajuda{
+  list-style: none;
+  margin: 18px 0 0;
+  padding: 0;
+  font-size: clamp(9px, 2vw, 12px);
+  letter-spacing: 1px;
+  line-height: 1.5;
+  color: var(--branco);
+}
+
+.ajuda li{ margin: 4px 0; }
+.ajuda b{ color: var(--amarelo); }
+
+/* ------------------------------------------------------------ Tela cheia -- */
+/* O pedido de tela cheia é feito para o documento inteiro (`<html>`), que é o
+   que funciona tanto com o jogo aberto direto quanto dentro do iframe do
+   catálogo. Aí a moldura da página sai da frente e sobra só o labirinto. */
+html:fullscreen{ background: var(--preto); }
+html:fullscreen body{ padding: 0; background: var(--preto); }
+html:-webkit-full-screen{ background: var(--preto); }
+html:-webkit-full-screen body{ padding: 0; background: var(--preto); }
+
 /* ---------------------------------------------------------------- Rodape -- */
 #rodape{
   font-size: 11px;
@@ -201,7 +313,18 @@ body{
 }
 
 /* Telas bem baixinhas (celular deitado): o rodapé sai da frente para o
-   labirinto ficar com a altura toda. */
+   labirinto ficar com a altura toda, e os painéis se apertam para o botão não
+   ficar fora da tela. */
 @media (max-height: 420px){
   #rodape{ display: none; }
+  .hud-label{ font-size: 9px; }
+  .botao-icone{ width: 38px; height: 38px; font-size: 15px; }
+  .subtitulo{ margin-bottom: 10px; }
+  .resumo li{ padding: 2px 8px; border-bottom-width: 2px; }
+  .legenda{ margin-bottom: 8px; }
+  .botao{ padding: 8px 18px; }
+  .botoes{ gap: 10px; margin-bottom: 8px; }
+  .ajuda{ margin-top: 10px; }
+  #campo-apelido{ margin-bottom: 8px; padding: 5px 8px; }
+  #controles{ padding: 2px 6px; gap: 6px; }
 }

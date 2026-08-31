@@ -32,6 +32,8 @@ import assert from 'node:assert/strict';
 import { carregarJogoComTela, teste, fim } from './harness.mjs';
 
 const dom = carregarJogoComTela('come_come');
+// Desde a fase 7 o jogo abre no MENU: quem comeca a partida e o botao JOGAR.
+dom.comecarPartida();
 const { Mapa, Movimento, Pastilhas, Rodada, Fantasmas, mundo } = dom.api;
 
 /* O come-come imortal: sem isto o piloto perderia as tres vidas no meio do
@@ -153,6 +155,7 @@ function limparOLabirinto(maxDecisoes = 6000) {
 /** Uma copia do jogo, imortal, aberta direto numa fase. */
 function abrirNaFase(fase) {
   const outro = carregarJogoComTela('come_come');
+  outro.comecarPartida();
   const quadro = outro.avancarQuadros;
   outro.avancarQuadros = (n) => {
     for (let i = 0; i < n; i++) {
