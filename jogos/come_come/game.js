@@ -247,6 +247,13 @@
      honesta - nada de meio pixel sobrando. */
   var VEL_COME = 2;
 
+  /* A boca abre e fecha num ciclo de 16 quadros - o mesmo tempo que o
+     come-come leva para atravessar dois quadrados. E medida de DESENHO, mas
+     mora aqui em cima porque o pacote da rede precisa dela: no retrato do
+     mundo viaja so a posicao do come-come dentro deste ciclo (0 a 15), e nao
+     a contagem inteira de passos, que cresce sem parar. */
+  var CICLO_BOCA = 16;
+
   /* Os fantasmas correm no mesmo compasso, pelo mesmo motivo: a grade so fica
      honesta com uma velocidade que divide os 16px do quadrado, e 1px por
      quadro seria uma lesma. Quem afina isso fase a fase e a tabela de
@@ -406,6 +413,12 @@
      mesa, quem joga bem continua ganhando pelo que comeu. */
   var PONTOS_LIMPOU = 500;
 
+  /* Quantos avisos cabem no retrato do mundo. Aviso e coisa rara - a bolota
+     mordida e o fantasma comido -, entao entre dois pacotes (tres quadros) mal
+     acontece um. O teto esta aqui para o caso torto: pacote nenhum pode
+     crescer sem limite por causa de uma fila que ninguem esvaziou. */
+  var MAX_AVISOS = 6;
+
   // ------------------------------------------------------------ As direcoes -
   /* A ordem importa: e ela que vira numero quando a direcao viajar pela rede,
      e e nela que a direcao oposta e "duas casas adiante". */
@@ -513,6 +526,69 @@
       var lista = [];
       for (var i = 0; i < DIRECOES.length; i++) {
         if (podeIr(mapa, c, l, DIRECOES[i])) lista.push(DIRECOES[i]);
+      }
+      return lista;
+    }
+
+    /**
+     * As distancias, em quadrados, de cada lugar do labirinto ate o mais perto
+     * de um punhado de partidas - uma busca em largura pela grade, com o tunel
+     * contando como um passo. A chave e `coluna + ',' + linha`.
+     */
+    function distancias(mapa, partidas) {
+      var visto = {}, fila = [], i, d;
+      for (i = 0; i < partidas.length; i++) {
+        var p = partidas[i];
+        if (visto[p.c + ',' + p.l] !== undefined) continue;
+        visto[p.c + ',' + p.l] = 0;
+        fila.push({ c: p.c, l: p.l, d: 0 });
+      }
+      for (i = 0; i < fila.length; i++) {
+        var aqui = fila[i];
+        for (d = 0; d < DIRECOES.length; d++) {
+          if (!podeIr(mapa, aqui.c, aqui.l, DIRECOES[d])) continue;
+          var v = vizinho(mapa, aqui.c, aqui.l, DIRECOES[d]);
+          if (visto[v.c + ',' + v.l] !== undefined) continue;
+          visto[v.c + ',' + v.l] = aqui.d + 1;
+          fila.push({ c: v.c, l: v.l, d: aqui.d + 1 });
+        }
+      }
+      return visto;
+    }
+
+    /**
+     * Onde nascem os `quantos` come-comes de uma partida - um por pessoa da
+     * sala, e cada um num canto diferente do labirinto.
+     *
+     * O primeiro e sempre o `P` do desenho: assim o jogo de um jogador so
+     * nasce exatamente onde sempre nasceu. Os outros saem de uma regra simples
+     * e sem sorteio nenhum: cada vez, o quadrado andavel MAIS LONGE de todos os
+     * que ja foram escolhidos (empate: o de cima, e depois o da esquerda).
+     * Como a conta e a mesma em todo aparelho, os cinco veem os cinco
+     * nascendo nos mesmos lugares - e ninguem nasce em cima do vizinho.
+     *
+     * O miolo da casa dos fantasmas fica de fora (a lista `chao` ja o exclui):
+     * de dentro dela a porta e parede, e o coitado nasceria preso.
+     */
+    function nascimentos(mapa, quantos) {
+      var quero = Math.max(1, quantos | 0);
+      var lista = [{ c: mapa.nascimento.c, l: mapa.nascimento.l }];
+      var chao = mapa.chao && mapa.chao.length ? mapa.chao : lista;
+
+      while (lista.length < quero) {
+        var longe = distancias(mapa, lista);
+        var melhor = null, melhorD = -1;
+        for (var i = 0; i < chao.length; i++) {
+          var q = chao[i];
+          var d = longe[q.c + ',' + q.l];
+          if (d === undefined || d <= melhorD) continue;   // empate: fica o primeiro
+          melhor = q;
+          melhorD = d;
+        }
+        // Labirinto de um corredor so (nao existe nenhum aqui, mas um desenho
+        // novo pode ser assim): dai todo mundo nasce onde o `P` manda.
+        if (!melhor || melhorD <= 0) { lista.push(lista[0]); continue; }
+        lista.push({ c: melhor.c, l: melhor.l });
       }
       return lista;
     }
@@ -678,6 +754,8 @@
       podeIr: podeIr,
       pastilhaEm: pastilhaEm,
       saidas: saidas,
+      distancias: distancias,
+      nascimentos: nascimentos,
       centro: centro,
       coluna: coluna,
       linha: linha,
@@ -1949,6 +2027,279 @@
     };
   }());
 
+  // ------------------------------------------------------ O pacote da rede --
+  /* Numa sala existe UM labirinto so, e quem roda ele e o anfitriao. Vinte
+     vezes por segundo ele manda para todos um retrato desse mundo; este modulo
+     e o tradutor dos dois lados - `montar()` faz o retrato, `aplicar()` copia o
+     retrato recebido por cima do mundo do convidado.
+
+     O retrato e pequeno de proposito (a plataforma corta em 64 KB e 90
+     mensagens por segundo): campos de uma letra e arrays de numeros INTEIROS,
+     do jeito que a Galinha Feliz e o Super Adventure fazem.
+
+         { k: 'e',             // "e" de estado (o convidado manda "i")
+           n: 173,             // numero de ordem; retrato velho vai para o lixo
+           f: 1,               // o labirinto em jogo
+           t: 940,             // o relogio do mundo (e o das animacoes)
+           q: 0,               // 0 jogando | 1 labirinto limpo | 2 fim de jogo
+           j: [[indice, x, y, dir, desejada, boca, pontos], ...],  // as pessoas
+           g: [[x, y, dir, etapa, sinais], ...],                   // os quatro
+           c: [ ... ],         // as pastilhas ja comidas, em bits
+           p: [ativo, restam, duracao, comidos],        // o feitico da bolota
+           r: [vidas, pausa, pego, acabou, tombado],    // a rodada
+           ev: [[tipo, x, y, indice, valor], ...] }     // a fila de avisos
+
+     Tres coisas merecem nota:
+
+       - `boca` e a posicao do come-come dentro do ciclo de 16 quadros da boca,
+         e nao a contagem inteira de passos: um digito em vez de cinco, e o
+         desenho fica igualzinho.
+       - as pastilhas viajam como BITS - 244 pastilhas cabem em nove numeros -
+         e sao o mundo inteiro, nao a diferenca: pacote perdido nao desalinha
+         nada, o proximo retrato ja traz tudo de novo.
+       - `ev` sao os AVISOS: as mordidas que valem mais que uma pastilha (a
+         bolota e o fantasma comido). O convidado nao recebe pixel nenhum de
+         efeito - ele refaz a faisca no lugar certo a partir desta fila.
+
+     Tudo aqui e conversao pura: `aplicar()` mexe no mundo que recebe, mas nao
+     sabe desenhar nem tocar em tela nenhuma - o que ele devolve e a lista de
+     avisos, para quem chamou soltar as faiscas. */
+  var Pacote = (function () {
+
+    var BITS = 30;                       // bits por numero (cabe num int de JS)
+    var ETAPAS = ['casa', 'saindo', 'livre', 'olhos', 'entrando'];
+    var AVISOS = ['poder', 'fantasma'];  // os tipos de aviso, na ordem do numero
+
+    /** Uma lista comprida de booleanos virando um array de numeros. */
+    function empacotar(lista) {
+      var saida = [];
+      for (var i = 0; i < lista.length; i++) {
+        var caixa = (i / BITS) | 0;
+        while (saida.length <= caixa) saida.push(0);
+        if (lista[i]) saida[caixa] |= 1 << (i % BITS);
+      }
+      return saida;
+    }
+
+    /** E a volta: `quantos` booleanos lidos de um array de numeros. */
+    function desempacotar(numeros, quantos) {
+      var lista = [], caixas = numeros || [];
+      for (var i = 0; i < quantos; i++) {
+        var n = caixas[(i / BITS) | 0] || 0;
+        lista.push(((n >> (i % BITS)) & 1) === 1);
+      }
+      return lista;
+    }
+
+    /** A direcao virando numero (e -1 quando nao ha direcao nenhuma). */
+    function codigoDir(dir) {
+      var i = DIRECOES.indexOf(dir);
+      return i < 0 ? -1 : i;
+    }
+
+    /** O caminho de volta. Numero de fora do baralho vira `null`. */
+    function direcaoDe(codigo) {
+      return DIRECOES[codigo] || null;
+    }
+
+    /** O jogador daquele indice, dentro de uma lista. */
+    function porIndice(jogadores, indice) {
+      for (var i = 0; i < jogadores.length; i++) {
+        if (jogadores[i].indice === indice) return jogadores[i];
+      }
+      return null;
+    }
+
+    /** Uma pessoa em sete numeros. */
+    function linhaJogador(j) {
+      var c = j.corpo;
+      return [
+        j.indice | 0, c.x | 0, c.y | 0,
+        codigoDir(c.dir), codigoDir(c.desejada),
+        c.passos % CICLO_BOCA,
+        j.pontos | 0
+      ];
+    }
+
+    /* O corpo oficial de uma pessoa, lido do retrato. `parado` nao viaja: ele
+       so muda o desenho de quem esta encostado numa parede, e o proximo passo
+       do anfitriao ja descobre isso de novo. */
+    function corpoDaLinha(linha) {
+      return {
+        x: linha[1], y: linha[2],
+        dir: direcaoDe(linha[3]) || 'esquerda',
+        desejada: direcaoDe(linha[4]),
+        parado: false,
+        passos: linha[5] | 0
+      };
+    }
+
+    /** Um fantasma em cinco numeros (a cor e o nome dele ja sao sabidos). */
+    function linhaFantasma(f) {
+      return [
+        f.corpo.x | 0, f.corpo.y | 0, codigoDir(f.corpo.dir),
+        ETAPAS.indexOf(f.etapa),
+        (f.assustado ? 1 : 0) | (f.descanso ? 2 : 0)
+      ];
+    }
+
+    /** O mundo do anfitriao num pacote. `numero` e a ordem do pacote. */
+    function montar(estado, numero) {
+      var jogadores = [], fantasmas = [], avisos = [], i;
+
+      for (i = 0; i < estado.jogadores.length; i++) {
+        jogadores.push(linhaJogador(estado.jogadores[i]));
+      }
+      for (i = 0; i < estado.fantasmas.lista.length; i++) {
+        fantasmas.push(linhaFantasma(estado.fantasmas.lista[i]));
+      }
+      for (i = 0; i < (estado.avisos || []).length; i++) {
+        var a = estado.avisos[i];
+        avisos.push([
+          AVISOS.indexOf(a.tipo), a.x | 0, a.y | 0, a.indice | 0, a.valor | 0
+        ]);
+      }
+
+      var comidas = [];
+      for (i = 0; i < estado.pastilhas.restam.length; i++) {
+        comidas.push(!estado.pastilhas.restam[i]);
+      }
+
+      return {
+        k: 'e', n: numero | 0,
+        f: estado.fase | 0,
+        t: estado.relogio | 0,
+        q: parada(estado),
+        j: jogadores,
+        g: fantasmas,
+        c: empacotar(comidas),
+        p: [
+          estado.poder.ativo ? 1 : 0, estado.poder.restam | 0,
+          estado.poder.duracao | 0, estado.poder.comidos | 0
+        ],
+        r: [
+          estado.rodada.vidas | 0, estado.rodada.pausa | 0,
+          estado.rodada.pego, estado.rodada.acabou ? 1 : 0,
+          estado.tombado
+        ],
+        ev: avisos
+      };
+    }
+
+    /* O mundo do anfitriao ainda esta andando? 0 = sim; 1 = o labirinto ficou
+       limpo; 2 = as vidas acabaram. E com este numero que a tela do convidado
+       vira a pagina junto com a dele - ninguem fica olhando um mundo parado
+       sem saber por que. */
+    function parada(estado) {
+      if (estado.tela === 'fim') return 2;
+      return estado.tela === 'jogando' ? 0 : 1;
+    }
+
+    /** O que o convidado manda de volta: a direcao que ele quer, e so. */
+    function entrada(numero, pedido) {
+      return { k: 'i', n: numero | 0, d: codigoDir(pedido && pedido.desejada) };
+    }
+
+    /** O pacote parece mesmo um retrato do mundo? */
+    function ehEstado(d) { return !!d && d.k === 'e' && !!d.j; }
+
+    /** E um pacote de direcao de convidado? */
+    function ehEntrada(d) { return !!d && d.k === 'i'; }
+
+    /**
+     * Copia o retrato recebido por cima do mundo `alvo` (o `jogo` do
+     * convidado) e devolve `{ avisos: [ {tipo,x,y,indice,valor}, ... ] }` - as
+     * faiscas que aquele pacote trouxe.
+     *
+     * O que NAO vem no retrato o convidado ja tem: a cor e o nome de cada
+     * fantasma, o desenho do labirinto e o lugar de cada pastilha. Por isso os
+     * fantasmas sao remendados por cima da lista que ele ja montou, e nao
+     * criados do zero.
+     */
+    function aplicar(d, alvo, mapa) {
+      var i, linha;
+
+      for (i = 0; i < d.j.length; i++) {
+        linha = d.j[i];
+        var j = porIndice(alvo.jogadores, linha[0]);
+        if (!j) continue;                     // alguem que ja saiu da sala
+        j.corpo = corpoDaLinha(linha);
+        j.pontos = linha[6] | 0;
+      }
+
+      var lista = [];
+      for (i = 0; i < alvo.fantasmas.lista.length; i++) {
+        var f = alvo.fantasmas.lista[i];
+        linha = (d.g || [])[i];
+        if (!linha) { lista.push(f); continue; }
+        lista.push({
+          indice: f.indice, chave: f.chave, nome: f.nome, cor: f.cor,
+          etapa: ETAPAS[linha[3]] || 'livre',
+          espera: f.espera, casaY: f.casaY,
+          assustado: (linha[4] & 1) === 1,
+          descanso: (linha[4] & 2) === 2,
+          corpo: {
+            x: linha[0], y: linha[1],
+            dir: direcaoDe(linha[2]) || 'esquerda',
+            desejada: direcaoDe(linha[2]) || 'esquerda',
+            parado: false, passos: f.corpo.passos + 1
+          }
+        });
+      }
+      alvo.fantasmas = { lista: lista, relogio: d.t | 0 };
+
+      var comidas = desempacotar(d.c, mapa.totalPastilhas);
+      var restam = [], faltam = 0, comeu = 0;
+      for (i = 0; i < comidas.length; i++) {
+        restam.push(!comidas[i]);
+        if (comidas[i]) comeu++; else faltam++;
+      }
+      alvo.pastilhas = { restam: restam, faltam: faltam, comidas: comeu };
+
+      var p = d.p || [0, 0, 0, 0];
+      alvo.poder = {
+        ativo: p[0] === 1, restam: p[1] | 0,
+        duracao: p[2] | 0, comidos: p[3] | 0
+      };
+
+      var r = d.r || [0, 0, -1, 0, -1];
+      alvo.rodada = {
+        vidas: r[0] | 0, pausa: r[1] | 0,
+        pego: typeof r[2] === 'number' ? r[2] : -1,
+        acabou: r[3] === 1
+      };
+      alvo.vidas = alvo.rodada.vidas;
+      alvo.tombado = typeof r[4] === 'number' ? r[4] : -1;
+      alvo.relogio = d.t | 0;
+
+      var avisos = [];
+      for (i = 0; i < (d.ev || []).length; i++) {
+        var a = d.ev[i];
+        avisos.push({
+          tipo: AVISOS[a[0]] || 'poder',
+          x: a[1] | 0, y: a[2] | 0, indice: a[3] | 0, valor: a[4] | 0
+        });
+      }
+      return { avisos: avisos };
+    }
+
+    return {
+      montar: montar,
+      aplicar: aplicar,
+      entrada: entrada,
+      ehEstado: ehEstado,
+      ehEntrada: ehEntrada,
+      porIndice: porIndice,
+      codigoDir: codigoDir,
+      direcaoDe: direcaoDe,
+      empacotar: empacotar,
+      desempacotar: desempacotar,
+      ETAPAS: ETAPAS,
+      AVISOS: AVISOS,
+      BITS: BITS
+    };
+  }());
+
   // ------------------------------------------------------- O labirinto 1 ----
   /* O primeiro dos tres labirintos do jogo: corredores largos, quatro
      pastilhas de poder nos cantos e um tunel na linha do meio. A casa dos
@@ -2095,6 +2446,7 @@
       Poder: Poder,
       Rodada: Rodada,
       Corrida: Corrida,
+      Pacote: Pacote,
       Sorteio: Sorteio,
       Ciclos: Ciclos,
       Personalidades: Personalidades,
@@ -2119,7 +2471,8 @@
         SEMENTE_PADRAO: SEMENTE_PADRAO,
         PONTOS_PASTILHA: PONTOS_PASTILHA, PONTOS_PODER: PONTOS_PODER,
         VIDAS_INICIAIS: VIDAS_INICIAIS, TOTAL_FASES: TOTAL_FASES,
-        PONTOS_LIMPOU: PONTOS_LIMPOU
+        PONTOS_LIMPOU: PONTOS_LIMPOU,
+        CICLO_BOCA: CICLO_BOCA, MAX_AVISOS: MAX_AVISOS
       }
     };
   }
@@ -2141,6 +2494,17 @@
   var COR_BRANCO_DO_OLHO = '#ffffff';   // os olhos dos fantasmas
   var COR_PUPILA = '#2020c0';
 
+  /* Numa sala ha um come-come por pessoa no mesmo labirinto, e a crianca
+     precisa achar o DELA num relance: a cor sai do `indice` da sala, que e
+     igual nos cinco aparelhos. O primeiro e o amarelo de sempre, que e o do
+     jogo de um jogador so. (A cor que a Central escolheu para cada um entra no
+     desenho na fase 11, junto com o mini-placar.) */
+  var CORES_JOGADOR = ['#fcd800', '#ff8adc', '#7cf8a0', '#8ad0ff', '#ffa030'];
+
+  function corDoJogador(j) {
+    return CORES_JOGADOR[(j.indice | 0) % CORES_JOGADOR.length] || COR_COME;
+  }
+
   /* O fantasma com medo: azul-marinho de cara boba, e branco no piscar que
      avisa que o feitico esta acabando. A cara (dois olhinhos e a boca em
      ziguezague) sai clara no azul e vermelha no branco - assim a piscada e
@@ -2154,10 +2518,13 @@
   var PASTILHA_L = 2;                // a pastilha comum e um quadradinho 2x2
   var PODER_MIN = 4, PODER_MAX = 8;  // a de poder pulsa entre 4x4 e 8x8
 
-  /* A boca abre e fecha num ciclo de 16 quadros - o mesmo tempo que o
-     come-come leva para atravessar dois quadrados. `ABERTURA_MAX` e a meia
-     boca, em radianos: uns 40 graus para cada lado. */
-  var CICLO_BOCA = 16;
+  // A faisca de um aviso: um quadrado de 16px que encolhe em meio segundo.
+  var EFEITO_QUADROS = 30;
+  var EFEITO_LADO = TILE;
+
+  /* `ABERTURA_MAX` e a meia boca, em radianos: uns 40 graus para cada lado.
+     (O ciclo de 16 quadros da boca mora la em cima, com as medidas do mundo:
+     o pacote da rede tambem precisa dele.) */
   var ABERTURA_MAX = 0.7;
 
   // Onde fica o olho, conforme a direcao: sempre do lado de fora da boca.
@@ -2300,15 +2667,16 @@
    * uma fatia tirada fora - a boca - apontando para onde ele anda. Cada linha
    * vira UM retangulo, entao o bicho inteiro sai em ~16 pinceladas.
    *
-   * `abertura` vai de 0 (boca fechada, uma bolinha) a 1 (boca escancarada).
+   * `abertura` vai de 0 (boca fechada, uma bolinha) a 1 (boca escancarada), e
+   * `cor` e a do dono do come-come (sem ela, o amarelo de sempre).
    */
-  function desenharComeCome(cx, cy, dir, abertura) {
+  function desenharComeCome(cx, cy, dir, abertura, cor) {
     var raio = TILE / 2;
     var v = VETORES[dir] || VETORES.esquerda;
     var angulo = Math.atan2(v.dl, v.dc);
     var meiaBoca = abertura * ABERTURA_MAX;
 
-    ctx.fillStyle = COR_COME;
+    ctx.fillStyle = cor || COR_COME;
     for (var py = -raio; py < raio; py++) {
       /* `null` e nao -1: o comeco de uma faixa pode muito bem ser a coluna -8,
          e um sentinela numerico se confundiria com ela - o que apagaria a
@@ -2462,6 +2830,45 @@
   var SUMICO = 2 / 3;
   var ABERTURA_SUMIU = Math.PI / ABERTURA_MAX;
 
+  /**
+   * Um come-come na tela, com a boca no ponto certo do ciclo e a copia do
+   * outro lado do tunel quando ele esta atravessando.
+   *
+   * A copia so entra quando o corpo REALMENTE cruza a borda (o centro dele a
+   * menos de meio quadrado da ponta); no resto do labirinto e desenho a toa.
+   */
+  function desenharUmJogador(j) {
+    var come = j.corpo;
+    var cor = corDoJogador(j);
+    var meio = TILE / 2;
+    var ciclo = come.passos % CICLO_BOCA;
+    var abertura = ciclo < CICLO_BOCA / 2
+      ? ciclo / (CICLO_BOCA / 2)
+      : (CICLO_BOCA - ciclo) / (CICLO_BOCA / 2);
+
+    desenharComeCome(come.x, come.y, come.dir, abertura, cor);
+
+    if (come.x < meio) {
+      desenharComeCome(come.x + labirinto.largura, come.y, come.dir, abertura, cor);
+    } else if (come.x > labirinto.largura - meio) {
+      desenharComeCome(come.x - labirinto.largura, come.y, come.dir, abertura, cor);
+    }
+  }
+
+  /* As faiscas dos avisos: um quadrado que encolhe no lugar em que alguem
+     mordeu uma bolota ou comeu um fantasma, na cor de quem fez a jogada. Elas
+     sao LOCAIS - no aparelho do convidado quem as solta e a fila de avisos que
+     veio no retrato, e nao um pixel mandado pela rede. */
+  function desenharEfeitos() {
+    for (var i = 0; i < jogo.efeitos.length; i++) {
+      var e = jogo.efeitos[i];
+      var quanto = e.vida / EFEITO_QUADROS;              // 1 = novinho, 0 = fim
+      var lado = Math.max(2, Math.round(EFEITO_LADO * quanto));
+      ctx.fillStyle = e.cor;
+      ctx.fillRect(e.x - lado / 2, e.y - lado / 2, lado, lado);
+    }
+  }
+
   /** A cena inteira, do zero, uma vez por quadro. */
   function desenharCena() {
     ctx.fillStyle = COR_FUNDO;
@@ -2470,37 +2877,32 @@
     desenharParedes(labirinto);
     desenharPastilhas(labirinto, jogo.pastilhas, jogo.relogio);
 
-    var come = jogo.come;
-    var meio = TILE / 2;
-
     if (Rodada.parado(jogo.rodada)) {
       /* No tombo os fantasmas somem da tela na hora, como no fliperama: o que
-         a crianca tem que ver e o proprio come-come indo embora. */
+         a crianca tem que ver e o come-come pego indo embora. Quem foi pego
+         viaja no retrato do mundo, entao as tres telas veem o MESMO come-come
+         sumindo - e nao cada uma o seu. */
+      var pego = Pacote.porIndice(jogo.jogadores, jogo.tombado) || jogo.eu;
+      var come = pego.corpo;
       var indo = Rodada.fatia(jogo.rodada) / SUMICO;
-      if (indo < 1) desenharComeCome(come.x, come.y, come.dir, indo * ABERTURA_SUMIU);
+      if (indo < 1) {
+        desenharComeCome(come.x, come.y, come.dir, indo * ABERTURA_SUMIU,
+          corDoJogador(pego));
+      }
       return;
     }
 
-    var ciclo = come.passos % CICLO_BOCA;
-    var abertura = ciclo < CICLO_BOCA / 2
-      ? ciclo / (CICLO_BOCA / 2)
-      : (CICLO_BOCA - ciclo) / (CICLO_BOCA / 2);
-
-    desenharComeCome(come.x, come.y, come.dir, abertura);
-
-    /* Na boca do tunel um pedaco do come-come ja passou da beirada da tela: a
-       copia do outro lado faz a travessia parecer o que ela e - um passo so.
-       Ela so entra quando o corpo REALMENTE cruza a borda (o centro dele a
-       menos de meio quadrado da ponta); no resto do labirinto e desenho a
-       toa. */
-    if (come.x < meio) desenharComeCome(come.x + labirinto.largura, come.y, come.dir, abertura);
-    else if (come.x > labirinto.largura - meio) {
-      desenharComeCome(come.x - labirinto.largura, come.y, come.dir, abertura);
+    /* Os outros vem antes: o come-come DESTE aparelho fica por cima de todos,
+       para a crianca nunca perder o dela de vista num empurra-empurra. */
+    for (var i = 0; i < jogo.jogadores.length; i++) {
+      if (!jogo.jogadores[i].local) desenharUmJogador(jogo.jogadores[i]);
     }
+    desenharUmJogador(jogo.eu);
 
     // Os fantasmas vem por ultimo: quando um passa por cima do come-come, e
     // ele que aparece - e assim a crianca ve o perigo, nao o contrario.
     desenharFantasmas(jogo.fantasmas, jogo.relogio, jogo.poder);
+    desenharEfeitos();
   }
 
   // -------------------------------------------------------------- O jogo ----
@@ -2509,15 +2911,47 @@
      fisica nem a rede ficam sabendo de onde veio. */
   var entrada = { desejada: null };
 
+  /**
+   * Uma pessoa na partida. Sozinho existe uma so, a de casa; numa sala existe
+   * uma por aparelho, todas no mesmo labirinto, e a identidade de cada uma e o
+   * `indice` que a Central deu (cabe num byte e e igual nos cinco aparelhos -
+   * o `id` e para falar com a plataforma, nao para andar no labirinto).
+   *
+   * O come-come de casa usa o MESMO objeto `entrada` do teclado: assim tanto
+   * faz de onde veio o pedido de curva - a seta, a cruzeta (fase 15) ou o
+   * pacote de um convidado -, o mundo le sempre do mesmo lugar.
+   */
+  function novoJogador(dados) {
+    var d = dados || {};
+    var casa = d.local === true;
+    var nasce = labirinto.nascimento;
+    return {
+      id: d.id || '',
+      indice: d.indice | 0,
+      apelido: d.apelido || '',
+      cor: d.cor || '',              // a cor da sala (o desenho e a fase 11)
+      local: casa,                   // este e o come-come DESTE aparelho?
+      // Todo mundo nasce no `P` do desenho e e espalhado logo em seguida por
+      // `recolocarJogadores()`, que e quem sabe quantas pessoas ha na partida.
+      corpo: Movimento.novoCorpo(nasce.c, nasce.l),
+      entrada: casa ? entrada : { desejada: null },
+      pontos: 0,
+      seq: 0                         // o numero do ultimo pedido dele que valeu
+    };
+  }
+
   var jogo = {
     tela: 'menu',                    // 'menu' | 'jogando' | 'fase' | 'fim' | 'parabens'
     pausado: false,                  // pausa: o mundo congela, a tela nao
     apelido: '',                     // o nome digitado no menu
     relogio: 0,                      // quadros desde o inicio da partida
     fase: 1,                         // o labirinto 1 de 3
-    pontos: 0,                       // o que a fase rendeu ate agora
     vidas: VIDAS_INICIAIS,           // a copia que o HUD le (quem manda e a rodada)
-    come: Movimento.novoCorpo(labirinto.nascimento.c, labirinto.nascimento.l),
+    jogadores: [],                   // uma pessoa por aparelho (sozinho: so eu)
+    eu: null,                        // a deste aparelho, dentro da lista
+    tombado: -1,                     // o indice de quem levou o tombo da vez
+    avisos: [],                      // a fila curta que viaja no retrato do mundo
+    efeitos: [],                     // ... e as faiscas que ela vira na tela
     pastilhas: Pastilhas.novoEstado(labirinto),
     // Os fantasmas e o relogio dos humores ja nascem com os numeros da FASE:
     // os tempos de saida da casa e a tabela de ciclos saem da dificuldade do
@@ -2530,9 +2964,94 @@
     corrida: Corrida.novoEstado()            // o caderninho dos tres labirintos
   };
 
+  /* O come-come de casa e os pontos dele atendem pelos nomes de sempre:
+     `jogo.come` e `jogo.pontos`. Desde que existe uma lista de jogadores, quem
+     guarda os dois e a linha da pessoa deste aparelho - e estes dois atalhos
+     evitam que o resto do arquivo (e os testes) precise saber disso.
+
+     Numa sala, `jogo.pontos` continua sendo o placar DESTE aparelho: o dos
+     outros mora na linha de cada um, e viaja no retrato do mundo. */
+  Object.defineProperty(jogo, 'come', {
+    enumerable: true,
+    get: function () { return jogo.eu.corpo; },
+    set: function (corpo) { jogo.eu.corpo = corpo; }
+  });
+  Object.defineProperty(jogo, 'pontos', {
+    enumerable: true,
+    get: function () { return jogo.eu.pontos; },
+    set: function (pontos) { jogo.eu.pontos = pontos; }
+  });
+
+  /** De volta a ser um jogo de um jogador so: um come-come, o de casa. */
+  function jogarSozinho() {
+    jogo.jogadores = [novoJogador({ local: true, indice: 0 })];
+    jogo.eu = jogo.jogadores[0];
+    jogo.avisos = [];
+  }
+
+  jogarSozinho();
+
   // O estado vivo, para os testes dirigirem o jogo sem navegador.
   window.ComeCome.jogo = jogo;
   window.ComeCome.entrada = entrada;
+
+  /**
+   * Um quadro de movimento de TODOS os come-comes do labirinto, cada um com o
+   * que o dono dele pediu: a seta de casa, ou a direcao que chegou pela rede.
+   *
+   * Sozinho isto e exatamente o que sempre foi - a lista tem uma pessoa so.
+   * Numa sala e aqui que o mundo do anfitriao vira o mundo de todos: e a
+   * mesmissima `Movimento.passo()` para os cinco corpos, que e o que deixa o
+   * convidado prever o proprio come-come com a mesma funcao (fase 10).
+   */
+  function moverJogadores() {
+    for (var i = 0; i < jogo.jogadores.length; i++) {
+      var j = jogo.jogadores[i];
+      if (j.entrada.desejada) j.corpo.desejada = j.entrada.desejada;
+      j.corpo = Movimento.passo(j.corpo, labirinto);
+    }
+  }
+
+  /**
+   * Um aviso: alguem mordeu uma bolota ('poder') ou comeu um fantasma
+   * ('fantasma'). Ele faz duas coisas, e nesta ordem:
+   *
+   *   1. solta a faisca AQUI, na hora - efeito e sempre local;
+   *   2. no anfitriao, entra na fila que viaja no proximo retrato do mundo,
+   *      para os convidados soltarem a mesma faisca no mesmo lugar.
+   *
+   * Sozinho (ou como convidado, que nao simula nada) a fila nem se enche: nao
+   * ha para quem contar.
+   */
+  function soltarAviso(tipo, x, y, indice, valor) {
+    var aviso = { tipo: tipo, x: x | 0, y: y | 0, indice: indice | 0, valor: valor | 0 };
+    efeitoDoAviso(aviso);
+    if (rede.papel !== 'anfitriao') return;
+    jogo.avisos.push(aviso);
+    if (jogo.avisos.length > MAX_AVISOS) jogo.avisos.shift();
+  }
+
+  /** A faisca de um aviso, na cor de quem fez a jogada. */
+  function efeitoDoAviso(aviso) {
+    var dono = Pacote.porIndice(jogo.jogadores, aviso.indice) || jogo.eu;
+    jogo.efeitos.push({
+      x: aviso.x, y: aviso.y, cor: corDoJogador(dono), vida: EFEITO_QUADROS
+    });
+  }
+
+  /* As faiscas envelhecem por fora do mundo, um quadro por quadro desenhado.
+     E de proposito: elas nao sao o jogo (nao mudam nada) e por isso continuam
+     andando na tela do convidado, que nao simula, e somem sozinhas depois da
+     pausa - ninguem volta de um telefonema e encontra um brilho parado. */
+  function passarEfeitos() {
+    var vivos = [];
+    for (var i = 0; i < jogo.efeitos.length; i++) {
+      var e = jogo.efeitos[i];
+      e.vida--;
+      if (e.vida > 0) vivos.push(e);
+    }
+    jogo.efeitos = vivos;
+  }
 
   /** Um passo do mundo. */
   function atualizar() {
@@ -2548,8 +3067,7 @@
     }
 
     jogo.relogio++;
-    if (entrada.desejada) jogo.come.desejada = entrada.desejada;
-    jogo.come = Movimento.passo(jogo.come, labirinto);
+    moverJogadores();
 
     // O que estiver debaixo dos pes dele some e vira ponto. Cada pastilha conta
     // uma vez so: nos outros 7 quadros dentro do mesmo quadrado ja nao ha nada.
@@ -2562,6 +3080,7 @@
       if (mordida.poder) {
         jogo.poder = Poder.ligar(jogo.poder, labirinto);
         jogo.fantasmas = Fantasmas.assustar(jogo.fantasmas);
+        soltarAviso('poder', jogo.come.x, jogo.come.y, jogo.eu.indice, mordida.pontos);
       }
       if (mordida.limpou) concluirFase();
     }
@@ -2625,6 +3144,7 @@
       var premio = Poder.comer(jogo.poder);
       jogo.poder = premio.estado;
       jogo.pontos += premio.pontos;
+      soltarAviso('fantasma', f.corpo.x, f.corpo.y, jogo.eu.indice, premio.pontos);
       jogo.fantasmas = Fantasmas.comido(jogo.fantasmas, i);
       lista = jogo.fantasmas.lista;
     }
@@ -2650,6 +3170,10 @@
     if (!tombo.perdeu) return;
     jogo.rodada = tombo.estado;
     jogo.vidas = tombo.estado.vidas;
+    // Quem foi pego: hoje o labirinto so machuca o come-come deste aparelho
+    // (em grupo, o tombo de cada um e a fase 12), mas o desenho ja pergunta
+    // pelo indice - e ele viaja no retrato.
+    jogo.tombado = jogo.eu.indice;
   }
 
   /**
@@ -2682,11 +3206,10 @@
     jogo.vidas = jogo.rodada.vidas;
 
     var novo = Rodada.reiniciar(labirinto, labirinto.dificuldade);
-    jogo.come = novo.come;
+    recolocarJogadores();
     jogo.fantasmas = novo.fantasmas;
     jogo.ciclo = novo.ciclo;
     jogo.poder = novo.poder;
-    entrada.desejada = null;
 
     el.telaFase.classList.add('hidden');
     el.telaFim.classList.add('hidden');
@@ -2706,12 +3229,34 @@
    * para o lado em que acabou de ser pega.
    */
   function recomecarRodada() {
+    // O `novo.come` que a rodada devolve vale para um come-come so: quem poe
+    // cada pessoa da sala no lugar dela e o `recolocarJogadores()`.
     var novo = Rodada.reiniciar(labirinto, labirinto.dificuldade);
-    jogo.come = novo.come;
+    recolocarJogadores();
     jogo.fantasmas = novo.fantasmas;
     jogo.ciclo = novo.ciclo;
     jogo.poder = novo.poder;
-    entrada.desejada = null;
+  }
+
+  /**
+   * Todo mundo de volta ao lugar de nascer, um por ponto de partida: o
+   * primeiro no `P` do desenho (que sozinho e o unico) e os outros
+   * espalhados pelo labirinto, na ordem do `indice` da sala. Como a conta e a
+   * mesma em todo aparelho, os cinco veem os cinco nascendo nos mesmos
+   * lugares.
+   *
+   * O pedido de direcao guardado se perde junto: seria feio a crianca
+   * renascer ja andando para o lado em que acabou de ser pega.
+   */
+  function recolocarJogadores() {
+    var lugares = Mapa.nascimentos(labirinto, jogo.jogadores.length);
+    jogo.tombado = -1;
+    for (var i = 0; i < jogo.jogadores.length; i++) {
+      var j = jogo.jogadores[i];
+      var lugar = lugares[i] || labirinto.nascimento;
+      j.corpo = Movimento.novoCorpo(lugar.c, lugar.l);
+      j.entrada.desejada = null;
+    }
   }
 
   /**
@@ -2914,6 +3459,12 @@
     guardarApelido(jogo.apelido);
     jogo.corrida = Corrida.novoEstado();
     jogo.rodada = Rodada.novoEstado();
+    jogo.efeitos = [];
+    /* O sorteio do fantasma laranja sai da SEMENTE, e numa sala a semente e a
+       que a Central mandou para todos: assim o mundo do anfitriao e o mesmo
+       filme em qualquer aparelho que precise recontar a historia. */
+    jogo.miras = Personalidades.novoEstado(
+      rede.sala ? rede.sala.semente : SEMENTE_PADRAO);
     irParaFase(1);
     exibir(el.menu, false);
     exibir(el.hud, true);
@@ -2992,26 +3543,36 @@
      arquivo nem sabe que a rede existe. O portao e um so, e e a ultima coisa
      do arquivo.
 
-     NESTA FASE a sala e so a moldura: o lobby da Central, o codigo no HUD, o
-     papel de cada aparelho e as saidas de emergencia. Cada aparelho ainda
-     simula o seu proprio labirinto. Dividir o mundo - um come-come por pessoa,
-     o anfitriao simulando todos - e a fase 9:
+     Comecada a sala existe UM labirinto so, e ele e o do anfitriao:
 
          CONVIDADO                 ANFITRIAO                  CONVIDADO
-         teclas  ---------------->  simula o mundo  -------->  desenha, preve
-         (20x/s)                    inteiro, com todos         (20x/s)  e corrige
+         a direcao  ------------->  simula o mundo  -------->  desenha
+         (20x/s)                    inteiro, com todos         (20x/s)
+
+     O anfitriao roda o `atualizar()` de sempre com a lista inteira de pessoas
+     dentro (um come-come por aparelho, cada um andando com o que o dono dele
+     pediu) e manda o retrato pronto (`Pacote.montar`) na taxa que o manifesto
+     pediu. O convidado nao simula nada: manda so a direcao que quer
+     (`Pacote.entrada`) e copia o retrato que chega (`Pacote.aplicar`),
+     soltando as faiscas dos avisos que vieram junto. Prever o proprio corpo
+     enquanto o pacote nao chega e a fase 10.
      ========================================================================== */
   var rede = {
     ligada: false,        // o multijogador da plataforma respondeu "de pe"
     sala: null,           // o instantaneo da sala, numa partida em grupo
     papel: 'solo',        // 'solo' | 'anfitriao' | 'convidado'
     recebidas: 0,         // pacotes que chegaram de outros jogadores
-    ultimaMensagem: null  // o ultimo deles, cru
+    ultimaMensagem: null, // o ultimo deles, cru
+    enviados: 0,          // pacotes que este aparelho mandou
+    seq: 0,               // o numero do ultimo pacote que ele montou
+    ultimoRecebido: 0,    // o numero do ultimo retrato aplicado
+    atrasados: 0          // retratos que chegaram velhos e foram para o lixo
   };
 
   var Rede = (function () {
     var P = null;         // o SDK da Central, ja iniciado
     var mj = null;        // P.multijogador
+    var quadrosDesdeEnvio = 0;   // para mandar na taxa certa, nao a cada quadro
 
     /* Liga o jogo na plataforma. Devolve `false` (e nao muda nada na tela)
        quando o multijogador nao esta disponivel - e o caso do servidor fora do
@@ -3064,6 +3625,12 @@
       rede.papel = sala.souAnfitriao ? 'anfitriao' : 'convidado';
       rede.recebidas = 0;
       rede.ultimaMensagem = null;
+      rede.enviados = 0;
+      rede.seq = 0;
+      rede.ultimoRecebido = 0;
+      rede.atrasados = 0;
+      quadrosDesdeEnvio = 0;
+      montarJogadores(sala);
       mostrarSala();
       comecarPartida();
 
@@ -3077,6 +3644,35 @@
       }
     }
 
+    /* A sala vira a lista de come-comes do labirinto, na ordem do `indice` -
+       que e a identidade de cada um dentro da partida (o `id` e para falar com
+       a plataforma). A pessoa deste aparelho e a que tem o id de `sala.eu`, e
+       e ela que continua sendo `jogo.come` para o resto do arquivo.
+
+       Onde cada um nasce quem decide e `recolocarJogadores()`, logo em seguida
+       (o `comecarPartida()` do `comecar` chama ele): a mesma conta em todo
+       aparelho, entao os cinco veem os cinco nascendo nos mesmos lugares. */
+    function montarJogadores(sala) {
+      var todos = (sala && sala.jogadores) || [];
+      var lista = [], eu = null, i;
+
+      for (i = 0; i < todos.length; i++) {
+        var p = todos[i];
+        var j = novoJogador({
+          id: p.id, indice: p.indice, apelido: p.apelido, cor: p.cor,
+          local: p.id === sala.eu
+        });
+        if (j.local) eu = j;
+        lista.push(j);
+      }
+      if (!eu) return;                 // sala sem mim: nao mexe em nada
+
+      lista.sort(function (a, b) { return a.indice - b.indice; });
+      jogo.jogadores = lista;
+      jogo.eu = eu;
+      jogo.avisos = [];
+    }
+
     /** O apelido deste aparelho dentro da sala, como os outros o veem. */
     function apelidoNaSala(sala) {
       var todos = (sala && sala.jogadores) || [];
@@ -3086,14 +3682,101 @@
       return '';
     }
 
-    /* Chegou um pacote de outro jogador. Na fase 8 o cano ja esta aberto nos
-       dois sentidos, mas ninguem tem o que dizer ainda: o conteudo dos pacotes
-       (o mundo do anfitriao, as teclas do convidado) e a fase 9. Aqui eles so
-       ficam anotados - e pacote de uma sala que ja acabou vai para o lixo. */
+    /* Chegou um pacote de outro jogador: ou e a direcao de um convidado (e
+       quem trata e o anfitriao), ou e o retrato do mundo (e quem copia sao os
+       convidados). Qualquer outra coisa e anotada e ignorada sem barulho - e
+       pacote de uma sala que ja acabou vai direto para o lixo. */
     function receber(msg) {
       if (!rede.sala) return;
       rede.recebidas++;
       rede.ultimaMensagem = msg;
+
+      var d = msg && msg.d;
+      if (Pacote.ehEntrada(d) && rede.papel === 'anfitriao') aplicarEntrada(msg.de, d);
+      else if (Pacote.ehEstado(d) && rede.papel === 'convidado') aplicarEstado(d);
+    }
+
+    /* A direcao que um convidado pediu, do lado do anfitriao. Ela fica na
+       linha dele e vale no proximo quadro, exatamente como a seta daqui - e e
+       isso que faz o come-come do convidado andar no mundo do anfitriao.
+       Pedido atrasado (numero menor que o ultimo) e descartado. */
+    function aplicarEntrada(id, d) {
+      var j = jogadorPorId(id);
+      if (!j || j.local) return;
+      if (d.n && d.n <= j.seq) return;
+      j.seq = d.n || 0;
+      j.entrada.desejada = Pacote.direcaoDe(d.d);
+    }
+
+    /** A pessoa daquele id da plataforma (ou `null`, se ela nao esta aqui). */
+    function jogadorPorId(id) {
+      for (var i = 0; i < jogo.jogadores.length; i++) {
+        if (jogo.jogadores[i].id === id) return jogo.jogadores[i];
+      }
+      return null;
+    }
+
+    /* O retrato do mundo, do lado do convidado: ele copia tudo por cima do que
+       tinha e refaz as faiscas dos avisos que vieram junto - efeito e local,
+       nao viaja pela rede.
+
+       Retrato velho vai para o lixo. E como o pacote e o mundo INTEIRO (e nao
+       a diferenca para o anterior), um que se perde no caminho nao desalinha
+       nada: o proximo ja traz tudo de novo. */
+    function aplicarEstado(d) {
+      if (jogo.tela !== 'jogando') return;
+      if (d.n && d.n <= rede.ultimoRecebido) { rede.atrasados++; return; }
+      rede.ultimoRecebido = d.n || 0;
+
+      // O anfitriao virou a pagina: o labirinto novo entra ANTES do resto,
+      // senao as pastilhas seriam lidas com o desenho errado.
+      if (d.f && d.f !== jogo.fase) irParaFase(d.f);
+
+      var novidades = Pacote.aplicar(d, jogo, labirinto);
+      for (var i = 0; i < novidades.avisos.length; i++) {
+        efeitoDoAviso(novidades.avisos[i]);
+      }
+      atualizarHud();
+
+      /* O mundo do anfitriao parou: ou o labirinto ficou limpo, ou as vidas
+         acabaram. A tela daqui vira a pagina junto - ninguem fica olhando um
+         labirinto parado sem saber por que. (As regras da sala - a fase que
+         acaba para o grupo e quem vira espectador - sao a fase 12.) */
+      if (d.q === 1) concluirFase();
+      else if (d.q === 2) fimDeJogo();
+    }
+
+    /* O quadro da rede, chamado uma vez por quadro desenhado. O anfitriao
+       manda o mundo, o convidado manda a direcao - os dois na taxa que o
+       manifesto pediu (20 por segundo), que num relogio de 60 quadros da um
+       pacote a cada tres. Bem dentro dos freios da plataforma: 64 KB e 90
+       mensagens por segundo. */
+    function passo() {
+      if (!rede.sala || jogo.tela !== 'jogando') return;
+
+      var taxa = rede.sala.taxaEstado || 15;
+      var cada = Math.max(1, Math.round(60 / taxa));
+      if (++quadrosDesdeEnvio < cada) return;
+      quadrosDesdeEnvio = 0;
+
+      if (rede.papel === 'anfitriao') mandarEstado();
+      else mandarEntrada();
+    }
+
+    /* O retrato do mundo, para a sala inteira. A fila de avisos vai junto e e
+       esvaziada aqui: cada faisca viaja uma vez so. */
+    function mandarEstado() {
+      if (!mj || rede.papel !== 'anfitriao') return;
+      rede.enviados++;
+      mj.enviar(Pacote.montar(jogo, ++rede.seq));
+      jogo.avisos = [];
+    }
+
+    /** E o que sobe do convidado: a direcao que ele quer, e mais nada. */
+    function mandarEntrada() {
+      if (!mj || rede.papel !== 'convidado') return;
+      rede.enviados++;
+      mj.paraAnfitriao(Pacote.entrada(++rede.seq, entrada));
     }
 
     /* A partida da sala foi encerrada pela Central. Ninguem pode ficar preso
@@ -3127,9 +3810,13 @@
       if (mj) mj.sair();
     }
 
+    /* Largar a sala e desfazer o mundo de todos: o labirinto volta a ter um
+       come-come so, o de casa. Sem isto os come-comes dos outros ficariam
+       parados na tela, esperando pacotes que nao chegam mais. */
     function limparSala() {
       rede.sala = null;
       rede.papel = 'solo';
+      jogarSozinho();
       mostrarSala();
     }
 
@@ -3151,12 +3838,18 @@
       iniciar: iniciar,
       abrirLobby: abrirLobby,
       sairDaSala: sairDaSala,
-      avisar: avisar
+      avisar: avisar,
+      passo: passo,
+      mandarEstado: mandarEstado,
+      /** O mundo anda NESTE aparelho? Convidado nao simula: ele so desenha. */
+      simulaAqui: function () { return rede.papel !== 'convidado'; }
     };
   }());
 
   window.ComeCome.rede = rede;
   window.ComeCome.abrirLobby = function () { Rede.abrirLobby(); };
+  // Os testes de sala forcam um retrato fresco por aqui.
+  window.ComeCome.mandarEstado = function () { Rede.mandarEstado(); };
 
   // ----------------------------------------------------------------- HUD ----
   /* Pontos, vidas, fase e quantas pastilhas faltam ficam no HTML (fora do
@@ -3268,8 +3961,8 @@
 
   // ---------------------------------------------------------- Laco do jogo --
   // Relogio fixo de 60 passos por segundo: o labirinto anda sempre igual em
-  // qualquer aparelho - e e isso que vai deixar anfitriao e convidado batendo
-  // certo quando o multijogador entrar.
+  // qualquer aparelho - e e isso que deixa anfitriao e convidado batendo certo
+  // numa sala.
   var acumulado = 0, ultimo = 0;
 
   function quadro(agora) {
@@ -3277,10 +3970,13 @@
     var dt = ultimo ? Math.min(200, agora - ultimo) : 0;
     ultimo = agora;
 
-    // Pausado, o mundo nao anda - mas a cena continua sendo desenhada, entao o
-    // labirinto fica ali paradinho atras do quadro de pausa. O acumulador zera
-    // no `else`: ao continuar, ninguem leva um punhado de quadros de uma vez.
-    if (jogo.tela === 'jogando' && !jogo.pausado) {
+    /* Pausado, o mundo nao anda - mas a cena continua sendo desenhada, entao o
+       labirinto fica ali paradinho atras do quadro de pausa. O acumulador zera
+       no `else`: ao continuar, ninguem leva um punhado de quadros de uma vez.
+
+       O convidado de uma sala tambem cai no `else`: quem simula o mundo dele e
+       o anfitriao, e o que chega por aqui e retrato pronto. */
+    if (jogo.tela === 'jogando' && !jogo.pausado && Rede.simulaAqui()) {
       acumulado += dt;
       var passos = 0;
       // A fase pode acabar no meio da rajada (a ultima pastilha some): dai em
@@ -3295,6 +3991,8 @@
       acumulado = 0;
     }
 
+    Rede.passo();
+    passarEfeitos();
     atualizarHud();
     desenharCena();
   }

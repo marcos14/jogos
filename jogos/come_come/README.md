@@ -5,10 +5,11 @@ corredores, coma todas as pastilhas e escape dos quatro fantasmas. Três
 labirintos, cada um mais difícil que o anterior — sozinho ou com até 5 amigos
 na mesma sala.
 
-> **Estado de hoje: fase 8 do plano.** A **partida solo está inteira, com a
+> **Estado de hoje: fase 9 do plano.** A **partida solo está inteira, com a
 > moldura toda**, e o menu já tem as **duas portas**: *JOGAR SOZINHO* e *JOGAR
-> COM AMIGOS*, que abre o lobby da Central e leva a turma para o mesmo
-> labirinto (o mundo de cada um ainda é o dele — dividi-lo é a fase 9). O jogo
+> COM AMIGOS*, que abre o lobby da Central e leva a turma para **um labirinto
+> só, com um come-come por pessoa** — o mundo é o do anfitrião, e é ele quem
+> simula todos. O jogo
 > abre num **menu** (nome do jogo, campo do nome e os dois botões),
 > tem **pausa** (botão do HUD, `P` ou `ESC`) que congela o mundo
 > e oferece continuar ou recomeçar, **tela cheia** (botão do HUD ou `F`) e um
@@ -22,8 +23,9 @@ na mesma sala.
 > por 200, 400, 800 e 1600; **o jogo machuca** — encostar num fantasma que não
 > está assustado custa uma vida, e quando as três acabam a partida termina numa
 > tela de fim de jogo; e cada labirinto é **mais difícil que o anterior**, por
-> uma tabela de dificuldade que mora num lugar só. Falta o **mundo dividido**:
-> um come-come por pessoa no labirinto do anfitrião, que é a fase 9.
+> uma tabela de dificuldade que mora num lugar só. Em grupo, falta as
+> **pastilhas serem disputadas** (hoje o labirinto reage ao come-come de quem
+> hospeda) e o **placar da sala** — as fases 11 a 13.
 
 ---
 
@@ -385,10 +387,48 @@ pode ficar preso numa tela parada:
 Apelido, cor e motivo **vêm de outro aparelho**: são dados, não código. Tudo o
 que vem de fora entra na tela por `textContent`, nunca por `innerHTML`.
 
-O que **ainda não** existe é o mundo dividido: nesta fase cada aparelho simula
-o seu próprio labirinto, e o cano de mensagens está aberto mas vazio. Um
-come-come por pessoa no mundo do anfitrião, com as pastilhas disputadas, é a
-fase 9 em diante.
+### Um labirinto só, e ele é o do anfitrião
+
+Começada a sala, o labirinto é **um só** e tem **um come-come por pessoa**:
+cada um nasce num canto diferente e ganha uma cor própria, tirada do `indice`
+que a Central deu — a identidade de cada um dentro da partida, igual nos cinco
+aparelhos (o primeiro é o amarelo de sempre, que é o do jogo sozinho). Onde
+cada um nasce sai de uma conta sem sorteio nenhum: o primeiro no `P` do
+desenho e, daí em diante, o corredor **mais longe** de todos os já escolhidos.
+Quem faz o mundo andar é o **anfitrião**, sozinho:
+
+```
+ CONVIDADO                 ANFITRIÃO                  CONVIDADO
+ a direção  ------------->  simula o mundo  -------->  desenha
+ (20x/s)                    inteiro, com todos         (20x/s)
+```
+
+O convidado manda **só a direção que quer** (`{ k:'i', n, d }` — três campos) e
+não simula nada; o anfitrião roda o mesmo `atualizar()` de sempre, agora com a
+lista inteira de come-comes dentro, e manda 20 vezes por segundo o **retrato
+completo** do mundo: onde está cada pessoa, os quatro fantasmas, quais
+pastilhas já sumiram (em bits), o feitiço da bolota, a rodada e a fila curta de
+**avisos**. Com a sala cheia dá **278 bytes**, e 458 no pior caso imaginável (o
+labirinto quase limpo e a fila de avisos no teto) — bem abaixo dos 2 KB que o
+[AGENTS.md](../../AGENTS.md) pede.
+
+Três decisões que valem por todas:
+
+- **Estado inteiro, nunca diferença.** Cada pacote é o mundo completo e
+  numerado. Um que se perde no caminho não desalinha nada: o próximo já traz
+  tudo de novo — e um que chega fora de ordem vai para o lixo.
+- **A geometria é a do anfitrião.** Se ele vira a página para o labirinto
+  seguinte, o número da fase vem no retrato e as outras telas viram junto,
+  antes de ler qualquer posição — senão as pastilhas seriam lidas com o desenho
+  errado.
+- **Efeito é local.** Nenhum pixel viaja: o que viaja é o *aviso* ("fulano
+  mordeu a bolota aqui", "comeu um fantasma ali, por 400"), e cada aparelho
+  solta a mesma faísca no mesmo lugar, na cor de quem fez a jogada.
+
+O que **ainda não** existe é a disputa: hoje o labirinto reage ao come-come de
+quem hospeda a sala. A pastilha que some para todos com os pontos ficando com
+quem comeu, o fantasma mirando o come-come mais perto, o labirinto que o grupo
+limpa junto e o placar da sala são as fases 11 a 13.
 
 ---
 
@@ -416,6 +456,7 @@ apontando para onde ele anda.
 | `Sorteio` | o gerador de bolso com semente: a mesma semente dá a mesma sequência em qualquer aparelho |
 | `Ciclos` | o relógio dos humores: em que linha da tabela dispersar↔caçar a partida está, e o aviso do quadro exato em que ela vira |
 | `Corrida` | o caderninho da partida solo: quanto cada labirinto rendeu, o bônus por limpar, o total e qual é o próximo — e a regra de que ela **só anda para a frente** |
+| `Pacote` | o tradutor da rede: o mundo do anfitrião virando números inteiros (pessoas, fantasmas, pastilhas em bits, poder, rodada e a fila de avisos) e de volta, do lado do convidado |
 
 Nenhum deles sabe o que é DOM, e todos são funções puras: recebem um estado e
 devolvem um estado **novo**, sem mexer no que receberam. Isso vale por dois
@@ -503,6 +544,7 @@ node testes/come_come/fase6b-tela.test.mjs  # uma partida inteira, 1 → 2 → 3
 node testes/come_come/fase7-tela.test.mjs   # menu, pausa, recomeçar, tela cheia e controles
 node testes/come_come/fase8.test.mjs        # o jogo sem a Central, e a fiação do SDK
 node testes/come_come/fase8-tela.test.mjs   # 3 abas numa sala, pelo servidor de verdade
+node testes/come_come/fase9.test.mjs        # o mundo único do anfitrião, com três abas
 ```
 
 O `fase2-tela.test.mjs` põe um **piloto automático** no volante: a cada centro
