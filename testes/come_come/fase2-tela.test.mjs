@@ -10,13 +10,20 @@
    percorrer o labirinto inteiro ate limpa-lo e conferir o que a fase 2
    promete: os pontos subindo no HUD, as pastilhas sumindo do desenho e a fase
    dada por concluida quando a ultima some.
+
+   A fase 5 pos o tombo no jogo - encostar num fantasma em caca custa uma vida
+   -, e por isso o piloto ganhou o que uma crianca tem de sobra: medo. Ele
+   agora mede a que distancia cada cacador esta de cada quadrado e so passa por
+   onde nenhum deles chegue perto; cercado, foge para o lado mais vazio e tenta
+   de novo no quadrado seguinte. Com isso ele limpa o labirinto inteiro sem
+   perder uma vida - que e o que a fase 2 promete.
    ========================================================================== */
 
 import assert from 'node:assert/strict';
 import { carregarJogoComTela, teste, fim } from './harness.mjs';
 
 const dom = carregarJogoComTela('come_come');
-const { Mapa, Movimento, Pastilhas, mundo } = dom.api;
+const { Mapa, Movimento, Pastilhas, Rodada, mundo } = dom.api;
 const mapa = dom.api.mapas[0];
 const TILE = mundo.TILE;
 
@@ -66,15 +73,55 @@ function porNoQuadrado(c, l, dir) {
   dom.api.entrada.desejada = dir;
 }
 
+const chave = (c, l) => `${c},${l}`;
+
+/* A que distancia (em quadrados) o cacador mais proximo esta de cada quadrado
+   do labirinto - uma busca em largura que comeca em TODOS eles ao mesmo tempo.
+   Fantasma assustado fica de fora: aquele nao machuca, se come. */
+const OLHO_DO_MEDO = 8;         // mais longe que isto o piloto nao se preocupa
+
+function mapaDePerigo() {
+  const perigo = new Map();
+  const fila = [];
+
+  for (const f of jogo().fantasmas.lista) {
+    if (!Rodada.cacador(f) || f.etapa === 'casa') continue;   // preso, nao pega
+    const c = Mapa.coluna(f.corpo.x);
+    const l = Mapa.linha(f.corpo.y);
+    if (perigo.has(chave(c, l))) continue;
+    perigo.set(chave(c, l), 0);
+    fila.push({ c, l, d: 0 });
+  }
+
+  for (let i = 0; i < fila.length; i++) {
+    const aqui = fila[i];
+    if (aqui.d >= OLHO_DO_MEDO) continue;
+    for (const dir of Movimento.DIRECOES) {
+      if (!Mapa.podeIr(mapa, aqui.c, aqui.l, dir)) continue;
+      const v = Mapa.vizinho(mapa, aqui.c, aqui.l, dir);
+      if (perigo.has(chave(v.c, v.l))) continue;
+      perigo.set(chave(v.c, v.l), aqui.d + 1);
+      fila.push({ c: v.c, l: v.l, d: aqui.d + 1 });
+    }
+  }
+  return perigo;
+}
+
 /* --------------------------------------------------------------------------
    O piloto automatico: uma busca em largura a partir do quadrado em que o
-   come-come esta, ate a pastilha inteira mais perto. Devolve a PRIMEIRA
-   direcao do caminho - que e o que uma crianca apertaria ali.
+   come-come esta, ate a pastilha inteira mais perto - passando so por onde
+   nenhum cacador esta perto. Devolve a PRIMEIRA direcao do caminho, que e o
+   que uma crianca apertaria ali. Cercado (nenhuma pastilha alcancavel em
+   seguranca), ele foge para o vizinho mais longe dos quatro e tenta de novo no
+   quadrado seguinte.
    -------------------------------------------------------------------------- */
+const MARGEM = 2;               // quadrados de folga que ele exige do cacador
+
 function direcaoParaAPastilhaMaisPerto() {
+  const perigo = mapaDePerigo();
+  const seguro = (c, l) => (perigo.get(chave(c, l)) ?? 99) > MARGEM;
   const c0 = coluna();
   const l0 = linha();
-  const chave = (c, l) => `${c},${l}`;
   const veio = new Map([[chave(c0, l0), null]]);
   const fila = [{ c: c0, l: l0 }];
 
@@ -94,11 +141,21 @@ function direcaoParaAPastilhaMaisPerto() {
       if (!Mapa.podeIr(mapa, aqui.c, aqui.l, dir)) continue;
       const v = Mapa.vizinho(mapa, aqui.c, aqui.l, dir);
       if (veio.has(chave(v.c, v.l))) continue;
+      if (!seguro(v.c, v.l)) continue;
       veio.set(chave(v.c, v.l), { c: aqui.c, l: aqui.l, dir });
       fila.push(v);
     }
   }
-  return null;
+
+  let melhor = null;
+  let maisLonge = -1;
+  for (const dir of Movimento.DIRECOES) {
+    if (!Mapa.podeIr(mapa, c0, l0, dir)) continue;
+    const v = Mapa.vizinho(mapa, c0, l0, dir);
+    const d = perigo.get(chave(v.c, v.l)) ?? 99;
+    if (d > maisLonge) { maisLonge = d; melhor = dir; }
+  }
+  return melhor;
 }
 
 /**

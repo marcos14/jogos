@@ -5,15 +5,16 @@ corredores, coma todas as pastilhas e escape dos quatro fantasmas. Três
 labirintos, cada um mais difícil que o anterior — sozinho ou com até 5 amigos
 na mesma sala.
 
-> **Estado de hoje: fase 4 do plano.** Já dá para correr pelo labirinto 1
+> **Estado de hoje: fase 5 do plano.** Já dá para correr pelo labirinto 1
 > comendo todas as pastilhas, ver o placar subir no HUD e limpar o labirinto;
 > os **quatro fantasmas** moram na casa do centro, saem um a um pela porta e
 > caçam cada um do seu jeito, alternando com os respiros de dispersão pelos
-> cantos; e a **pastilha de poder** agora vira o jogo do avesso — os quatro
-> ficam azuis, fogem em meia velocidade e podem ser comidos por 200, 400, 800
-> e 1600. Encostar num fantasma que **não** está assustado ainda não machuca
-> (fase 5), o labirinto ainda é um só (fase 6a) e a partida ainda entra direto
-> no jogo, sem menu (fase 7).
+> cantos; a **pastilha de poder** vira o jogo do avesso — os quatro ficam
+> azuis, fogem em meia velocidade e podem ser comidos por 200, 400, 800 e
+> 1600; e agora **o jogo machuca**: encostar num fantasma que não está
+> assustado custa uma vida, e quando as três acabam a partida termina numa
+> tela de fim de jogo. O labirinto ainda é um só (fase 6a) e a partida ainda
+> entra direto no jogo, sem menu (fase 7).
 
 ---
 
@@ -39,6 +40,9 @@ deixa os fantasmas azuis e comestíveis por 8 segundos. Enquanto elas piscam
 azul, corra atrás deles; quando começarem a **piscar em branco**, o feitiço
 está acabando — largue a caça e volte a comer pastilha.
 
+Fora do feitiço, **encostar num fantasma custa uma vida**. São três: quando a
+última se vai, o jogo acaba.
+
 ---
 
 ## A pontuação
@@ -63,15 +67,15 @@ bolota e dois na seguinte rende 200 + 400 duas vezes (1 200), e não os 3 000 de
 comer os quatro na mesma. Vale a pena esperar todos se aproximarem antes de
 morder a bolota.
 
-Encostar num fantasma que **não** está assustado ainda não custa vida nenhuma
-— o tombo é a próxima etapa do plano.
+Perder uma vida **não tira ponto nenhum**: o que a criança já comeu é dela, e
+continua no placar até o fim da partida.
 
 O HUD, em cima do labirinto, mostra quatro números:
 
 | Caixa | O que é |
 |---|---|
 | **Pontos** | o que a fase rendeu até agora |
-| **Vidas** | 🟡🟡🟡 — três, como no fliperama (ainda não há como perder) |
+| **Vidas** | 🟡🟡🟡 — três, como no fliperama; some uma a cada tombo |
 | **Fase** | qual dos três labirintos está em jogo |
 | **Faltam** | quantas pastilhas ainda estão de pé; zerou, a fase acabou |
 
@@ -201,6 +205,37 @@ correm a 4px por quadro.
 
 ---
 
+## O tombo, as vidas e o reinício da rodada
+
+Fora do feitiço da pastilha de poder, os quatro são **caçadores**: encostar num
+deles custa uma vida. Assustado, nunca — aquele se come, e vale a escada. E um
+par de olhos voltando para casa não é nem uma coisa nem outra: ele só quer
+chegar.
+
+Pego, o mundo inteiro **para por um segundo e meio**. Nos primeiros dois terços
+dessa pausa o come-come vai abrindo a boca até não sobrar nada dele — o adeus
+dos fliperamas —, e os fantasmas somem da tela na hora: o que a criança precisa
+ver ali é ela mesma indo embora, e não quem a pegou. No terço final o labirinto
+fica vazio, o respiro antes de todo mundo voltar.
+
+Passada a pausa, **volta tudo para o lugar de começo**: o come-come no `P` do
+desenho, os quatro na casa com os mesmos tempos de saída de sempre (6 segundos
+até o último pisar na rua), o relógio dispersar↔caçar do zero e nenhum feitiço
+valendo. O que **não** volta é o labirinto: cada pastilha já comida continua
+comida, e os pontos continuam no placar. Sem isso o tombo apagaria a fase
+inteira, e ninguém chegaria ao fim de um labirinto de 244 pastilhas.
+
+Uma regra pequena que faz toda a diferença: **uma vida por rodada**. Enquanto a
+pausa corre, encostar de novo não tira nada — sem isso o cerco dos quatro
+custaria as três vidas no mesmo quadro, e a criança não entenderia por quê.
+
+Zerando as vidas, sobe a tela de **FIM DE JOGO** com os pontos e a fase em que
+a partida parou. (Em grupo vai ser diferente: quem zera as vidas vira
+espectador até a próxima fase, e a corrida continua — isso é uma etapa mais à
+frente do plano.)
+
+---
+
 ## O labirinto, escrito como texto
 
 Cada labirinto do jogo é um desenho em texto dentro do `game.js`, uma letra por
@@ -261,6 +296,7 @@ apontando para onde ele anda.
 | `Pastilhas` | o caderninho do labirinto: quais pastilhas ainda estão de pé, o que rende comer a do quadrado em que o come-come está, e quantas faltam |
 | `Fantasmas` | os quatro corpos: a espera na casa, a rota da porta, a escolha da saída que mais aproxima do alvo recebido (ou que mais afasta, fugindo), a meia-volta de todos na virada do humor, o susto da pastilha de poder e a volta para casa de quem foi comido |
 | `Poder` | o cronômetro da pastilha de poder: quanto o feitiço ainda dura, quando o aviso começa a piscar e quanto vale o próximo fantasma na escada 200/400/800/1600 |
+| `Rodada` | as vidas e o tombo: quem machuca, quem encostou, a pausa curta que congela o mundo e o reinício que repõe as posições **sem** repor as pastilhas |
 | `Personalidades` | de quem é o alvo: o quadrado do come-come, quatro casas à frente dele, a coragem que depende da distância, o lugar sorteado — ou, na dispersão, o canto de cada um |
 | `Sorteio` | o gerador de bolso com semente: a mesma semente dá a mesma sequência em qualquer aparelho |
 | `Ciclos` | o relógio dos humores: em que linha da tabela dispersar↔caçar a partida está, e o aviso do quadro exato em que ela vira |
@@ -312,13 +348,17 @@ node testes/come_come/fase3b.test.mjs       # as personalidades, o sorteio e os 
 node testes/come_come/fase3b-tela.test.mjs  # dispersar e caçar dentro da partida
 node testes/come_come/fase4.test.mjs        # o poder, o susto, a escada e os olhos
 node testes/come_come/fase4-tela.test.mjs   # a bolota e os 200 + 400 no HUD
+node testes/come_come/fase5.test.mjs        # as vidas, o tombo e o reinício
+node testes/come_come/fase5-tela.test.mjs   # perder as três vidas até o fim de jogo
 ```
 
 O `fase2-tela.test.mjs` põe um **piloto automático** no volante: a cada centro
 de quadrado ele procura a pastilha inteira mais perto (uma busca em largura
-pelo labirinto, com o túnel e tudo) e aperta a seta daquele lado. Assim o
-labirinto inteiro é percorrido até ficar limpo, e o teste confere os 2 600
-pontos no HUD e a fase dada por concluída.
+pelo labirinto, com o túnel e tudo) e aperta a seta daquele lado — desviando
+dos quadrados em que um caçador está encostado, que é o que uma criança faz
+desde que o tombo entrou no jogo. Assim o labirinto inteiro é percorrido até
+ficar limpo **sem perder uma vida**, e o teste confere os 2 600 pontos no HUD e
+a fase dada por concluída.
 
 O `fase3a.test.mjs` solta os quatro fantasmas por **6 000 quadros** com um alvo
 que passeia pelos cantos e confere, quadro a quadro, que nenhum deles entra
@@ -345,3 +385,13 @@ bolota nova. O `fase4-tela.test.mjs` põe outro **piloto automático** no
 volante — este caça fantasma em vez de pastilha — e mede os **200 + 400** no
 HUD, o corpo do comido sumindo do desenho, o azul dos quatro na tela e o
 relógio dispersar↔caçar retomando de onde parou.
+
+O `fase5.test.mjs` monta as cenas do tombo à mão: o cerco dos quatro custando
+uma vida só, a pausa avisando no quadro exato de todo mundo voltar, as três
+vidas caindo uma a uma até o fim de jogo, e o reinício repondo as posições sem
+repor as pastilhas. O `fase5-tela.test.mjs` faz isso dentro da partida — o HUD
+perdendo um 🟡 por tombo, o mundo congelado durante a pausa (nem o relógio
+anda), os fantasmas sumindo da tela e o come-come encolhendo até desaparecer —
+e fecha com o caminho mais honesto de todos: um jogo **deixado sozinho**, sem
+uma seta apertada, que perde as três vidas e chega à tela de fim de jogo por
+conta própria.

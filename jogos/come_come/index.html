@@ -17,8 +17,9 @@
        labirinto — quando chega a zero, a fase acabou. Morder uma pastilha de
        poder deixa os quatro azuis e comestíveis por 8 segundos, valendo 200,
        400, 800 e 1600; quando eles começam a piscar em branco, o feitiço está
-       acabando. As vidas ainda não caem: encostar num fantasma que NÃO está
-       assustado ainda não machuca. -->
+       acabando. Encostar num fantasma que NÃO está assustado custa uma vida:
+       o mundo para, todo mundo volta para o lugar (o labirinto continua do
+       jeito que estava) e, quando as três acabam, o jogo termina. -->
   <header id="hud">
     <div class="hud-box">
       <span class="hud-label">Pontos</span>
@@ -61,9 +62,25 @@
         <p class="legenda">Os outros dois labirintos chegam em breve</p>
       </div>
     </section>
+
+    <!-- Fim de jogo: as três vidas acabaram. No jogo de um jogador só a
+         partida termina aqui, com os pontos na tela. (Em grupo, quem zera as
+         vidas vira espectador até a próxima fase — isso ainda vai ser
+         escrito, junto com o botão de jogar de novo.) -->
+    <section id="tela-fim" class="tela hidden">
+      <div class="painel">
+        <h1 class="titulo"><span class="destaque">FIM DE</span><br>JOGO</h1>
+        <p class="subtitulo">Os fantasmas pegaram você três vezes 👻</p>
+        <p class="placar">
+          Você chegou até a fase <b id="fim-fase">1</b><br>
+          Pontos: <b id="fim-pontos">0</b>
+        </p>
+        <p class="legenda">Recarregue a página para tentar de novo</p>
+      </div>
+    </section>
   </div>
 
-  <footer id="rodape">Setas ou W A S D para virar nas esquinas — coma todas as pastilhas e use o túnel dos lados. Morda uma bolota grande e os fantasmas ficam azuis: aí é você que corre atrás deles! Quando eles piscarem em branco, o feitiço está acabando.</footer>
+  <footer id="rodape">Setas ou W A S D para virar nas esquinas — coma todas as pastilhas e use o túnel dos lados. Morda uma bolota grande e os fantasmas ficam azuis: aí é você que corre atrás deles! Quando eles piscarem em branco, o feitiço está acabando — e aí é melhor correr: encostar num fantasma bravo custa uma vida.</footer>
 </div>
 
 <script src="game.js" charset="utf-8"></script>

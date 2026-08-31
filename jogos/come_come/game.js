@@ -1,10 +1,11 @@
 /* ==========================================================================
    COME-COME  -  labirinto de fliperama, no clima dos consoles de 8 bits
    --------------------------------------------------------------------------
-   FASE 4 do plano: A PASTILHA DE PODER E OS FANTASMAS COMESTIVEIS. As quatro
-   bolotas grandes dos cantos deixam de ser so pontos: quem morde uma vira o
-   jogo do avesso por alguns segundos - os cacadores ficam azuis, dao meia-volta
-   e fogem, e agora e a crianca que corre atras deles.
+   FASE 5 do plano: AS VIDAS, O TOMBO E O REINICIO DA RODADA. Ate aqui os
+   quatro eram enfeite perigoso - davam susto e nao machucavam. Agora encostar
+   num CACADOR custa uma vida: o mundo para por um segundo e meio, o come-come
+   vai embora abrindo a boca, todo mundo volta para o lugar de comeco e o
+   labirinto continua do jeito que estava. Sem vidas, a partida solo acaba.
 
    O chao de tudo (fase 1) continua sendo o mesmo:
 
@@ -100,16 +101,35 @@
        com 1px por quadro. E a unica maneira de o corpo continuar caindo nos
        centros dos quadrados quando o feitico acabar e a velocidade voltar a 2.
 
+   E o que a fase 5 poe por cima:
+
+     - `Rodada`: as vidas e o tombo. Ele sabe QUEM machuca (o espelho exato do
+       `Fantasmas.comestivel`: assustado nunca, olhos muito menos), QUANTO custa
+       (uma vida, e uma so por rodada - o cerco dos quatro nao cobra quatro
+       vezes) e O QUE VOLTA quando a pausa passa: o come-come no nascimento, os
+       quatro na casa, o relogio dos humores do zero e nenhum feitico valendo.
+     - As PASTILHAS ficam de fora do reinicio de proposito: o que a crianca ja
+       comeu continua comido. Sem isso o tombo apagaria a fase inteira, e
+       ninguem chegaria ao fim de um labirinto de 244 pastilhas.
+     - A pausa congela o mundo INTEIRO, inclusive o relogio - que e o mesmo dos
+       fantasmas. So o cronometro do tombo anda. Na tela os quatro somem na
+       hora e o come-come vai abrindo a boca ate nao sobrar nada dele: e o
+       adeus dos fliperamas, e o que a crianca precisa ver ali e ela mesma indo
+       embora, nao quem a pegou.
+     - Zeradas as vidas, sobe a tela de FIM DE JOGO com os pontos. Em grupo vai
+       ser diferente - quem zera vira espectador ate a proxima fase -, mas isso
+       e assunto de uma fase mais adiante.
+
    O labirinto tem 28 colunas por 31 linhas de quadrados de 16px - 448 x 496
    pixels, que e o tamanho de dentro do canvas. O tamanho de FORA (o quanto ele
    aparece na tela) e escolhido pelo CSS, mantendo a proporcao: as contas do
    jogo acontecem sempre nos mesmos 448 x 496, em qualquer aparelho.
 
-   Encostar num fantasma que NAO esta assustado ainda nao machuca (fase 5), o
-   labirinto ainda e um so (fase 6a) e a tela entra direto no jogo, sem menu
-   (fase 7). O que da para fazer hoje e o que a fase 4 promete: morder a bolota
-   do canto, ver os quatro ficarem azuis e sair cacando os cacadores - 200,
-   400, 800 e 1600 - ate eles comecarem a piscar avisando que a festa acabou.
+   O labirinto ainda e um so (fase 6a) e a tela entra direto no jogo, sem menu
+   (fase 7). O que da para fazer hoje e uma partida de fliperama inteira dentro
+   de um labirinto: comer as 244 pastilhas fugindo dos quatro, virar o jogo com
+   a bolota do canto e - quando eles alcancam - perder as tres vidas ate a tela
+   de fim de jogo.
    ========================================================================== */
 
 (function () {
@@ -193,6 +213,13 @@
      andam em direcoes opostas. */
   var RAIO_TOQUE = 8;
 
+  /* Quanto o mundo fica parado depois de um tombo, em quadros. Um segundo e
+     meio: nos primeiros dois tercos o come-come vai abrindo a boca ate sumir
+     (o adeus dos fliperamas), e no terco final o labirinto fica vazio - o
+     respiro que a crianca usa para entender o que aconteceu antes de todo
+     mundo voltar para o lugar. */
+  var PAUSA_TOMBO = 90;
+
   /* De quanto em quanto o fantasma aleatorio sorteia um lugar novo do
      labirinto: meio segundo e o bastante para ele mudar de ideia numa esquina
      ou noutra sem virar um pinguim eletrico. */
@@ -213,7 +240,7 @@
   // ------------------------------------------------------------ As regras ---
   var PONTOS_PASTILHA = 10;               // cada pastilha comum
   var PONTOS_PODER = 50;                  // a pastilha de poder (efeito: fase 4)
-  var VIDAS_INICIAIS = 3;                 // ainda nao ha como perder (fase 5)
+  var VIDAS_INICIAIS = 3;                 // tres tombos e a partida solo acaba
   var TOTAL_FASES = 3;                    // os tres labirintos do jogo (fase 6a)
 
   // ------------------------------------------------------------ As direcoes -
@@ -1515,6 +1542,154 @@
     };
   }());
 
+  // ------------------------------------------------------------ A rodada ----
+  /* O outro lado da mordida: ate aqui os quatro eram enfeite perigoso: davam
+     susto, mas nao machucavam. Agora encostar num CACADOR custa uma vida.
+
+     Uma RODADA e o pedaco de partida que vai de um nascimento ate o tombo
+     seguinte. O estado dela cabe em quatro campos:
+
+         { vidas: 3,        // quantos come-comes ainda restam
+           pausa: 0,        // quadros de mundo parado depois do tombo
+           pego: -1,        // quem pegou (para o desenho e, la na frente, o som)
+           acabou: false }  // as vidas acabaram: a partida solo terminou
+
+     Tres regras, e so:
+
+       1. QUEM MACHUCA. Fantasma assustado nunca: aquele se come, e vale a
+          escada da fase 4. Um par de olhos voltando para casa, muito menos.
+          Machuca o resto - e por isso `cacador()` e o espelho exato do
+          `Fantasmas.comestivel()`.
+       2. UMA VIDA POR RODADA. Com a pausa correndo, encostar de novo nao tira
+          nada. Sem isso o cerco dos quatro custaria as tres vidas de uma vez,
+          no mesmo quadro.
+       3. O QUE VOLTA. `reiniciar()` devolve todo mundo ao comeco: o come-come
+          no nascimento, os quatro na casa com os tempos de saida de sempre, o
+          relogio dos humores do zero e nenhum feitico valendo. As PASTILHAS
+          ficam de fora de proposito - o que a crianca ja comeu continua
+          comido, senao o tombo apagaria a fase inteira.
+
+     Puro como o resto, e pelo mesmo motivo: numa sala e o anfitriao que roda
+     isto, e o convidado so recebe o resultado. */
+  var Rodada = (function () {
+
+    /** Aquele fantasma machuca quem encostar nele agora? */
+    function cacador(f) {
+      return f.assustado !== true && f.etapa !== 'olhos' && f.etapa !== 'entrando';
+    }
+
+    /** O comeco de uma partida: as vidas cheias e ninguem pego. */
+    function novoEstado(vidas) {
+      var n = (typeof vidas === 'number' && vidas > 0) ? Math.floor(vidas) : VIDAS_INICIAIS;
+      return { vidas: n, pausa: 0, pego: -1, acabou: false };
+    }
+
+    /**
+     * Qual fantasma pegou o come-come neste quadro - ou -1, que e o caso de
+     * quase todos eles. A conta de encostar e a mesma da fase 4 (em pixels, e
+     * com o tunel no meio), so que agora do lado de quem caca.
+     */
+    function pegou(fantasmas, corpo, mapa) {
+      var lista = (fantasmas && fantasmas.lista) || [];
+      for (var i = 0; i < lista.length; i++) {
+        if (!cacador(lista[i])) continue;
+        if (Fantasmas.encostou(lista[i], corpo, mapa)) return i;
+      }
+      return -1;
+    }
+
+    /** Quantos quadros a pausa do tombo dura (o labirinto pode ter o seu). */
+    function pausaDe(opcoes) {
+      var p = opcoes && opcoes.pausa;
+      return (typeof p === 'number' && p > 0) ? p : PAUSA_TOMBO;
+    }
+
+    /**
+     * O tombo. Devolve `{ estado, perdeu, acabou }`, com `perdeu` so no quadro
+     * em que a vida realmente foi embora: com a pausa ja correndo (ou com a
+     * partida acabada) nada acontece - e a regra 2 la de cima.
+     */
+    function perder(estado, quem, opcoes) {
+      if (estado.pausa > 0 || estado.acabou) {
+        return { estado: estado, perdeu: false, acabou: estado.acabou };
+      }
+      var vidas = estado.vidas - 1;
+      if (vidas < 0) vidas = 0;
+      return {
+        estado: {
+          vidas: vidas,
+          pausa: pausaDe(opcoes),
+          pego: (typeof quem === 'number' && quem >= 0) ? quem : -1,
+          acabou: vidas === 0
+        },
+        perdeu: true,
+        acabou: vidas === 0
+      };
+    }
+
+    /**
+     * Um quadro da pausa. `voltou` cai no exato quadro em que ela termina e
+     * todo mundo volta para o lugar; se as vidas acabaram vem `acabou` no
+     * lugar dele - e dali sobe a tela de fim de jogo.
+     */
+    function passo(estado) {
+      if (estado.pausa <= 0) return { estado: estado, voltou: false, acabou: false };
+
+      var pausa = estado.pausa - 1;
+      return {
+        estado: {
+          vidas: estado.vidas,
+          pausa: pausa,
+          pego: pausa > 0 ? estado.pego : -1,
+          acabou: estado.acabou
+        },
+        voltou: pausa === 0 && !estado.acabou,
+        acabou: pausa === 0 && estado.acabou
+      };
+    }
+
+    /** O mundo esta parado agora? (e o que congela tudo durante o tombo) */
+    function parado(estado) { return estado.pausa > 0; }
+
+    /**
+     * Quanto da pausa ja passou, de 0 (o susto) a 1 (a hora de voltar). E daqui
+     * que sai o sumico do come-come na tela - o unico uso desta conta.
+     */
+    function fatia(estado, opcoes) {
+      var total = pausaDe(opcoes);
+      if (estado.pausa <= 0) return 1;
+      return (total - estado.pausa) / total;
+    }
+
+    /**
+     * Todo mundo de volta ao comeco da rodada. As pastilhas nao aparecem aqui
+     * de proposito (regra 3), e o sorteio do laranja tambem nao: a semente
+     * segue de onde estava, que numa sala e o unico jeito de os cinco
+     * aparelhos continuarem vendo o mesmo filme.
+     */
+    function reiniciar(mapa, opcoes) {
+      return {
+        come: Movimento.novoCorpo(mapa.nascimento.c, mapa.nascimento.l),
+        fantasmas: Fantasmas.novoEstado(mapa, opcoes),
+        ciclo: Ciclos.novoEstado(opcoes),
+        poder: Poder.novoEstado()
+      };
+    }
+
+    return {
+      novoEstado: novoEstado,
+      cacador: cacador,
+      pegou: pegou,
+      perder: perder,
+      passo: passo,
+      parado: parado,
+      fatia: fatia,
+      reiniciar: reiniciar,
+      VIDAS: VIDAS_INICIAIS,
+      PAUSA: PAUSA_TOMBO
+    };
+  }());
+
   // ------------------------------------------------------- O labirinto 1 ----
   /* O primeiro dos tres labirintos do jogo: corredores largos, quatro
      pastilhas de poder nos cantos e um tunel na linha do meio. A casa dos
@@ -1578,6 +1753,7 @@
       Pastilhas: Pastilhas,
       Fantasmas: Fantasmas,
       Poder: Poder,
+      Rodada: Rodada,
       Sorteio: Sorteio,
       Ciclos: Ciclos,
       Personalidades: Personalidades,
@@ -1590,6 +1766,7 @@
         LARGURA: LARGURA, ALTURA: ALTURA,
         PASSO_MS: PASSO_MS, VEL_COME: VEL_COME, VEL_FANTASMA: VEL_FANTASMA,
         VEL_OLHOS: VEL_OLHOS, RENASCER: RENASCER, RAIO_TOQUE: RAIO_TOQUE,
+        PAUSA_TOMBO: PAUSA_TOMBO,
         PODER_QUADROS: PODER_QUADROS, AVISO_PODER: AVISO_PODER,
         PISCA_PODER: PISCA_PODER, PREMIOS: PREMIOS,
         SAIDAS: SAIDAS, CICLOS: CICLOS, TROCA_SORTEIO: TROCA_SORTEIO,
@@ -1691,7 +1868,12 @@
     // A tela provisoria de fim de fase (o encadeamento e a fase 6b do plano).
     telaFase: $('tela-fase'),
     faseNumero: $('fase-numero'),
-    fasePontos: $('fase-pontos')
+    fasePontos: $('fase-pontos'),
+
+    // Fim de jogo: as tres vidas acabaram.
+    telaFim: $('tela-fim'),
+    fimPontos: $('fim-pontos'),
+    fimFase: $('fim-fase')
   };
 
   /** As paredes: bloco cheio, com brilho so nas beiradas que dao para o chao. */
@@ -1896,6 +2078,14 @@
     return f.cor;
   }
 
+  /* O adeus dos fliperamas: pego, o come-come vai abrindo a boca ate nao
+     sobrar nada dele. A boca escancarada do jogo normal e `abertura = 1`
+     (140 graus); para sumir de vez ela precisa dar a volta inteira, e por isso
+     o sumico chega a `PI / ABERTURA_MAX`. Ele acontece nos dois primeiros
+     tercos da pausa - o terco final e o labirinto vazio. */
+  var SUMICO = 2 / 3;
+  var ABERTURA_SUMIU = Math.PI / ABERTURA_MAX;
+
   /** A cena inteira, do zero, uma vez por quadro. */
   function desenharCena() {
     ctx.fillStyle = COR_FUNDO;
@@ -1905,6 +2095,16 @@
     desenharPastilhas(labirinto, jogo.pastilhas, jogo.relogio);
 
     var come = jogo.come;
+    var meio = TILE / 2;
+
+    if (Rodada.parado(jogo.rodada)) {
+      /* No tombo os fantasmas somem da tela na hora, como no fliperama: o que
+         a crianca tem que ver e o proprio come-come indo embora. */
+      var indo = Rodada.fatia(jogo.rodada) / SUMICO;
+      if (indo < 1) desenharComeCome(come.x, come.y, come.dir, indo * ABERTURA_SUMIU);
+      return;
+    }
+
     var ciclo = come.passos % CICLO_BOCA;
     var abertura = ciclo < CICLO_BOCA / 2
       ? ciclo / (CICLO_BOCA / 2)
@@ -1917,7 +2117,6 @@
        Ela so entra quando o corpo REALMENTE cruza a borda (o centro dele a
        menos de meio quadrado da ponta); no resto do labirinto e desenho a
        toa. */
-    var meio = TILE / 2;
     if (come.x < meio) desenharComeCome(come.x + labirinto.largura, come.y, come.dir, abertura);
     else if (come.x > labirinto.largura - meio) {
       desenharComeCome(come.x - labirinto.largura, come.y, come.dir, abertura);
@@ -1939,13 +2138,14 @@
     relogio: 0,                      // quadros desde o inicio da partida
     fase: 1,                         // o labirinto 1 de 3
     pontos: 0,                       // o que a fase rendeu ate agora
-    vidas: VIDAS_INICIAIS,           // ainda nao ha como perder (fase 5)
+    vidas: VIDAS_INICIAIS,           // a copia que o HUD le (quem manda e a rodada)
     come: Movimento.novoCorpo(labirinto.nascimento.c, labirinto.nascimento.l),
     pastilhas: Pastilhas.novoEstado(labirinto),
     fantasmas: Fantasmas.novoEstado(labirinto),
     ciclo: Ciclos.novoEstado(),              // dispersar ou cacar, e ha quanto tempo
     miras: Personalidades.novoEstado(),      // a semente e o alvo sorteado do laranja
-    poder: Poder.novoEstado()                // o cronometro da pastilha de poder
+    poder: Poder.novoEstado(),               // o cronometro da pastilha de poder
+    rodada: Rodada.novoEstado()              // as vidas e a pausa do tombo
   };
 
   // O estado vivo, para os testes dirigirem o jogo sem navegador.
@@ -1954,6 +2154,17 @@
 
   /** Um passo do mundo. */
   function atualizar() {
+    /* O tombo congela TUDO - inclusive o relogio do mundo, que e o mesmo dos
+       fantasmas. So a pausa anda, e no fim dela ou todo mundo volta para o
+       lugar ou sobe a tela de fim de jogo. */
+    if (Rodada.parado(jogo.rodada)) {
+      var espera = Rodada.passo(jogo.rodada);
+      jogo.rodada = espera.estado;
+      if (espera.voltou) recomecarRodada();
+      else if (espera.acabou) fimDeJogo();
+      return;
+    }
+
     jogo.relogio++;
     if (entrada.desejada) jogo.come.desejada = entrada.desejada;
     jogo.come = Movimento.passo(jogo.come, labirinto);
@@ -1996,7 +2207,7 @@
        quatro casas a frente dele, o azul so caca de longe e o laranja vai
        aonde o sorteio mandar - ou, na dispersao, cada um para o seu canto.
        Quem esta assustado ignora tudo isso e so quer distancia do come-come
-       (`fuga`). Encostar num cacador ainda nao machuca (fase 5). */
+       (`fuga`) - e nesse estado ele nao machuca ninguem. */
     var mira = Personalidades.passo(jogo.miras, jogo.fantasmas, labirinto, {
       modo: jogo.ciclo.modo,
       come: quadradoDoCome
@@ -2007,6 +2218,7 @@
     });
 
     comerFantasmas();
+    checarTombo();
   }
 
   /**
@@ -2030,6 +2242,56 @@
       jogo.fantasmas = Fantasmas.comido(jogo.fantasmas, i);
       lista = jogo.fantasmas.lista;
     }
+  }
+
+  /**
+   * O tombo: um fantasma em caca encostou no come-come. Custa uma vida e para
+   * o mundo por um segundo e meio - e uma vida so, ainda que os quatro estejam
+   * em cima dele (quem cuida disso e o `Rodada.perder`).
+   *
+   * A conferencia vem depois do `comerFantasmas()` de proposito: com o feitico
+   * valendo quem encosta e comido, e nao o contrario.
+   */
+  function checarTombo() {
+    /* A ultima pastilha pode ter sumido neste mesmo quadro: fase limpa e fase
+       limpa, e ninguem leva um tombo depois de ganhar. */
+    if (jogo.tela !== 'jogando') return;
+
+    var quem = Rodada.pegou(jogo.fantasmas, jogo.come, labirinto);
+    if (quem < 0) return;
+
+    var tombo = Rodada.perder(jogo.rodada, quem);
+    if (!tombo.perdeu) return;
+    jogo.rodada = tombo.estado;
+    jogo.vidas = tombo.estado.vidas;
+  }
+
+  /**
+   * Passada a pausa, todo mundo volta para o lugar de comeco: o come-come no
+   * nascimento, os quatro na casa e o relogio dos humores do zero. O labirinto
+   * NAO se refaz - as pastilhas ja comidas continuam comidas -, e o pedido de
+   * direcao guardado tambem se perde: seria feio a crianca renascer ja andando
+   * para o lado em que acabou de ser pega.
+   */
+  function recomecarRodada() {
+    var novo = Rodada.reiniciar(labirinto);
+    jogo.come = novo.come;
+    jogo.fantasmas = novo.fantasmas;
+    jogo.ciclo = novo.ciclo;
+    jogo.poder = novo.poder;
+    entrada.desejada = null;
+  }
+
+  /**
+   * As tres vidas acabaram: no jogo de um jogador so a partida termina aqui,
+   * com os pontos na tela. (Em grupo, quem zera as vidas vira espectador ate a
+   * proxima fase - isso e a fase 12 do plano.)
+   */
+  function fimDeJogo() {
+    jogo.tela = 'fim';
+    el.fimPontos.textContent = String(jogo.pontos);
+    el.fimFase.textContent = String(jogo.fase);
+    el.telaFim.classList.remove('hidden');
   }
 
   /**

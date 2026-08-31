@@ -128,11 +128,13 @@ export function carregarJogoComTela(slug = 'come_come', opcoes = {}) {
   const elementos = {};
   for (const id of ['app', 'palco', 'rodape', 'hud',
                     'hud-pontos', 'hud-vidas', 'hud-fase', 'hud-faltam',
-                    'tela-fase', 'fase-numero', 'fase-pontos']) {
+                    'tela-fase', 'fase-numero', 'fase-pontos',
+                    'tela-fim', 'fim-fase', 'fim-pontos']) {
     elementos[id] = criarElemento('div', id);
   }
-  // No index.html a tela de fim de fase ja nasce escondida.
+  // No index.html as telas de fim ja nascem escondidas.
   elementos['tela-fase'].classes.add('hidden');
+  elementos['tela-fim'].classes.add('hidden');
 
   elementos.tela = criarElemento('canvas', 'tela');
   elementos.tela.getContext = () => contexto2d;

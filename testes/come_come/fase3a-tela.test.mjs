@@ -33,6 +33,25 @@ const pintadosDaCor = (cor) => dom.pintados.filter((p) => p.cor === cor);
 /** Quantos quadros faltam ate o ultimo fantasma pisar na rua. */
 const QUADROS_ATE_TODOS = 500;
 
+/* --------------------------------------------------------------------------
+   A fase 5 pos o tombo no jogo: encostar num fantasma em caca custa uma vida e
+   para o mundo por um segundo e meio. Este arquivo e sobre o MOVIMENTO dos
+   quatro, e para observa-lo o come-come fica parado no meio do labirinto - o
+   que hoje seria um tombo atras do outro, com o mundo congelado a maior parte
+   do tempo. Entao aqui ele e IMORTAL: a rodada e devolvida ao cheio antes de
+   cada quadro, e o labirinto nunca para de andar. Quem prova o tombo de
+   verdade e o `fase5-tela.test.mjs`.
+   -------------------------------------------------------------------------- */
+const quadroDeVerdade = dom.avancarQuadros;
+dom.avancarQuadros = (n) => {
+  for (let i = 0; i < n; i++) {
+    dom.api.jogo.rodada = dom.api.Rodada.novoEstado();
+    dom.api.jogo.vidas = dom.api.mundo.VIDAS_INICIAIS;
+    quadroDeVerdade(1);
+  }
+};
+
+
 console.log('Come-Come - fase 3a (tela)\n');
 
 // ------------------------------------------------------------- O comeco ----
@@ -215,11 +234,11 @@ teste('a porta da casa continua sendo parede para o come-come', () => {
   assert.equal(Mapa.livre(mapa, mapa.casa.porta.c, mapa.casa.porta.l), false);
 });
 
-teste('os fantasmas nao atrapalham comer pastilha nem encostam nas vidas', () => {
+teste('os fantasmas nao atrapalham o come-come comer pastilha', () => {
   const pontos = jogo().pontos;
   dom.avancarQuadros(120);
   assert.ok(jogo().pontos >= pontos, 'o placar so sobe');
-  assert.equal(jogo().vidas, 3, 'encostar num fantasma ainda nao machuca (fase 5)');
+  assert.equal(jogo().vidas, 3, 'aqui o tombo esta desligado, de proposito');
   assert.equal(jogo().tela, 'jogando');
 });
 

@@ -17,8 +17,8 @@
        cores deles
      - enquanto o feitico vale, o relogio dispersar/cacar fica parado - e
        depois retoma exatamente de onde estava
-     - encostar num fantasma que NAO esta assustado nao rende nada (o tombo e
-       a fase 5)
+     - encostar num fantasma que NAO esta assustado nao rende ponto nenhum:
+       aquele nao se come (o que ele faz e derrubar - e assunto do fase5)
    ========================================================================== */
 
 import assert from 'node:assert/strict';
@@ -291,12 +291,11 @@ teste('enquanto o feitico vale, o relogio dispersar/cacar fica parado', () => {
 });
 
 // ----------------------------------------------- Fantasma que nao se come --
-teste('encostar num fantasma sem medo nao rende nada (o tombo e a fase 5)', () => {
+teste('encostar num fantasma sem medo nao rende ponto nenhum', () => {
   assert.equal(jogo().poder.ativo, false, 'sem feitico valendo');
 
   const alvo = fantasmas().find((f) => f.etapa === 'livre');
   const pontos = jogo().pontos;
-  const vidas = jogo().vidas;
 
   // Coloca o come-come exatamente em cima dele, num quadrado sem pastilha.
   come().x = alvo.corpo.x;
@@ -305,12 +304,17 @@ teste('encostar num fantasma sem medo nao rende nada (o tombo e a fase 5)', () =
   dom.avancarQuadros(1);
 
   assert.equal(jogo().poder.comidos, 0, 'ninguem foi comido');
-  assert.equal(jogo().vidas, vidas, 'e ninguem perdeu vida - isso e a fase 5');
   assert.ok(jogo().pontos - pontos <= mundo.PONTOS_PODER,
     'o placar so pode ter mexido por pastilha do chao');
   fantasmas().forEach((f) => {
     assert.notEqual(f.etapa, 'olhos', `${f.nome} continua inteiro`);
   });
+
+  /* O que esse encontro faz e derrubar o come-come - a regra que a fase 5
+     trouxe. Aqui basta ver que o tombo comecou (o mundo parou e uma vida foi
+     embora); a prova completa dele esta no `fase5-tela.test.mjs`. */
+  assert.equal(jogo().vidas, mundo.VIDAS_INICIAIS - 1, 'custou uma vida');
+  assert.equal(jogo().rodada.pausa > 0, true, 'e o mundo parou para o tombo');
 });
 
 // ------------------------------------------------------- Um jogo em paz ----
