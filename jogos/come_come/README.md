@@ -274,10 +274,11 @@ Uma regra pequena que faz toda a diferença: **uma vida por rodada**. Enquanto a
 pausa corre, encostar de novo não tira nada — sem isso o cerco dos quatro
 custaria as três vidas no mesmo quadro, e a criança não entenderia por quê.
 
-Zerando as vidas, sobe a tela de **FIM DE JOGO** com os pontos e a fase em que
-a partida parou. (Em grupo vai ser diferente: quem zera as vidas vira
-espectador até a próxima fase, e a corrida continua — isso é uma etapa mais à
-frente do plano.)
+Zerando as vidas no jogo solo, sobe a tela de **FIM DE JOGO** com os pontos e a
+fase em que a partida parou. Em grupo, quem zera as vidas vira espectador:
+some do labirinto, continua vendo a partida e volta com as vidas cheias no
+labirinto seguinte. Se todo mundo cair antes da última pastilha, a corrida da
+sala termina ali.
 
 ---
 
@@ -509,10 +510,10 @@ cada um foge exatamente de quem estava cuidando. Empate de distância resolve
 pela ordem do `indice`, que é a mesma nos cinco aparelhos — o mundo do anfitrião
 tem que dar o mesmo filme quando outra tela precisar recontar a história.
 
-O que **ainda não** existe é o resto das regras da sala: o labirinto que o
-grupo limpa junto, quem zera as vidas virando espectador até a fase seguinte e
-o placar da sala são as fases 12 e 13. Hoje o tombo ainda é do come-come de
-quem hospeda a sala.
+As regras da sala já valem para a corrida: a última pastilha fecha a fase para
+todo mundo, só o anfitrião abre o próximo labirinto, quem zera as vidas assiste
+até a fase seguinte e ninguém pausa o mundo dos outros. O placar completo da
+sala fica para a fase 13.
 
 ---
 

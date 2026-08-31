@@ -119,9 +119,9 @@
        hora e o come-come vai abrindo a boca ate nao sobrar nada dele: e o
        adeus dos fliperamas, e o que a crianca precisa ver ali e ela mesma indo
        embora, nao quem a pegou.
-     - Zeradas as vidas, sobe a tela de FIM DE JOGO com os pontos. Em grupo vai
-       ser diferente - quem zera vira espectador ate a proxima fase -, mas isso
-       e assunto de uma fase mais adiante.
+     - Zeradas as vidas, sobe a tela de FIM DE JOGO com os pontos. Em grupo,
+       quem zera vira espectador ate a proxima fase; se todo mundo cair, a
+       corrida da sala termina.
 
    E o que a fase 6a poe por cima:
 
@@ -296,9 +296,9 @@
    tres fases, ou os fantasmas cobram as tres vidas antes disso. E, com a
    Central no ar, da para abrir uma sala e DISPUTAR o mesmo labirinto com a
    turma: as pastilhas somem para todos, a bolota assusta os quatro para todo
-   mundo e cada um caca a sua escada. O que falta sao as regras da sala - a fase
-   que o grupo fecha junto, quem zera as vidas virando espectador e o placar de
-   todos: as fases 12 e 13.
+   mundo, cada um caca a sua escada, o grupo fecha a fase junto e quem zera as
+   vidas assiste ate o labirinto seguinte. O placar completo da sala e a fase
+   13.
    ========================================================================== */
 
 (function () {
@@ -2349,7 +2349,7 @@
            f: 1,               // o labirinto em jogo
            t: 940,             // o relogio do mundo (e o das animacoes)
            q: 0,               // 0 jogando | 1 labirinto limpo | 2 fim de jogo
-           j: [[indice, x, y, dir, desejada, boca, pontos], ...],  // as pessoas
+           j: [[indice, x, y, dir, desejada, boca, pontos, vidas, espectador], ...],
            g: [[x, y, dir, etapa, sinais], ...],                   // os quatro
            c: [ ... ],         // as pastilhas ja comidas, em bits
            p: [ativo, restam, duracao, comidos],        // o feitico da bolota
@@ -2417,14 +2417,20 @@
       return null;
     }
 
-    /** Uma pessoa em sete numeros. */
-    function linhaJogador(j) {
+    /** Uma pessoa em nove numeros. */
+    function linhaJogador(j, estado) {
       var c = j.corpo;
+      var vidas = (typeof j.vidas === 'number') ? j.vidas : VIDAS_INICIAIS;
+      if (estado && estado.tombado === j.indice && Rodada.parado(estado.rodada)) {
+        vidas = estado.rodada.vidas | 0;
+      }
       return [
         j.indice | 0, c.x | 0, c.y | 0,
         codigoDir(c.dir), codigoDir(c.desejada),
         c.passos % CICLO_BOCA,
-        j.pontos | 0
+        j.pontos | 0,
+        vidas | 0,
+        (j.espectador || vidas <= 0) ? 1 : 0
       ];
     }
 
@@ -2455,7 +2461,7 @@
       var jogadores = [], fantasmas = [], avisos = [], i;
 
       for (i = 0; i < estado.jogadores.length; i++) {
-        jogadores.push(linhaJogador(estado.jogadores[i]));
+        jogadores.push(linhaJogador(estado.jogadores[i], estado));
       }
       for (i = 0; i < estado.fantasmas.lista.length; i++) {
         fantasmas.push(linhaFantasma(estado.fantasmas.lista[i]));
@@ -2555,6 +2561,10 @@
           j.corpo = oficial;
         }
         j.pontos = linha[6] | 0;
+        if (linha.length > 7) {
+          j.vidas = linha[7] | 0;
+          j.espectador = linha[8] === 1;
+        }
       }
 
       var lista = [];
@@ -2599,6 +2609,11 @@
         pego: typeof r[2] === 'number' ? r[2] : -1,
         acabou: r[3] === 1
       };
+      alvo.rodadaInterna = alvo.rodada;
+      /* `jogo.vidas` segue carregando a vida de quem acabou de cair, porque os
+         testes antigos e a animacao do tombo leem esse atalho. O HUD em grupo
+         olha a linha local (`jogo.eu.vidas`) para mostrar a vida certa de quem
+         esta neste aparelho. */
       alvo.vidas = alvo.rodada.vidas;
       alvo.tombado = typeof r[4] === 'number' ? r[4] : -1;
       alvo.relogio = d.t | 0;
@@ -3245,9 +3260,10 @@
     /* Os outros vem antes: o come-come DESTE aparelho fica por cima de todos,
        para a crianca nunca perder o dela de vista num empurra-empurra. */
     for (var i = 0; i < jogo.jogadores.length; i++) {
+      if (jogo.jogadores[i].espectador) continue;
       if (!jogo.jogadores[i].local) desenharUmJogador(jogo.jogadores[i]);
     }
-    desenharUmJogador(jogo.eu);
+    if (jogo.eu && !jogo.eu.espectador) desenharUmJogador(jogo.eu);
 
     // Os fantasmas vem por ultimo: quando um passa por cima do come-come, e
     // ele que aparece - e assim a crianca ve o perigo, nao o contrario.
@@ -3289,6 +3305,8 @@
       corpo: Movimento.novoCorpo(nasce.c, nasce.l),
       entrada: casa ? entrada : { desejada: null },
       pontos: 0,
+      vidas: VIDAS_INICIAIS,
+      espectador: false,
       seq: 0                         // o numero do ultimo pedido dele que valeu
     };
   }
@@ -3343,6 +3361,18 @@
   }
 
   jogarSozinho();
+  jogo.rodadaInterna = jogo.rodada;
+
+  function definirRodada(estado) {
+    jogo.rodada = estado;
+    jogo.rodadaInterna = estado;
+  }
+
+  function rodadaTrocadaPorFora() {
+    if (jogo.rodada === jogo.rodadaInterna) return false;
+    jogo.rodadaInterna = jogo.rodada;
+    return true;
+  }
 
   // O estado vivo, para os testes dirigirem o jogo sem navegador.
   window.ComeCome.jogo = jogo;
@@ -3360,6 +3390,7 @@
   function moverJogadores() {
     for (var i = 0; i < jogo.jogadores.length; i++) {
       var j = jogo.jogadores[i];
+      if (j.espectador) continue;
       if (j.entrada.desejada) j.corpo.desejada = j.entrada.desejada;
       j.corpo = Movimento.passo(j.corpo, labirinto);
     }
@@ -3387,7 +3418,7 @@
     // enquanto os outros dois estao congelados.
     if (Rodada.parado(jogo.rodada)) return;
     var eu = jogo.eu;
-    if (!eu) return;
+    if (!eu || eu.espectador) return;
     if (eu.entrada.desejada) eu.corpo.desejada = eu.entrada.desejada;
     eu.corpo = Movimento.passo(eu.corpo, labirinto);
   }
@@ -3454,6 +3485,7 @@
   function comerPastilhas() {
     for (var i = 0; i < jogo.jogadores.length; i++) {
       var j = jogo.jogadores[i];
+      if (j.espectador) continue;
       var mordida = Pastilhas.passo(jogo.pastilhas, labirinto, j.corpo);
       if (mordida.comeu < 0) continue;
 
@@ -3466,8 +3498,7 @@
         soltarAviso('poder', j.corpo.x, j.corpo.y, j.indice, mordida.pontos);
       }
       // A ultima pastilha fecha a fase, tenha sido quem tiver que a comeu: o
-      // labirinto e do grupo. (As regras da sala - quem vira a pagina e quem
-      // vira espectador - sao a fase 12.)
+      // labirinto e do grupo; a tela de todos vira quando o anfitriao conta.
       if (mordida.limpou) { concluirFase(); return; }
     }
   }
@@ -3476,12 +3507,47 @@
   function quadradosDeTodos() {
     var lista = [];
     for (var i = 0; i < jogo.jogadores.length; i++) {
+      if (jogo.jogadores[i].espectador) continue;
       var corpo = jogo.jogadores[i].corpo;
       lista.push({
         c: Mapa.coluna(corpo.x), l: Mapa.linha(corpo.y), dir: corpo.dir
       });
     }
     return lista;
+  }
+
+  function emSala() { return !!rede.sala; }
+
+  function vidasDoJogador(j) {
+    return (j && typeof j.vidas === 'number') ? j.vidas : VIDAS_INICIAIS;
+  }
+
+  function jogadorAtivo(j) {
+    return !!j && !j.espectador && vidasDoJogador(j) > 0;
+  }
+
+  function ativosDaSala() {
+    var vivos = 0;
+    for (var i = 0; i < jogo.jogadores.length; i++) {
+      if (jogadorAtivo(jogo.jogadores[i])) vivos++;
+    }
+    return vivos;
+  }
+
+  function reviverJogadoresDaSala() {
+    for (var i = 0; i < jogo.jogadores.length; i++) {
+      jogo.jogadores[i].vidas = VIDAS_INICIAIS;
+      jogo.jogadores[i].espectador = false;
+    }
+    if (jogo.eu) jogo.vidas = jogo.eu.vidas;
+  }
+
+  function tirarDoLabirinto(j) {
+    j.corpo = {
+      x: -TILE * 4, y: -TILE * 4,
+      dir: 'esquerda', desejada: null, parado: true, passos: 0
+    };
+    j.entrada.desejada = null;
   }
 
   /** Um passo do mundo. */
@@ -3491,7 +3557,7 @@
        lugar ou sobe a tela de fim de jogo. */
     if (Rodada.parado(jogo.rodada)) {
       var espera = Rodada.passo(jogo.rodada);
-      jogo.rodada = espera.estado;
+      definirRodada(espera.estado);
       if (espera.voltou) recomecarRodada();
       else if (espera.acabou) fimDeJogo();
       return;
@@ -3560,6 +3626,7 @@
   function comerFantasmas() {
     for (var p = 0; p < jogo.jogadores.length; p++) {
       var jog = jogo.jogadores[p];
+      if (jog.espectador) continue;
       var lista = jogo.fantasmas.lista;
 
       for (var i = 0; i < lista.length; i++) {
@@ -3590,17 +3657,50 @@
        limpa, e ninguem leva um tombo depois de ganhar. */
     if (jogo.tela !== 'jogando') return;
 
+    if (emSala()) {
+      checarTomboDaSala();
+      return;
+    }
+
     var quem = Rodada.pegou(jogo.fantasmas, jogo.come, labirinto);
     if (quem < 0) return;
 
     var tombo = Rodada.perder(jogo.rodada, quem);
     if (!tombo.perdeu) return;
-    jogo.rodada = tombo.estado;
+    definirRodada(tombo.estado);
     jogo.vidas = tombo.estado.vidas;
-    // Quem foi pego: hoje o labirinto so machuca o come-come deste aparelho
-    // (em grupo, o tombo de cada um e a fase 12), mas o desenho ja pergunta
-    // pelo indice - e ele viaja no retrato.
+    // Quem foi pego viaja no retrato: sozinho e sempre este aparelho; em sala
+    // `checarTomboDaSala()` escolhe a pessoa que encostou no cacador.
     jogo.tombado = jogo.eu.indice;
+  }
+
+  function checarTomboDaSala() {
+    if (rodadaTrocadaPorFora()) return;
+    for (var i = 0; i < jogo.jogadores.length; i++) {
+      var j = jogo.jogadores[i];
+      if (!jogadorAtivo(j)) continue;
+
+      var quem = Rodada.pegou(jogo.fantasmas, j.corpo, labirinto);
+      if (quem < 0) continue;
+
+      var antes = {
+        vidas: vidasDoJogador(j), pausa: 0, pego: -1, acabou: false
+      };
+      var tombo = Rodada.perder(antes, quem, labirinto.dificuldade);
+      if (!tombo.perdeu) return;
+
+      j.vidas = tombo.estado.vidas;
+      j.espectador = j.vidas <= 0;
+      jogo.tombado = j.indice;
+      definirRodada({
+        vidas: j.vidas,
+        pausa: tombo.estado.pausa,
+        pego: tombo.estado.pego,
+        acabou: ativosDaSala() === 0
+      });
+      jogo.vidas = j.vidas;
+      return;
+    }
   }
 
   /**
@@ -3621,16 +3721,18 @@
     window.ComeCome.labirinto = labirinto;
 
     jogo.fase = n;
-    jogo.pontos = 0;
+    if (!emSala()) jogo.pontos = 0;
+    else reviverJogadoresDaSala();
     jogo.relogio = 0;
     jogo.tela = 'jogando';
     jogo.pastilhas = Pastilhas.novoEstado(labirinto);
     // As vidas atravessam a fase: quem chegou aqui com duas continua com duas.
     // So depois de um fim de jogo a rodada volta cheia.
-    jogo.rodada = jogo.rodada.acabou
+    definirRodada(emSala() ? Rodada.novoEstado() : (jogo.rodada.acabou
       ? Rodada.novoEstado()
-      : { vidas: jogo.rodada.vidas, pausa: 0, pego: -1, acabou: false };
+      : { vidas: jogo.rodada.vidas, pausa: 0, pego: -1, acabou: false }));
     jogo.vidas = jogo.rodada.vidas;
+    if (emSala() && jogo.eu) jogo.vidas = jogo.eu.vidas;
 
     var novo = Rodada.reiniciar(labirinto, labirinto.dificuldade);
     recolocarJogadores();
@@ -3680,6 +3782,10 @@
     jogo.tombado = -1;
     for (var i = 0; i < jogo.jogadores.length; i++) {
       var j = jogo.jogadores[i];
+      if (j.espectador) {
+        tirarDoLabirinto(j);
+        continue;
+      }
       var lugar = lugares[i] || labirinto.nascimento;
       j.corpo = Movimento.novoCorpo(lugar.c, lugar.l);
       j.entrada.desejada = null;
@@ -3688,8 +3794,8 @@
 
   /**
    * As tres vidas acabaram: no jogo de um jogador so a partida termina aqui,
-   * com os pontos na tela. (Em grupo, quem zera as vidas vira espectador ate a
-   * proxima fase - isso e a fase 12 do plano.)
+   * com os pontos na tela. Em grupo, isto so acontece quando nao sobrou nenhum
+   * come-come ativo no labirinto.
    */
   function fimDeJogo() {
     jogo.tela = 'fim';
@@ -3747,6 +3853,7 @@
    */
   function avancarFase() {
     if (jogo.tela !== 'fase' || jogo.corrida.terminada) return;
+    if (rede.sala && rede.papel !== 'anfitriao') return;
     irParaFase(jogo.corrida.fase);
   }
 
@@ -3777,7 +3884,7 @@
   /* Pausar so faz sentido com um labirinto em andamento: no menu nao ha o que
      congelar, e nas telas de fim o mundo ja esta parado atras do quadro. */
   function podePausar() {
-    return jogo.tela === 'jogando';
+    return jogo.tela === 'jogando' && !rede.sala;
   }
 
   /* A pausa congela o mundo e nada mais: o laco continua desenhando (o
@@ -3885,8 +3992,14 @@
     jogo.apelido = apelidoDoCampo();
     guardarApelido(jogo.apelido);
     jogo.corrida = Corrida.novoEstado();
-    jogo.rodada = Rodada.novoEstado();
+    definirRodada(Rodada.novoEstado());
     jogo.efeitos = [];
+    if (rede.sala) {
+      for (var i = 0; i < jogo.jogadores.length; i++) {
+        jogo.jogadores[i].pontos = 0;
+      }
+      reviverJogadoresDaSala();
+    }
     /* O sorteio do fantasma laranja sai da SEMENTE, e numa sala a semente e a
        que a Central mandou para todos: assim o mundo do anfitriao e o mesmo
        filme em qualquer aparelho que precise recontar a historia. */
@@ -3996,6 +4109,7 @@
     seq: 0,               // o numero do ultimo pacote que ele montou
     ultimoRecebido: 0,    // o numero do ultimo retrato aplicado
     atrasados: 0,         // retratos que chegaram velhos e foram para o lixo
+    terminalEnviado: false, // o anfitriao ja contou que a tela parou?
     erro: 0,              // o quanto a previsao local errou no ultimo retrato
     correcoes: 0,         // retratos que puxaram a previsao de leve (25%)
     snaps: 0              // ... e os que precisaram encaixar de uma vez
@@ -4063,6 +4177,7 @@
       rede.seq = 0;
       rede.ultimoRecebido = 0;
       rede.atrasados = 0;
+      rede.terminalEnviado = false;
       rede.erro = 0;
       rede.correcoes = 0;
       rede.snaps = 0;
@@ -4163,7 +4278,8 @@
        a diferenca para o anterior), um que se perde no caminho nao desalinha
        nada: o proximo ja traz tudo de novo. */
     function aplicarEstado(d) {
-      if (jogo.tela !== 'jogando') return;
+      if (jogo.tela !== 'jogando'
+          && !(jogo.tela === 'fase' && d.f && d.f !== jogo.fase)) return;
       if (d.n && d.n <= rede.ultimoRecebido) { rede.atrasados++; return; }
       rede.ultimoRecebido = d.n || 0;
 
@@ -4186,10 +4302,9 @@
       }
       atualizarHud();
 
-      /* O mundo do anfitriao parou: ou o labirinto ficou limpo, ou as vidas
-         acabaram. A tela daqui vira a pagina junto - ninguem fica olhando um
-         labirinto parado sem saber por que. (As regras da sala - a fase que
-         acaba para o grupo e quem vira espectador - sao a fase 12.) */
+      /* O mundo do anfitriao parou: ou o labirinto ficou limpo, ou a corrida
+         acabou. A tela daqui vira junto - ninguem fica olhando um labirinto
+         parado sem saber por que. */
       if (d.q === 1) concluirFase();
       else if (d.q === 2) fimDeJogo();
     }
@@ -4200,7 +4315,15 @@
        pacote a cada tres. Bem dentro dos freios da plataforma: 64 KB e 90
        mensagens por segundo. */
     function passo() {
-      if (!rede.sala || jogo.tela !== 'jogando') return;
+      if (!rede.sala) return;
+      if (jogo.tela !== 'jogando') {
+        if (rede.papel === 'anfitriao' && !rede.terminalEnviado) {
+          mandarEstado();
+          rede.terminalEnviado = true;
+        }
+        return;
+      }
+      rede.terminalEnviado = false;
 
       var taxa = rede.sala.taxaEstado || 15;
       var cada = Math.max(1, Math.round(60 / taxa));
@@ -4350,14 +4473,23 @@
     return saida;
   }
 
+  function textoVidasDoHud() {
+    if (rede.sala && jogo.eu) {
+      if (jogo.eu.espectador) return 'ESPECTADOR';
+      return repetir(COME_VIDA, vidasDoJogador(jogo.eu)) || '—';
+    }
+    return repetir(COME_VIDA, jogo.vidas) || '—';
+  }
+
   function atualizarHud() {
     if (jogo.pontos !== hudPintado.pontos) {
       hudPintado.pontos = jogo.pontos;
       el.pontos.textContent = String(jogo.pontos);
     }
-    if (jogo.vidas !== hudPintado.vidas) {
-      hudPintado.vidas = jogo.vidas;
-      el.vidas.textContent = repetir(COME_VIDA, jogo.vidas) || '—';
+    var vidasTexto = textoVidasDoHud();
+    if (vidasTexto !== hudPintado.vidas) {
+      hudPintado.vidas = vidasTexto;
+      el.vidas.textContent = vidasTexto;
     }
     if (jogo.fase !== hudPintado.fase) {
       hudPintado.fase = jogo.fase;
@@ -4413,7 +4545,9 @@
      fantasmas que andaram enquanto a tela estava em outro lugar. E, como a
      pausa nao mexe em nada do mundo, a partida continua exatamente de onde
      parou. */
-  function pausarPorFalta() { definirPausa(true); }
+  function pausarPorFalta() {
+    if (!rede.sala) definirPausa(true);
+  }
 
   window.addEventListener('blur', pausarPorFalta);
   document.addEventListener('visibilitychange', function () {
