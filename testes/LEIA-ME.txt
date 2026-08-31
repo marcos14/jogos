@@ -42,6 +42,8 @@ sem abrir navegador.
     node testes/come_come/fase3a-tela.test.mjs       os quatro fantasmas dentro da partida
     node testes/come_come/fase3b.test.mjs            as personalidades, o sorteio e os ciclos
     node testes/come_come/fase3b-tela.test.mjs       dispersar e cacar dentro da partida
+    node testes/come_come/fase4.test.mjs             o poder, o susto, a escada e os olhos
+    node testes/come_come/fase4-tela.test.mjs        a bolota e os 200 + 400 no HUD
 
 O harness.mjs de cada pasta tem o carregador e o corredor de testes. O do
 super_adventure tambem sabe subir o servidor das salas de verdade numa porta

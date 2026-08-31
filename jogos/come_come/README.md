@@ -5,13 +5,15 @@ corredores, coma todas as pastilhas e escape dos quatro fantasmas. Três
 labirintos, cada um mais difícil que o anterior — sozinho ou com até 5 amigos
 na mesma sala.
 
-> **Estado de hoje: fase 3b do plano.** Já dá para correr pelo labirinto 1
-> comendo todas as pastilhas, ver o placar subir no HUD e limpar o labirinto —
-> e os **quatro fantasmas** moram na casa do centro, saem um a um pela porta e
-> agora **caçam cada um do seu jeito**, alternando com os respiros de
-> dispersão pelos cantos. A pastilha de poder ainda só vale pontos (fase 4),
-> encostar num fantasma ainda não machuca (fase 5), o labirinto ainda é um só
-> (fase 6a) e a partida ainda entra direto no jogo, sem menu (fase 7).
+> **Estado de hoje: fase 4 do plano.** Já dá para correr pelo labirinto 1
+> comendo todas as pastilhas, ver o placar subir no HUD e limpar o labirinto;
+> os **quatro fantasmas** moram na casa do centro, saem um a um pela porta e
+> caçam cada um do seu jeito, alternando com os respiros de dispersão pelos
+> cantos; e a **pastilha de poder** agora vira o jogo do avesso — os quatro
+> ficam azuis, fogem em meia velocidade e podem ser comidos por 200, 400, 800
+> e 1600. Encostar num fantasma que **não** está assustado ainda não machuca
+> (fase 5), o labirinto ainda é um só (fase 6a) e a partida ainda entra direto
+> no jogo, sem menu (fase 7).
 
 ---
 
@@ -32,6 +34,11 @@ pela outra sem parar de andar.
 O objetivo é **limpar o labirinto**: comer todas as 244 pastilhas. Quando a
 última some, a fase acabou.
 
+As quatro **bolotas grandes** dos cantos são as pastilhas de poder: morder uma
+deixa os fantasmas azuis e comestíveis por 8 segundos. Enquanto elas piscam
+azul, corra atrás deles; quando começarem a **piscar em branco**, o feitiço
+está acabando — largue a caça e volte a comer pastilha.
+
 ---
 
 ## A pontuação
@@ -40,15 +47,24 @@ O objetivo é **limpar o labirinto**: comer todas as 244 pastilhas. Quando a
 |---|---|
 | pastilha comum (`.`) | **10** pontos |
 | pastilha de poder (`o`) | **50** pontos |
-| **labirinto 1 inteiro** | **2 600** (240 × 10 + 4 × 50) |
+| 1º fantasma comido na mesma pastilha de poder | **200** pontos |
+| 2º | **400** pontos |
+| 3º | **800** pontos |
+| 4º | **1 600** pontos |
+| os quatro na mesma pastilha | **3 000** — mais que 300 pastilhas comuns |
+| **as pastilhas do labirinto 1** | **2 600** (240 × 10 + 4 × 50) |
 
 Cada pastilha conta **uma vez só**: o come-come come a que estiver debaixo dos
 pés dele, ela some da tela e o quadrado fica limpo para sempre — voltar por
 cima não rende mais nada.
 
-A pastilha de poder já vale os 50 pontos, mas ainda **não faz mais nada**: o
-efeito dela — deixar os fantasmas azuis e comestíveis — ainda vai ser escrito.
-Do mesmo jeito, encostar num fantasma ainda não custa vida nenhuma.
+A **escada dos fantasmas zera a cada pastilha de poder nova**: comer dois numa
+bolota e dois na seguinte rende 200 + 400 duas vezes (1 200), e não os 3 000 de
+comer os quatro na mesma. Vale a pena esperar todos se aproximarem antes de
+morder a bolota.
+
+Encostar num fantasma que **não** está assustado ainda não custa vida nenhuma
+— o tombo é a próxima etapa do plano.
 
 O HUD, em cima do labirinto, mostra quatro números:
 
@@ -144,6 +160,47 @@ começo da partida. Sozinho, a semente é um número fixo do jogo.
 
 ---
 
+## A pastilha de poder
+
+As quatro bolotas grandes (`o` no desenho) ficam nos cantos, longe umas das
+outras de propósito: cada uma é uma chance de virar o jogo, e gastá-las de
+qualquer jeito é o erro mais comum.
+
+Morder uma faz **quatro coisas ao mesmo tempo**:
+
+1. os quatro fantasmas ficam **azuis**, de cara boba — inclusive os que ainda
+   estão dentro da casa;
+2. quem está na rua **dá meia-volta na hora**, como na virada do humor;
+3. eles passam a andar em **meia velocidade** e, em vez de caçar, escolhem em
+   cada esquina a saída que mais **afasta** do come-come;
+4. o **relógio dispersar↔caçar para**. Acabado o feitiço, os quatro voltam
+   exatamente ao ciclo em que estavam — e sem meia-volta nenhuma, como no
+   fliperama.
+
+O feitiço dura **8 segundos no labirinto 1**. Nos últimos **2 segundos** eles
+piscam entre o azul e o branco: é o aviso, e o único que a criança precisa.
+A duração é uma propriedade **do labirinto** (`poder`, na lista de labirintos),
+e não um número solto no meio do código — é assim que os labirintos 2 e 3 vão
+encurtar o feitiço sem que nada mais mude.
+
+Encostar num fantasma azul o **come**: ele vale o próximo degrau da escada
+(200, 400, 800, 1600 dentro da mesma bolota), vira um **par de olhos** e corre
+de volta para casa — mais rápido do que qualquer fantasma anda, pela mesma
+regra de esquina de sempre, só que com a porta da casa como alvo. Chegando lá
+ele desce pela porta, espera um segundinho e **renasce inteiro**, já no humor
+que estiver valendo. Olhos não se comem duas vezes, e olhos não se assustam com
+bolota nenhuma.
+
+Um detalhe que parece bobagem e não é: a meia velocidade do medo é feita
+andando **um quadro sim, um não** — e não com 1px por quadro. Com 1px o corpo
+pararia numa coordenada ímpar e, quando o feitiço acabasse e a velocidade
+voltasse a 2px, ele nunca mais acertaria o centro de um quadrado: deixaria de
+virar nas esquinas e sairia atravessando parede. Pelo mesmo motivo, o fantasma
+comido é **encaixado no centro** do quadrado na hora em que vira olhos, que
+correm a 4px por quadro.
+
+---
+
 ## O labirinto, escrito como texto
 
 Cada labirinto do jogo é um desenho em texto dentro do `game.js`, uma letra por
@@ -202,7 +259,8 @@ apontando para onde ele anda.
 | `Mapa` | lê o desenho em texto e devolve a grade (paredes, pastilhas, poderes, porta da casa, nascimento e as linhas de túnel) |
 | `Movimento` | um quadro de movimento na grade: direção atual + direção desejada, parada na parede, alinhamento no meio do corredor e a volta do túnel |
 | `Pastilhas` | o caderninho do labirinto: quais pastilhas ainda estão de pé, o que rende comer a do quadrado em que o come-come está, e quantas faltam |
-| `Fantasmas` | os quatro corpos: a espera na casa, a rota da porta, a escolha da saída que mais aproxima do alvo recebido e a meia-volta de todos na virada do humor |
+| `Fantasmas` | os quatro corpos: a espera na casa, a rota da porta, a escolha da saída que mais aproxima do alvo recebido (ou que mais afasta, fugindo), a meia-volta de todos na virada do humor, o susto da pastilha de poder e a volta para casa de quem foi comido |
+| `Poder` | o cronômetro da pastilha de poder: quanto o feitiço ainda dura, quando o aviso começa a piscar e quanto vale o próximo fantasma na escada 200/400/800/1600 |
 | `Personalidades` | de quem é o alvo: o quadrado do come-come, quatro casas à frente dele, a coragem que depende da distância, o lugar sorteado — ou, na dispersão, o canto de cada um |
 | `Sorteio` | o gerador de bolso com semente: a mesma semente dá a mesma sequência em qualquer aparelho |
 | `Ciclos` | o relógio dos humores: em que linha da tabela dispersar↔caçar a partida está, e o aviso do quadro exato em que ela vira |
@@ -227,6 +285,12 @@ decide se vira, e é neles que ele para diante de uma parede — nada de meio
 pixel sobrando. Entre um centro e o outro só cabe uma mudança: a meia-volta,
 porque a célula de trás acabou de ser visitada e está livre com certeza.
 
+**A grade também manda na dificuldade.** Toda velocidade do jogo divide os 16px
+do quadrado: 2px para o come-come e para os fantasmas, 4px para os olhos de
+quem foi comido, e a metade do medo feita pulando quadros em vez de andar 1px.
+Nenhuma exceção — uma velocidade que não divide o quadrado tira o corpo dos
+centros, e um corpo fora dos centros não vira nas esquinas nem enxerga parede.
+
 **A geometria é sempre a mesma.** O canvas tem 448×496 por dentro em qualquer
 aparelho; o CSS só decide de que tamanho ele *aparece*, mantendo a proporção.
 As contas do jogo acontecem sempre nos mesmos pixels — que é o que vai deixar
@@ -246,6 +310,8 @@ node testes/come_come/fase3a.test.mjs       # a casa, a saída e a escolha da es
 node testes/come_come/fase3a-tela.test.mjs  # os quatro fantasmas dentro da partida
 node testes/come_come/fase3b.test.mjs       # as personalidades, o sorteio e os ciclos
 node testes/come_come/fase3b-tela.test.mjs  # dispersar e caçar dentro da partida
+node testes/come_come/fase4.test.mjs        # o poder, o susto, a escada e os olhos
+node testes/come_come/fase4-tela.test.mjs   # a bolota e os 200 + 400 no HUD
 ```
 
 O `fase2-tela.test.mjs` põe um **piloto automático** no volante: a cada centro
@@ -268,3 +334,14 @@ parede. O `fase3b-tela.test.mjs` faz o mesmo dentro da partida: mede que na
 dispersão cada fantasma fica **mais perto do próprio canto do que do canto dos
 outros três**, e que na caça os quatro se aproximam de um come-come parado
 (o vermelho chega em cima dele).
+
+O `fase4.test.mjs` faz a prova pesada da pastilha de poder: um fantasma comido
+em **cada quadrado do labirinto**, olhando para cada um dos quatro lados —
+1 000 e poucas viagens de volta para casa, para garantir que a regra da esquina
+nunca deixa um par de olhos rodando em círculo (o pior caminho leva menos de
+300 quadros). Confere também que o feitiço acaba no quadro exato da duração,
+que o aviso pisca só nos últimos dois segundos e que a escada zera a cada
+bolota nova. O `fase4-tela.test.mjs` põe outro **piloto automático** no
+volante — este caça fantasma em vez de pastilha — e mede os **200 + 400** no
+HUD, o corpo do comido sumindo do desenho, o azul dos quatro na tela e o
+relógio dispersar↔caçar retomando de onde parou.

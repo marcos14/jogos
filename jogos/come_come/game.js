@@ -1,10 +1,10 @@
 /* ==========================================================================
    COME-COME  -  labirinto de fliperama, no clima dos consoles de 8 bits
    --------------------------------------------------------------------------
-   FASE 3b do plano: AS PERSONALIDADES E OS CICLOS DISPERSAR/CACAR. Os quatro
-   fantasmas que a fase 3a soltou no labirinto agora sao quatro BICHOS
-   DIFERENTES - cada um mira um lugar seu - e o jogo passa a respirar: de tempos
-   em tempos eles largam a caca e vao dar uma volta pelo canto deles.
+   FASE 4 do plano: A PASTILHA DE PODER E OS FANTASMAS COMESTIVEIS. As quatro
+   bolotas grandes dos cantos deixam de ser so pontos: quem morde uma vira o
+   jogo do avesso por alguns segundos - os cacadores ficam azuis, dao meia-volta
+   e fogem, e agora e a crianca que corre atras deles.
 
    O chao de tudo (fase 1) continua sendo o mesmo:
 
@@ -59,7 +59,7 @@
      - Desenho 8-bit de cada um: a cupula redonda rasterizada na mao, a saia
        balancando em quatro pes e os olhos apontando para onde ele anda.
 
-   E o que a fase 3b poe por cima:
+   O que a fase 3b poe por cima:
 
      - `Personalidades`: quem diz qual e o alvo de cada um, a cada quadro. O
        vermelho mira o quadrado do come-come; o rosa, quatro casas A FRENTE
@@ -78,16 +78,38 @@
        (`Fantasmas.inverter`), como no original: e o aviso que a crianca ve sem
        ler nada, e a brecha para escapar de um cerco.
 
+   E o que a fase 4 poe por cima:
+
+     - `Poder`: o cronometro da pastilha de poder. Ele sabe quanto tempo o
+       feitico ainda dura, quando comecar a PISCAR o aviso de que vai acabar e
+       quanto vale o proximo fantasma - a escada 200, 400, 800, 1600, que zera
+       a cada nova pastilha. A duracao vem do LABIRINTO (`duracaoPoder`), e nao
+       de um numero solto: e assim que os labirintos 2 e 3 vao encurtar o
+       feitico sem tocar em nenhuma linha daqui.
+     - Os fantasmas ganharam HUMOR. Mordida a pastilha, todos ficam
+       `assustado`: azuis, de cara boba, em meia velocidade e - os que estao na
+       rua - de meia-volta dada. Nesse estado eles nao cacam: fogem, escolhendo
+       em cada esquina a saida que mais AFASTA do come-come.
+     - Enquanto o poder vale, o relogio dos humores (dispersar/cacar) fica
+       PARADO. Quando o feitico acaba, os quatro voltam exatamente ao ciclo em
+       que estavam - sem meia-volta nenhuma, como no fliperama.
+     - Encostar num assustado agora vale ponto: ele vira OLHOS, corre de volta
+       para casa pela grade (mais rapido que qualquer um), desce pela porta,
+       espera um segundinho e renasce inteiro, ja no humor da vez.
+     - A meia velocidade do medo e feita andando um quadro sim, um nao - e nao
+       com 1px por quadro. E a unica maneira de o corpo continuar caindo nos
+       centros dos quadrados quando o feitico acabar e a velocidade voltar a 2.
+
    O labirinto tem 28 colunas por 31 linhas de quadrados de 16px - 448 x 496
    pixels, que e o tamanho de dentro do canvas. O tamanho de FORA (o quanto ele
    aparece na tela) e escolhido pelo CSS, mantendo a proporcao: as contas do
    jogo acontecem sempre nos mesmos 448 x 496, em qualquer aparelho.
 
-   A pastilha de poder ainda so vale pontos (fase 4), encostar num fantasma
-   ainda nao machuca (fase 5), o labirinto ainda e um so (fase 6a) e a tela
-   entra direto no jogo, sem menu (fase 7). O que da para fazer hoje e o que a
-   fase 3b promete: ver os quatro cacarem cada um do seu jeito e, de repente,
-   darem meia-volta todos juntos para ir passear nos cantos.
+   Encostar num fantasma que NAO esta assustado ainda nao machuca (fase 5), o
+   labirinto ainda e um so (fase 6a) e a tela entra direto no jogo, sem menu
+   (fase 7). O que da para fazer hoje e o que a fase 4 promete: morder a bolota
+   do canto, ver os quatro ficarem azuis e sair cacando os cacadores - 200,
+   400, 800 e 1600 - ate eles comecarem a piscar avisando que a festa acabou.
    ========================================================================== */
 
 (function () {
@@ -113,6 +135,18 @@
      dificuldade (fase 6a); ate la os quatro andam como o come-come. */
   var VEL_FANTASMA = 2;
 
+  /* Os olhos do fantasma comido voltam para casa CORRENDO - e o alivio de quem
+     acabou de levar uma mordida virar um par de olhos em fuga, e nao um
+     cacador de volta na esquina. 4px por quadro tambem dividem os 16 do
+     quadrado, entao a grade continua honesta. (Quem e comido e encaixado no
+     centro do quadrado na hora: veja `Fantasmas.comido`.) */
+  var VEL_OLHOS = 4;
+
+  /* Quanto o fantasma comido espera dentro da casa antes de sair de novo.
+     Um segundo: o bastante para a crianca ver que ele renasceu, curto o
+     bastante para nao virar folga. */
+  var RENASCER = 60;
+
   /* Quanto cada fantasma espera dentro da casa antes de abrir a porta, em
      quadros (60 = 1 segundo). O primeiro ja nasce na rua; os outros tres saem
      escalonados, para a crianca ter tempo de comecar a comer. */
@@ -135,6 +169,29 @@
     { modo: 'dispersar', quadros:  5 * 60 },
     { modo: 'cacar',     quadros: -1 }
   ];
+
+  /* Quanto tempo a pastilha de poder vale, em quadros, quando o labirinto nao
+     disser nada. Cada labirinto tem o SEU numero (`poder` na lista de
+     labirintos, que vira `mapa.duracaoPoder`): os labirintos 2 e 3 vao
+     encurtar o feitico sem mexer em mais nada. */
+  var PODER_QUADROS = 8 * 60;
+
+  /* O aviso de que o feitico esta acabando: nos ultimos dois segundos os
+     fantasmas piscam entre o azul e o branco, meio segundo de cada vez... quer
+     dizer, 20 quadros de ciclo - 6 piscadas certinhas dentro do aviso. */
+  var AVISO_PODER = 2 * 60;
+  var PISCA_PODER = 20;
+
+  /* A escada do fliperama: o primeiro fantasma comido DENTRO DA MESMA pastilha
+     vale 200, o segundo 400, e assim por diante. Comer os quatro rende 3000 -
+     mais do que 300 pastilhas comuns, e por isso vale a pena arriscar. Cada
+     pastilha nova recomeca a escada do 200. */
+  var PREMIOS = [200, 400, 800, 1600];
+
+  /* A que distancia, em pixels, o come-come e um fantasma se encostam. Meio
+     quadrado: menos que isso deixaria escapar o cruzamento de dois corpos que
+     andam em direcoes opostas. */
+  var RAIO_TOQUE = 8;
 
   /* De quanto em quanto o fantasma aleatorio sorteia um lugar novo do
      labirinto: meio segundo e o bastante para ele mudar de ideia numa esquina
@@ -330,6 +387,7 @@
         c0: c0, c1: c1, l0: l0, l1: l1,
         saidaX: centro(porta.c, porta.l).x,   // a coluna por onde eles sobem
         saidaY: centro(fora.c, fora.l).y,     // a linha em que a rua comeca
+        voltaY: centro(dentro.c, dentro.l).y, // e a linha em que os olhos param
         lugares: [
           { c: fora.c, l: fora.l },
           { c: porta.c, l: meio },
@@ -362,6 +420,10 @@
         tuneis: [],             // tuneis[linha] = true na linha do tunel
         nascimento: null,       // onde o come-come nasce
         casa: null,             // a casa dos fantasmas (montada la embaixo)
+        // Quanto tempo a pastilha de poder vale NESTE labirinto: e o que vai
+        // deixar os labirintos 2 e 3 mais dificeis sem uma linha de codigo
+        // nova. Sem dizer nada, vale o padrao.
+        duracaoPoder: op.poder > 0 ? op.poder : PODER_QUADROS,
         nome: op.nome || ''
       };
 
@@ -631,16 +693,28 @@
      come-come (mesma grade, mesmo `Movimento.passo`) mais tres coisas: a cor,
      o tempo que ele espera antes de sair e em que ETAPA da vida ele esta:
 
-         'casa'    esperando a vez, balancando no lugar
-         'saindo'  andando ate a coluna da porta e subindo por ela
-         'livre'   circulando pelo labirinto atras do alvo
+         'casa'     esperando a vez, balancando no lugar
+         'saindo'   andando ate a coluna da porta e subindo por ela
+         'livre'    circulando pelo labirinto atras do alvo
+         'olhos'    foi comido: so os olhos, correndo de volta para a porta
+         'entrando' descendo pela porta ate o miolo, para renascer
 
      A porta e o unico lugar do desenho que so eles atravessam - e mesmo assim
      so de dentro para fora, na etapa 'saindo', que e uma rota escrita a mao
      (ande ate a coluna da porta, depois suba ate a rua) e nao precisa perguntar
      nada ao mapa. Ja livre na rua, o corpo usa as regras normais do labirinto,
      e por isso a porta vira parede: ninguem volta para casa por vontade
-     propria. (Voltar comido, virado em olhos, e a fase 4.)
+     propria - so comido, virado em olhos, que e o unico caso em que a rota da
+     porta e percorrida de tras para a frente.
+
+     Alem da etapa, cada um carrega um HUMOR: `assustado` liga quando a crianca
+     morde a pastilha de poder. Assustado ele fica azul, anda em MEIA
+     velocidade e, em vez de mirar o alvo, escolhe em cada esquina a saida que
+     mais AFASTA do come-come. A meia velocidade e feita andando um quadro sim,
+     um nao (o campo `descanso`), e nao com 1px por quadro: com 1px o corpo
+     acabaria numa coordenada impar e, quando o feitico passasse e a velocidade
+     voltasse a 2, ele nunca mais acertaria o centro de um quadrado - deixaria
+     de virar nas esquinas e sairia atravessando parede.
 
      Na rua a decisao e a do fliperama, e cabe em tres linhas: em cada centro de
      quadrado, olhe as saidas, JOGUE FORA a meia-volta e fique com a que deixa o
@@ -683,8 +757,12 @@
      * chegar em `alvo`, vindo na direcao `dir`. Sem meia-volta: e a regra que
      * faz eles patrulharem em vez de ficarem indo e voltando na mesma esquina.
      * Sem alvo, a ordem de preferencia decide sozinha.
+     *
+     * Com `fugir`, a mesma regra ao contrario: fica a saida que mais AFASTA do
+     * alvo. E assim que o fantasma assustado corre do come-come em vez de ir
+     * atras dele - a mesma esquina, a mesma conta, o sinal trocado.
      */
-    function escolher(mapa, c, l, dir, alvo) {
+    function escolher(mapa, c, l, dir, alvo, fugir) {
       var proibida = oposta(dir);
       var melhor = null, melhorDist = -1, i;
 
@@ -694,7 +772,8 @@
         if (!Mapa.podeIr(mapa, c, l, d)) continue;
         var v = Mapa.vizinho(mapa, c, l, d);
         var dist = alvo ? distancia(v.c, v.l, alvo.c, alvo.l) : 0;
-        if (melhor === null || dist < melhorDist) { melhor = d; melhorDist = dist; }
+        var ganhou = fugir ? dist > melhorDist : dist < melhorDist;
+        if (melhor === null || ganhou) { melhor = d; melhorDist = dist; }
       }
       if (melhor) return melhor;
 
@@ -729,14 +808,32 @@
           etapa: espera > 0 ? 'casa' : 'livre',
           espera: espera,
           casaY: corpo.y,
+          assustado: false,     // ligado pela pastilha de poder
+          descanso: false,      // o quadro parado da meia velocidade do medo
           corpo: corpo
         });
       }
       return { lista: lista, relogio: 0 };
     }
 
+    /**
+     * As velocidades de um quadro, a partir do que o jogo pediu. Aceita um
+     * numero (o jeito antigo: so a velocidade normal) ou um objeto com
+     * `velocidade`, `olhos` e a posicao de quem foge (`fuga`).
+     */
+    function opcoesDe(opcoes) {
+      var op = (typeof opcoes === 'number') ? { velocidade: opcoes } : (opcoes || {});
+      return {
+        normal: op.velocidade || VEL_FANTASMA,
+        olhos: op.olhos || VEL_OLHOS,
+        fuga: op.fuga || null
+      };
+    }
+
     /** Um quadro de um fantasma so. Devolve um fantasma NOVO. */
-    function passoDeUm(f, mapa, alvo, vel) {
+    function passoDeUm(f, mapa, alvo, opcoes) {
+      var op = opcoesDe(opcoes);
+      var vel = op.normal;
       var corpo = f.corpo;
       var passos = corpo.passos + 1;
 
@@ -794,21 +891,92 @@
         });
       }
 
+      // ------------------------------------------- comido, voltando a pe ---
+      /* So os olhos, correndo pela grade ate a rua diante da porta. E a mesma
+         regra de sempre - a saida que mais aproxima do alvo -, com um alvo
+         fixo: a casa. Chegou la, comeca a descer. */
+      if (f.etapa === 'olhos') {
+        var porta = mapa.casa.fora;
+        var co = Mapa.coluna(corpo.x), lo = Mapa.linha(corpo.y);
+        var olhando = corpo;
+
+        if (Movimento.noCentro(corpo)) {
+          if (co === porta.c && lo === porta.l) {
+            return copia(f, {
+              etapa: 'entrando',
+              corpo: junta(corpo, { parado: false, passos: passos })
+            });
+          }
+          olhando = junta(corpo, { desejada: escolher(mapa, co, lo, corpo.dir, porta) });
+        }
+        return copia(f, {
+          corpo: Movimento.passo(olhando, mapa, { velocidade: op.olhos })
+        });
+      }
+
+      // ---------------------------------------------- descendo pela porta ---
+      /* A rota da saida, de tras para a frente - e o unico jeito de voltar
+         para dentro, ja que de fora a porta e parede como qualquer outra.
+         Chegando no miolo, ele volta a ser um fantasma esperando a vez: um
+         segundinho de espera e a rota da porta o devolve a rua, ja no humor da
+         vez (a pastilha que o comeu pode nem estar mais valendo). */
+      if (f.etapa === 'entrando') {
+        var lar = mapa.casa;
+        var ex = corpo.x, ey = corpo.y, edir = corpo.dir;
+
+        if (ex !== lar.saidaX) {
+          var pDireita = ex < lar.saidaX;
+          edir = pDireita ? 'direita' : 'esquerda';
+          ex += (pDireita ? 1 : -1) * Math.min(op.olhos, Math.abs(lar.saidaX - ex));
+        } else if (ey !== lar.voltaY) {
+          var pBaixo = ey < lar.voltaY;
+          edir = pBaixo ? 'baixo' : 'cima';
+          ey += (pBaixo ? 1 : -1) * Math.min(op.olhos, Math.abs(lar.voltaY - ey));
+        }
+
+        var emCasa = (ex === lar.saidaX && ey === lar.voltaY);
+        return copia(f, {
+          etapa: emCasa ? 'casa' : 'entrando',
+          espera: emCasa ? RENASCER : f.espera,
+          casaY: emCasa ? lar.voltaY : f.casaY,
+          assustado: false,
+          descanso: false,
+          corpo: junta(corpo, {
+            x: ex, y: ey, dir: edir, desejada: edir, parado: false, passos: passos
+          })
+        });
+      }
+
       // ------------------------------------------------- solto na cidade ---
+      /* Assustado, ele anda um quadro sim, um nao: e a meia velocidade do
+         medo, feita sem tirar o corpo da grade de 2px (veja o comentario la em
+         cima). No quadro de descanso ele fica exatamente como esta. */
+      if (f.assustado && !f.descanso) {
+        return copia(f, { descanso: true });
+      }
+
       var novo = corpo;
       if (Movimento.noCentro(corpo)) {
         var c = Mapa.coluna(corpo.x), l = Mapa.linha(corpo.y);
-        novo = junta(corpo, { desejada: escolher(mapa, c, l, corpo.dir, alvo) });
+        /* Fugindo, o alvo deixa de ser o que a personalidade queria e passa a
+           ser o come-come - de quem ele quer distancia. */
+        var mira = f.assustado ? (op.fuga || alvo) : alvo;
+        novo = junta(corpo, {
+          desejada: escolher(mapa, c, l, corpo.dir, mira, f.assustado)
+        });
       }
-      return copia(f, { corpo: Movimento.passo(novo, mapa, { velocidade: vel }) });
+      return copia(f, {
+        descanso: false,
+        corpo: Movimento.passo(novo, mapa, { velocidade: vel })
+      });
     }
 
     /** Um quadro dos quatro. `alvos` e um por fantasma, ou um so para todos. */
     function passo(estado, mapa, alvos, opcoes) {
-      var vel = (opcoes && opcoes.velocidade) || VEL_FANTASMA;
+      var op = opcoesDe(opcoes);
       var lista = [];
       for (var i = 0; i < estado.lista.length; i++) {
-        lista.push(passoDeUm(estado.lista[i], mapa, alvoDe(alvos, i), vel));
+        lista.push(passoDeUm(estado.lista[i], mapa, alvoDe(alvos, i), op));
       }
       return { lista: lista, relogio: estado.relogio + 1 };
     }
@@ -817,7 +985,9 @@
     function copia(f, trocas) {
       var novo = {
         indice: f.indice, chave: f.chave, nome: f.nome, cor: f.cor,
-        etapa: f.etapa, espera: f.espera, casaY: f.casaY, corpo: f.corpo
+        etapa: f.etapa, espera: f.espera, casaY: f.casaY,
+        assustado: f.assustado === true, descanso: f.descanso === true,
+        corpo: f.corpo
       };
       for (var k in trocas) if (trocas.hasOwnProperty(k)) novo[k] = trocas[k];
       return novo;
@@ -855,6 +1025,87 @@
       return { lista: lista, relogio: estado.relogio };
     }
 
+    /**
+     * A crianca mordeu a pastilha de poder: todo mundo fica com medo. Quem
+     * esta na rua ainda da meia-volta na hora - e o mesmo susto da troca de
+     * ciclo, e o sinal de que agora quem corre atras e ela. Quem ja e so um
+     * par de olhos voltando para casa nao se assusta com nada: aquele ja foi
+     * comido.
+     */
+    function assustar(estado) {
+      var lista = [];
+      for (var i = 0; i < estado.lista.length; i++) {
+        var f = estado.lista[i];
+        if (f.etapa === 'olhos' || f.etapa === 'entrando') { lista.push(f); continue; }
+
+        var trocas = { assustado: true, descanso: false };
+        if (f.etapa === 'livre') {
+          var volta = oposta(f.corpo.dir);
+          trocas.corpo = junta(f.corpo, {
+            dir: volta, desejada: volta, parado: false
+          });
+        }
+        lista.push(copia(f, trocas));
+      }
+      return { lista: lista, relogio: estado.relogio };
+    }
+
+    /**
+     * O feitico passou: todos voltam a ser eles mesmos. Sem meia-volta - eles
+     * simplesmente retomam o ciclo em que estavam quando a pastilha foi
+     * mordida, como no fliperama.
+     */
+    function acalmar(estado) {
+      var lista = [];
+      for (var i = 0; i < estado.lista.length; i++) {
+        var f = estado.lista[i];
+        lista.push(f.assustado ? copia(f, { assustado: false, descanso: false }) : f);
+      }
+      return { lista: lista, relogio: estado.relogio };
+    }
+
+    /**
+     * O fantasma `i` foi comido: vira um par de olhos correndo para casa.
+     *
+     * O corpo e ENCAIXADO no centro do quadrado em que ele estava. Isso e o que
+     * deixa os 4px por quadro dos olhos caindo certinho nos centros seguintes -
+     * de uma coordenada qualquer, um passo de 4 pularia por cima deles e o
+     * coitado nunca mais viraria numa esquina.
+     */
+    function comido(estado, i) {
+      var lista = estado.lista.slice();
+      var f = lista[i];
+      if (!f || f.etapa === 'olhos' || f.etapa === 'entrando') return estado;
+
+      var meio = Mapa.centro(Mapa.coluna(f.corpo.x), Mapa.linha(f.corpo.y));
+      lista[i] = copia(f, {
+        etapa: 'olhos',
+        assustado: false,
+        descanso: false,
+        corpo: junta(f.corpo, { x: meio.x, y: meio.y, parado: false })
+      });
+      return { lista: lista, relogio: estado.relogio };
+    }
+
+    /** Aquele fantasma pode ser comido agora? */
+    function comestivel(f) {
+      return f.assustado === true && f.etapa !== 'olhos' && f.etapa !== 'entrando';
+    }
+
+    /**
+     * O fantasma e o come-come estao se encostando? A conta e em pixels (e nao
+     * em quadrados) porque os dois andam entre os centros: esperar que os dois
+     * caiam no mesmo quadrado deixaria escapar o cruzamento no meio do
+     * corredor. Passando o `mapa`, a boca do tunel tambem conta - do outro lado
+     * da tela eles estao a um passo, nao a um labirinto de distancia.
+     */
+    function encostou(f, corpo, mapa) {
+      var dx = Math.abs(f.corpo.x - corpo.x);
+      if (mapa) dx = Math.min(dx, mapa.largura - dx);
+      var dy = Math.abs(f.corpo.y - corpo.y);
+      return dx * dx + dy * dy <= RAIO_TOQUE * RAIO_TOQUE;
+    }
+
     /** Todos ja sairam da casa? (o teste e o desenho gostam de saber) */
     function todosNaRua(estado) {
       for (var i = 0; i < estado.lista.length; i++) {
@@ -870,12 +1121,20 @@
       escolher: escolher,
       distancia: distancia,
       inverter: inverter,
+      assustar: assustar,
+      acalmar: acalmar,
+      comido: comido,
+      comestivel: comestivel,
+      encostou: encostou,
       todosNaRua: todosNaRua,
       TIPOS: TIPOS,
       SAIDAS: SAIDAS,
       PREFERENCIA: PREFERENCIA,
       BALANCO: BALANCO,
-      VELOCIDADE: VEL_FANTASMA
+      VELOCIDADE: VEL_FANTASMA,
+      VELOCIDADE_OLHOS: VEL_OLHOS,
+      RENASCER: RENASCER,
+      RAIO_TOQUE: RAIO_TOQUE
     };
   }());
 
@@ -1134,6 +1393,128 @@
     };
   }());
 
+  // ------------------------------------------------------------- O poder ----
+  /* O cronometro da pastilha de poder - o modulo que vira o jogo do avesso.
+     Um estado de quatro numeros:
+
+         { ativo: true,      // o feitico esta valendo?
+           restam: 480,      // quantos quadros ainda faltam
+           duracao: 480,     // quantos ele tinha quando comecou
+           comidos: 0 }      // fantasmas comidos DENTRO desta pastilha
+
+     Tres coisas moram aqui, e nenhuma delas precisa de tela:
+
+       1. QUANTO DURA. Nao e um numero solto: sai do labirinto
+          (`mapa.duracaoPoder`), e por isso os labirintos 2 e 3 vao poder
+          encurtar o feitico so mudando o desenho deles.
+       2. O AVISO. Nos ultimos dois segundos `piscando()` alterna entre ligado
+          e desligado a cada dez quadros: e o que faz o fantasma piscar entre o
+          azul e o branco, avisando a crianca para largar a caca e correr.
+       3. A ESCADA. 200 no primeiro fantasma, 400 no segundo, 800 no terceiro e
+          1600 no quarto - e cada pastilha nova recomeca do 200. Comer os
+          quatro numa pastilha so vale 3000 pontos.
+
+     Puro como todo o resto: `passo()` devolve um estado NOVO e avisa, junto,
+     no exato quadro em que o feitico acaba - e desse aviso que sai o
+     `Fantasmas.acalmar`. */
+  var Poder = (function () {
+
+    /** Quanto o feitico dura neste labirinto (em quadros). */
+    function duracaoDe(mapa) {
+      var d = mapa && mapa.duracaoPoder;
+      return (typeof d === 'number' && d > 0) ? d : PODER_QUADROS;
+    }
+
+    /** O comeco da rodada: nenhum feitico valendo. */
+    function novoEstado() {
+      return { ativo: false, restam: 0, duracao: 0, comidos: 0 };
+    }
+
+    /**
+     * A crianca mordeu uma pastilha de poder. O relogio comeca do zero mesmo
+     * que o feitico anterior ainda estivesse valendo - e a escada tambem: a
+     * segunda pastilha vale 200 de novo no primeiro fantasma.
+     */
+    function ligar(estado, mapa) {
+      var d = duracaoDe(mapa);
+      return { ativo: true, restam: d, duracao: d, comidos: 0 };
+    }
+
+    /**
+     * Um quadro do cronometro. Devolve `{ estado, acabou }`, com `acabou` no
+     * exato quadro em que o feitico termina.
+     */
+    function passo(estado) {
+      if (!estado.ativo) return { estado: estado, acabou: false };
+
+      var restam = estado.restam - 1;
+      if (restam > 0) {
+        return {
+          estado: {
+            ativo: true, restam: restam,
+            duracao: estado.duracao, comidos: estado.comidos
+          },
+          acabou: false
+        };
+      }
+      return {
+        estado: {
+          ativo: false, restam: 0,
+          duracao: estado.duracao, comidos: estado.comidos
+        },
+        acabou: true
+      };
+    }
+
+    /** Estamos na reta final do feitico? (e quando o aviso comeca) */
+    function avisando(estado) {
+      return estado.ativo === true && estado.restam <= AVISO_PODER;
+    }
+
+    /** O aviso esta ACESO neste quadro? (o branco do piscar) */
+    function piscando(estado) {
+      return avisando(estado)
+          && (estado.restam % PISCA_PODER) < (PISCA_PODER / 2);
+    }
+
+    /** Quanto vale o proximo fantasma comido nesta pastilha. */
+    function proximoPremio(estado) {
+      var i = estado.comidos;
+      return PREMIOS[i < PREMIOS.length ? i : PREMIOS.length - 1];
+    }
+
+    /**
+     * Mais um fantasma comido: sobe um degrau da escada e devolve quanto ele
+     * valeu. Sem feitico valendo nao ha premio nenhum - fantasma que nao esta
+     * assustado nao se come.
+     */
+    function comer(estado) {
+      if (!estado.ativo) return { estado: estado, pontos: 0 };
+      return {
+        estado: {
+          ativo: true, restam: estado.restam,
+          duracao: estado.duracao, comidos: estado.comidos + 1
+        },
+        pontos: proximoPremio(estado)
+      };
+    }
+
+    return {
+      novoEstado: novoEstado,
+      duracaoDe: duracaoDe,
+      ligar: ligar,
+      passo: passo,
+      avisando: avisando,
+      piscando: piscando,
+      proximoPremio: proximoPremio,
+      comer: comer,
+      PREMIOS: PREMIOS,
+      QUADROS: PODER_QUADROS,
+      AVISO: AVISO_PODER,
+      PISCA: PISCA_PODER
+    };
+  }());
+
   // ------------------------------------------------------- O labirinto 1 ----
   /* O primeiro dos tres labirintos do jogo: corredores largos, quatro
      pastilhas de poder nos cantos e um tunel na linha do meio. A casa dos
@@ -1175,7 +1556,10 @@
   // Os labirintos do jogo, na ordem em que sao jogados. Os outros dois entram
   // na fase 6a do plano; por ora a corrida tem um so.
   var LABIRINTOS = [
-    { numero: 1, nome: 'Praca Redonda', desenho: LABIRINTO_1 }
+    // `poder` e quanto tempo a pastilha de poder vale NESTE labirinto, em
+    // quadros. Oito segundos e uma folga generosa para o primeiro: da para
+    // atravessar meio labirinto atras dos quatro.
+    { numero: 1, nome: 'Praca Redonda', desenho: LABIRINTO_1, poder: 8 * 60 }
   ];
 
   var mapas = [];
@@ -1193,6 +1577,7 @@
       Movimento: Movimento,
       Pastilhas: Pastilhas,
       Fantasmas: Fantasmas,
+      Poder: Poder,
       Sorteio: Sorteio,
       Ciclos: Ciclos,
       Personalidades: Personalidades,
@@ -1204,6 +1589,9 @@
         TILE: TILE, COLUNAS: COLUNAS, LINHAS: LINHAS,
         LARGURA: LARGURA, ALTURA: ALTURA,
         PASSO_MS: PASSO_MS, VEL_COME: VEL_COME, VEL_FANTASMA: VEL_FANTASMA,
+        VEL_OLHOS: VEL_OLHOS, RENASCER: RENASCER, RAIO_TOQUE: RAIO_TOQUE,
+        PODER_QUADROS: PODER_QUADROS, AVISO_PODER: AVISO_PODER,
+        PISCA_PODER: PISCA_PODER, PREMIOS: PREMIOS,
         SAIDAS: SAIDAS, CICLOS: CICLOS, TROCA_SORTEIO: TROCA_SORTEIO,
         PASSOS_A_FRENTE: PASSOS_A_FRENTE, DISTANCIA_TIMIDO: DISTANCIA_TIMIDO,
         SEMENTE_PADRAO: SEMENTE_PADRAO,
@@ -1229,6 +1617,15 @@
   var COR_OLHO = '#0d0d17';
   var COR_BRANCO_DO_OLHO = '#ffffff';   // os olhos dos fantasmas
   var COR_PUPILA = '#2020c0';
+
+  /* O fantasma com medo: azul-marinho de cara boba, e branco no piscar que
+     avisa que o feitico esta acabando. A cara (dois olhinhos e a boca em
+     ziguezague) sai clara no azul e vermelha no branco - assim a piscada e
+     visivel de longe, mesmo num tablet ao sol. */
+  var COR_ASSUSTADO = '#2121de';
+  var COR_ASSUSTADO_AVISO = '#f8f8f8';
+  var COR_CARA_MEDO = '#e0e0f8';
+  var COR_CARA_AVISO = '#f02020';
 
   var BRILHO = 2;                    // a espessura do brilho das paredes
   var PASTILHA_L = 2;                // a pastilha comum e um quadradinho 2x2
@@ -1259,6 +1656,15 @@
     [0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0]
   ];
   var SAIA_ALTURA = 2, SAIA_CICLO = 8;
+
+  /* A boca do fantasma assustado, pixel a pixel nas mesmas 16 colunas do
+     corpo: duas linhas que se alternam formam o ziguezague de dentinhos. Ela
+     e escrita a mao pelo mesmo motivo da saia - simetria garantida. */
+  var BOCA_MEDO = [
+    [0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1],
+    [1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0]
+  ];
+
   var PUPILA = {
     direita:  { dx: 2, dy: 1 },
     esquerda: { dx: 0, dy: 1 },
@@ -1382,11 +1788,21 @@
    * correndo para o lado em que ele anda - e o unico jeito de a crianca saber,
    * de longe, para onde o fantasma vai.
    *
-   * `onda` (0 ou 1) troca o recorte da saia de lugar.
+   * `onda` (0 ou 1) troca o recorte da saia de lugar. `humor` diz o que
+   * desenhar por cima do corpo:
+   *
+   *     'normal'     a cor dele e os olhos apontando para onde ele vai
+   *     'assustado'  o azul do medo e a cara boba (olhinhos e ziguezague)
+   *     'aviso'      a mesma cara, no branco do piscar de fim de feitico
+   *     'olhos'      so os olhos: foi comido e esta voltando para casa
    */
-  function desenharFantasma(cx, cy, cor, dir, onda) {
+  function desenharFantasma(cx, cy, cor, dir, onda, humor) {
+    // Comido, do fantasma sobram os olhos - e e so o que se pinta.
+    if (humor === 'olhos') { desenharOlhos(cx, cy, dir); return; }
+
     var raio = TILE / 2;
     var saiaAgora = SAIA[onda ? 1 : 0];
+    var medo = humor === 'assustado' || humor === 'aviso';
     var px, py;
 
     ctx.fillStyle = cor;
@@ -1409,6 +1825,12 @@
       }
     }
 
+    if (medo) desenharCaraDeMedo(cx, cy, humor === 'aviso');
+    else desenharOlhos(cx, cy, dir);
+  }
+
+  /** Os dois olhos com a pupila correndo para o lado em que ele anda. */
+  function desenharOlhos(cx, cy, dir) {
     var pupila = PUPILA[dir] || PUPILA.esquerda;
     var olhos = [-5, 1];
     for (var i = 0; i < olhos.length; i++) {
@@ -1421,21 +1843,57 @@
   }
 
   /**
+   * A cara de quem esta com medo: dois olhinhos parados (ele nao esta mirando
+   * nada - esta fugindo) e a boca em ziguezague. `aviso` troca o claro pelo
+   * vermelho, que e o que faz a piscada aparecer.
+   */
+  function desenharCaraDeMedo(cx, cy, aviso) {
+    var raio = TILE / 2;
+    ctx.fillStyle = aviso ? COR_CARA_AVISO : COR_CARA_MEDO;
+
+    ctx.fillRect(cx - 4, cy - 4, 2, 2);
+    ctx.fillRect(cx + 2, cy - 4, 2, 2);
+
+    for (var linha = 0; linha < BOCA_MEDO.length; linha++) {
+      var mascara = BOCA_MEDO[linha];
+      for (var px = 0; px < mascara.length; px++) {
+        if (mascara[px]) ctx.fillRect(cx - raio + px, cy + 1 + linha, 1, 1);
+      }
+    }
+  }
+
+  /**
    * Os quatro no labirinto, com a mesma copia do outro lado que o come-come
    * ganha na boca do tunel.
    */
-  function desenharFantasmas(estado, relogio) {
+  function desenharFantasmas(estado, relogio, poder) {
     var onda = Math.floor(relogio / SAIA_CICLO) % 2;
     var meio = TILE / 2;
     for (var i = 0; i < estado.lista.length; i++) {
       var f = estado.lista[i];
       var c = f.corpo;
-      desenharFantasma(c.x, c.y, f.cor, c.dir, onda);
-      if (c.x < meio) desenharFantasma(c.x + labirinto.largura, c.y, f.cor, c.dir, onda);
+      var humor = humorDe(f, poder);
+      var cor = corDoHumor(f, humor);
+      desenharFantasma(c.x, c.y, cor, c.dir, onda, humor);
+      if (c.x < meio) desenharFantasma(c.x + labirinto.largura, c.y, cor, c.dir, onda, humor);
       else if (c.x > labirinto.largura - meio) {
-        desenharFantasma(c.x - labirinto.largura, c.y, f.cor, c.dir, onda);
+        desenharFantasma(c.x - labirinto.largura, c.y, cor, c.dir, onda, humor);
       }
     }
+  }
+
+  /** Como este fantasma tem que ser desenhado agora. */
+  function humorDe(f, poder) {
+    if (f.etapa === 'olhos' || f.etapa === 'entrando') return 'olhos';
+    if (!f.assustado) return 'normal';
+    return Poder.piscando(poder) ? 'aviso' : 'assustado';
+  }
+
+  /** E de que cor. */
+  function corDoHumor(f, humor) {
+    if (humor === 'assustado') return COR_ASSUSTADO;
+    if (humor === 'aviso') return COR_ASSUSTADO_AVISO;
+    return f.cor;
   }
 
   /** A cena inteira, do zero, uma vez por quadro. */
@@ -1467,7 +1925,7 @@
 
     // Os fantasmas vem por ultimo: quando um passa por cima do come-come, e
     // ele que aparece - e assim a crianca ve o perigo, nao o contrario.
-    desenharFantasmas(jogo.fantasmas, jogo.relogio);
+    desenharFantasmas(jogo.fantasmas, jogo.relogio, jogo.poder);
   }
 
   // -------------------------------------------------------------- O jogo ----
@@ -1486,7 +1944,8 @@
     pastilhas: Pastilhas.novoEstado(labirinto),
     fantasmas: Fantasmas.novoEstado(labirinto),
     ciclo: Ciclos.novoEstado(),              // dispersar ou cacar, e ha quanto tempo
-    miras: Personalidades.novoEstado()       // a semente e o alvo sorteado do laranja
+    miras: Personalidades.novoEstado(),      // a semente e o alvo sorteado do laranja
+    poder: Poder.novoEstado()                // o cronometro da pastilha de poder
   };
 
   // O estado vivo, para os testes dirigirem o jogo sem navegador.
@@ -1505,28 +1964,72 @@
     if (mordida.comeu >= 0) {
       jogo.pastilhas = mordida.estado;
       jogo.pontos += mordida.pontos;
+      // A bolota grande vira o jogo: o feitico comeca (ou recomeca do zero, se
+      // ja estava valendo) e os quatro levam o susto.
+      if (mordida.poder) {
+        jogo.poder = Poder.ligar(jogo.poder, labirinto);
+        jogo.fantasmas = Fantasmas.assustar(jogo.fantasmas);
+      }
       if (mordida.limpou) concluirFase();
     }
 
-    /* O relogio dos humores anda primeiro: quando ele vira a linha da tabela,
-       os quatro dao meia-volta na hora, como no fliperama. */
-    jogo.ciclo = Ciclos.passo(jogo.ciclo);
-    if (jogo.ciclo.trocou) jogo.fantasmas = Fantasmas.inverter(jogo.fantasmas);
+    var quadradoDoCome = {
+      c: Mapa.coluna(jogo.come.x),
+      l: Mapa.linha(jogo.come.y),
+      dir: jogo.come.dir
+    };
+
+    /* Enquanto o feitico vale, o relogio dos humores fica PARADO: quando ele
+       acabar, os quatro voltam exatamente ao ciclo em que estavam - sem
+       meia-volta, como no fliperama. Fora do feitico o relogio anda normal, e
+       na virada da tabela todos dao meia-volta na hora. */
+    if (jogo.poder.ativo) {
+      var tique = Poder.passo(jogo.poder);
+      jogo.poder = tique.estado;
+      if (tique.acabou) jogo.fantasmas = Fantasmas.acalmar(jogo.fantasmas);
+    } else {
+      jogo.ciclo = Ciclos.passo(jogo.ciclo);
+      if (jogo.ciclo.trocou) jogo.fantasmas = Fantasmas.inverter(jogo.fantasmas);
+    }
 
     /* Agora cada um recebe o SEU alvo: o vermelho mira o come-come, o rosa
        quatro casas a frente dele, o azul so caca de longe e o laranja vai
        aonde o sorteio mandar - ou, na dispersao, cada um para o seu canto.
-       Encostar num deles ainda nao machuca (fase 5). */
+       Quem esta assustado ignora tudo isso e so quer distancia do come-come
+       (`fuga`). Encostar num cacador ainda nao machuca (fase 5). */
     var mira = Personalidades.passo(jogo.miras, jogo.fantasmas, labirinto, {
       modo: jogo.ciclo.modo,
-      come: {
-        c: Mapa.coluna(jogo.come.x),
-        l: Mapa.linha(jogo.come.y),
-        dir: jogo.come.dir
-      }
+      come: quadradoDoCome
     });
     jogo.miras = mira.estado;
-    jogo.fantasmas = Fantasmas.passo(jogo.fantasmas, labirinto, mira.alvos);
+    jogo.fantasmas = Fantasmas.passo(jogo.fantasmas, labirinto, mira.alvos, {
+      fuga: quadradoDoCome
+    });
+
+    comerFantasmas();
+  }
+
+  /**
+   * O outro lado da pastilha de poder: encostar num fantasma assustado o come.
+   * Ele vale o proximo degrau da escada (200, 400, 800, 1600 dentro da mesma
+   * pastilha), vira um par de olhos e sai correndo para casa.
+   *
+   * A conferencia vem DEPOIS do passo dos fantasmas: o encontro so existe
+   * quando os dois ja andaram, e assim ninguem e comido de mentira.
+   */
+  function comerFantasmas() {
+    var lista = jogo.fantasmas.lista;
+    for (var i = 0; i < lista.length; i++) {
+      var f = lista[i];
+      if (!Fantasmas.comestivel(f)) continue;
+      if (!Fantasmas.encostou(f, jogo.come, labirinto)) continue;
+
+      var premio = Poder.comer(jogo.poder);
+      jogo.poder = premio.estado;
+      jogo.pontos += premio.pontos;
+      jogo.fantasmas = Fantasmas.comido(jogo.fantasmas, i);
+      lista = jogo.fantasmas.lista;
+    }
   }
 
   /**

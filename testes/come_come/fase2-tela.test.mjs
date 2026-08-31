@@ -29,6 +29,31 @@ const faltam = () => Pastilhas.faltam(jogo().pastilhas);
 const COR_PASTILHA = '#fcd8a8';
 const pastilhasPintadas = () => dom.pintados.filter((p) => p.cor === COR_PASTILHA).length;
 
+/** Quanto renderam as pastilhas ja comidas - 10 cada, 50 nas de poder. */
+const pontosDasPastilhas = () => mapa.pastilhas.reduce(
+  (total, p, i) => (Pastilhas.existe(jogo().pastilhas, i)
+    ? total
+    : total + (p.poder ? mundo.PONTOS_PODER : mundo.PONTOS_PASTILHA)),
+  0,
+);
+
+/* A fase 4 pos os fantasmas comestiveis no labirinto, e o piloto automatico so
+   olha para pastilhas: no caminho ele acaba esbarrando num assustado, que vale
+   um degrau da escada 200/400/800/1600. Este contador separa esses pontos dos
+   das pastilhas - que sao o que ESTA fase promete. O `comidos` do poder zera a
+   cada pastilha nova, entao a conta acompanha as duas coisas. */
+let premiosDeFantasma = 0;
+let comidosAntes = 0;
+
+function contarFantasmasComidos() {
+  const agora = jogo().poder.comidos;
+  const desde = agora < comidosAntes ? 0 : comidosAntes;
+  for (let i = desde; i < agora; i++) {
+    premiosDeFantasma += mundo.PREMIOS[Math.min(i, mundo.PREMIOS.length - 1)];
+  }
+  comidosAntes = agora;
+}
+
 /** Poe o come-come no centro de um quadrado, olhando para onde o teste quer. */
 function porNoQuadrado(c, l, dir) {
   const corpo = come();
@@ -84,6 +109,7 @@ function direcaoParaAPastilhaMaisPerto() {
 function limparOLabirinto(maxDecisoes = 3000) {
   for (let i = 0; i < maxDecisoes; i++) {
     if (jogo().tela !== 'jogando') return i;
+    contarFantasmasComidos();
     if (!Movimento.noCentro(come())) { dom.avancarQuadros(1); continue; }
 
     const dir = direcaoParaAPastilhaMaisPerto();
@@ -151,7 +177,7 @@ teste('a mesma pastilha nao conta duas vezes', () => {
   assert.equal(faltam(), restantes);
 });
 
-teste('a pastilha de poder vale 50 (e ainda nao faz mais nada)', () => {
+teste('a pastilha de poder vale 50, alem do feitico que ela liga', () => {
   const poder = mapa.pastilhas[mapa.poderes[0]];
   assert.equal(Pastilhas.existe(jogo().pastilhas, mapa.poderes[0]), true);
 
@@ -162,12 +188,18 @@ teste('a pastilha de poder vale 50 (e ainda nao faz mais nada)', () => {
   assert.equal(jogo().pontos, pontos + 50, 'a de poder rende cinco pastilhas');
   assert.equal(dom.texto('hud-pontos'), String(pontos + 50));
   assert.equal(Pastilhas.existe(jogo().pastilhas, mapa.poderes[0]), false);
-  assert.equal(jogo().tela, 'jogando', 'nenhum efeito por enquanto');
+  assert.equal(jogo().tela, 'jogando', 'a fase continua');
+
+  // O efeito dela e assunto da fase 4; aqui so se confere que os pontos que
+  // ESTA fase promete continuam sendo exatamente 50.
+  assert.equal(jogo().poder.ativo, true, 'e o feitico comecou');
+  contarFantasmasComidos();
 });
 
 // ----------------------------------------------------- O labirinto limpo ----
 teste('o piloto automatico percorre o labirinto inteiro e o deixa limpo', () => {
   const decisoes = limparOLabirinto();
+  contarFantasmasComidos();
   assert.ok(decisoes > 100, `o piloto andou de verdade (${decisoes} decisoes)`);
 
   assert.equal(faltam(), 0, 'nenhuma pastilha sobrou');
@@ -175,16 +207,22 @@ teste('o piloto automatico percorre o labirinto inteiro e o deixa limpo', () => 
   assert.equal(dom.texto('hud-faltam'), '0');
 
   // Cada uma foi contada uma vez so: o total do labirinto, nem mais nem menos.
-  assert.equal(jogo().pontos, 2600, '240 x 10 + 4 x 50');
-  assert.equal(jogo().pontos, Pastilhas.totalDoLabirinto(mapa));
-  assert.equal(dom.texto('hud-pontos'), '2600', 'e o HUD mostra o mesmo numero');
+  assert.equal(pontosDasPastilhas(), 2600, '240 x 10 + 4 x 50');
+  assert.equal(pontosDasPastilhas(), Pastilhas.totalDoLabirinto(mapa));
+
+  // O que sobra no placar sao os fantasmas que o piloto atropelou enquanto
+  // eles fugiam - a escada da fase 4, e nada mais.
+  assert.equal(jogo().pontos, 2600 + premiosDeFantasma,
+    `2600 de pastilha + ${premiosDeFantasma} de fantasma`);
+  assert.equal(dom.texto('hud-pontos'), String(jogo().pontos),
+    'e o HUD mostra o mesmo numero');
 });
 
 teste('a ultima pastilha fecha a fase, com o placar na tela', () => {
   assert.equal(jogo().tela, 'fase');
   assert.equal(dom.escondido('tela-fase'), false, 'a tela de fim de fase subiu');
   assert.equal(dom.texto('fase-numero'), '1');
-  assert.equal(dom.texto('fase-pontos'), '2600');
+  assert.equal(dom.texto('fase-pontos'), String(jogo().pontos));
 });
 
 teste('com a fase concluida o mundo congela, mas a tela continua sendo pintada', () => {
@@ -206,6 +244,7 @@ teste('um jogo recem-aberto nasce com o labirinto cheio de novo', () => {
   novo.avancarQuadros(1);
   assert.equal(Pastilhas.faltam(novo.api.jogo.pastilhas), 244);
   assert.equal(novo.api.jogo.pontos, 0);
+  assert.equal(novo.api.jogo.poder.ativo, false, 'nenhum feitico valendo');
   assert.equal(novo.texto('hud-pontos'), '0');
   assert.equal(novo.escondido('tela-fase'), true);
   assert.equal(
