@@ -60,6 +60,10 @@
       <strong id="hud-eu-nome">—</strong>
     </div>
 
+    <!-- Placar da sala, só em grupo. Ele é refeito pelo game.js com
+         textContent e cor conferida para cada apelido que veio da Central. -->
+    <ol id="hud-placar" class="hud-placar hidden" aria-label="Placar da sala"></ol>
+
     <!-- Os dois botões da partida. Eles moram no HUD, então só aparecem com o
          labirinto em andamento — no menu não há nada para pausar. -->
     <div class="hud-botoes">
@@ -168,12 +172,13 @@
          todo mundo virou espectador antes de limpar o labirinto. -->
     <section id="tela-fim" class="tela hidden">
       <div class="painel">
-        <h1 class="titulo"><span class="destaque">FIM DE</span><br>JOGO</h1>
-        <p class="subtitulo">Os fantasmas pegaram você três vezes 👻</p>
-        <p class="placar">
+        <h1 id="fim-titulo" class="titulo"><span class="destaque">FIM DE</span><br>JOGO</h1>
+        <p id="fim-subtitulo" class="subtitulo">Os fantasmas pegaram você três vezes 👻</p>
+        <p id="fim-placar-solo" class="placar">
           Você chegou até a fase <b id="fim-fase">1</b><br>
           Pontos: <b id="fim-pontos">0</b>
         </p>
+        <ol id="fim-ranking" class="ranking-sala hidden" aria-label="Ranking da sala"></ol>
 
         <button id="btn-fim-de-novo" type="button" class="botao">JOGAR DE NOVO</button>
       </div>

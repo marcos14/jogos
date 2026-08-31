@@ -2646,6 +2646,110 @@
     };
   }());
 
+  // -------------------------------------------------------- O placar --------
+  /* O ranking da sala e dado puro: nasce da lista de jogadores, viaja no
+     `terminar(placar)` da Central e volta igual em todos os aparelhos. Empate
+     vale o mesmo lugar; por isso a posicao seguinte pula (1, 1, 3), como em
+     corrida. */
+  var Placar = (function () {
+    var MEDALHAS = ['🥇', '🥈', '🥉'];
+
+    function pontosDe(j) {
+      return (j && typeof j.pontos === 'number') ? j.pontos | 0 : 0;
+    }
+
+    function indiceDe(j, reserva) {
+      return (j && typeof j.indice === 'number') ? j.indice | 0 : reserva | 0;
+    }
+
+    function medalha(posicao) {
+      return MEDALHAS[posicao - 1] || String(posicao) + 'º';
+    }
+
+    function linhaDe(j, i) {
+      return {
+        id: j && j.id ? String(j.id) : '',
+        indice: indiceDe(j, i),
+        apelido: j && j.apelido ? String(j.apelido) : 'Jogador',
+        cor: j && j.cor ? String(j.cor) : '',
+        pontos: pontosDe(j),
+        vidas: (j && typeof j.vidas === 'number') ? j.vidas | 0 : 0,
+        espectador: !!(j && j.espectador),
+        posicao: 0,
+        medalha: ''
+      };
+    }
+
+    function comparar(a, b) {
+      if (b.pontos !== a.pontos) return b.pontos - a.pontos;
+      return a.indice - b.indice;
+    }
+
+    function ranking(jogadores) {
+      var base = [], lista = jogadores || [], i;
+      for (i = 0; i < lista.length; i++) base.push(linhaDe(lista[i], i));
+      base.sort(comparar);
+
+      var anterior = null, posicao = 0;
+      for (i = 0; i < base.length; i++) {
+        if (anterior === null || base[i].pontos !== anterior) posicao = i + 1;
+        base[i].posicao = posicao;
+        base[i].medalha = medalha(posicao);
+        anterior = base[i].pontos;
+      }
+      return base;
+    }
+
+    /* Formato que viaja pela Central: arrays curtos, mas ainda com o apelido e
+       a cor para a tela final ser montada mesmo depois de a sala voltar ao
+       lobby. */
+    function paraTerminar(jogadores) {
+      var r = ranking(jogadores), saida = [];
+      for (var i = 0; i < r.length; i++) {
+        saida.push([
+          r[i].posicao | 0, r[i].indice | 0, r[i].pontos | 0,
+          r[i].apelido, r[i].cor
+        ]);
+      }
+      return saida;
+    }
+
+    function doTerminar(placar) {
+      var entrada = placar || [], saida = [], i, l;
+      for (i = 0; i < entrada.length; i++) {
+        l = entrada[i];
+        if (Array.isArray(l)) {
+          saida.push({
+            posicao: l[0] | 0, indice: l[1] | 0, pontos: l[2] | 0,
+            apelido: l[3] ? String(l[3]) : 'Jogador',
+            cor: l[4] ? String(l[4]) : '',
+            medalha: medalha(l[0] | 0)
+          });
+        } else if (l && typeof l === 'object') {
+          saida.push({
+            posicao: l.posicao | 0, indice: l.indice | 0,
+            pontos: l.pontos | 0,
+            apelido: l.apelido ? String(l.apelido) : 'Jogador',
+            cor: l.cor ? String(l.cor) : '',
+            medalha: l.medalha || medalha(l.posicao | 0)
+          });
+        }
+      }
+      saida.sort(function (a, b) {
+        if (a.posicao !== b.posicao) return a.posicao - b.posicao;
+        return a.indice - b.indice;
+      });
+      return saida;
+    }
+
+    return {
+      ranking: ranking,
+      paraTerminar: paraTerminar,
+      doTerminar: doTerminar,
+      medalha: medalha
+    };
+  }());
+
   // ------------------------------------------------------- O labirinto 1 ----
   /* O primeiro dos tres labirintos do jogo: corredores largos, quatro
      pastilhas de poder nos cantos e um tunel na linha do meio. A casa dos
@@ -2794,6 +2898,7 @@
       Corrida: Corrida,
       Previsao: Previsao,
       Pacote: Pacote,
+      Placar: Placar,
       Sorteio: Sorteio,
       Ciclos: Ciclos,
       Personalidades: Personalidades,
@@ -2950,6 +3055,7 @@
     // Quem e voce no labirinto (fase 11): o nome e a cor que vieram da sala.
     hudEu: $('hud-eu'),
     hudEuNome: $('hud-eu-nome'),
+    hudPlacar: $('hud-placar'),
     btnAmigos: $('btn-amigos'),
     aviso: $('aviso'),
 
@@ -2973,8 +3079,12 @@
 
     // Fim de jogo: as tres vidas acabaram.
     telaFim: $('tela-fim'),
+    fimTitulo: $('fim-titulo'),
+    fimSubtitulo: $('fim-subtitulo'),
+    fimPlacarSolo: $('fim-placar-solo'),
     fimPontos: $('fim-pontos'),
     fimFase: $('fim-fase'),
+    fimRanking: $('fim-ranking'),
     btnFimDeNovo: $('btn-fim-de-novo'),
 
     // Parabens: os tres labirintos limpos, com o resumo da corrida.
@@ -3332,7 +3442,8 @@
     miras: Personalidades.novoEstado(),      // a semente e o alvo sorteado do laranja
     poder: Poder.novoEstado(),               // o cronometro da pastilha de poder
     rodada: Rodada.novoEstado(),             // as vidas e a pausa do tombo
-    corrida: Corrida.novoEstado()            // o caderninho dos tres labirintos
+    corrida: Corrida.novoEstado(),           // o caderninho dos tres labirintos
+    rankingSala: []                          // a tela final em grupo
   };
 
   /* O come-come de casa e os pontos dele atendem pelos nomes de sempre:
@@ -3792,13 +3903,104 @@
     }
   }
 
+  function criarTexto(tag, classe, texto) {
+    var no = document.createElement(tag);
+    if (classe) no.className = classe;
+    no.textContent = texto;
+    return no;
+  }
+
+  function limparLista(no) {
+    no.textContent = '';
+  }
+
+  function minhaLinha(linha) {
+    return !!(jogo.eu && linha.indice === jogo.eu.indice);
+  }
+
+  function renderizarPlacar(no, linhas, compacto) {
+    limparLista(no);
+    for (var i = 0; i < linhas.length; i++) {
+      var linha = linhas[i];
+      var item = document.createElement('li');
+      if (minhaLinha(linha)) item.classList.add('minha-linha');
+      item.style.color = corSegura(linha.cor) || corDoJogador({ indice: linha.indice, cor: linha.cor });
+
+      if (compacto) {
+        item.appendChild(criarTexto('span', 'nome',
+          linha.posicao + 'º ' + (linha.apelido || 'Jogador')));
+        item.appendChild(criarTexto('b', 'pontos', String(linha.pontos | 0)));
+      } else {
+        item.appendChild(criarTexto('span', 'medalha', linha.medalha || Placar.medalha(linha.posicao)));
+        item.appendChild(criarTexto('span', 'nome',
+          (linha.apelido || 'Jogador') + (minhaLinha(linha) ? ' (você)' : '')));
+        item.appendChild(criarTexto('b', 'pontos', String(linha.pontos | 0)));
+      }
+      no.appendChild(item);
+    }
+  }
+
+  function placarLocalDaSala() {
+    return Placar.paraTerminar(jogo.jogadores);
+  }
+
+  function mostrarRankingDaSala(placar, confirmado) {
+    var linhas = Placar.doTerminar(placar && placar.length ? placar : placarLocalDaSala());
+    jogo.rankingSala = linhas;
+    jogo.tela = 'fim';
+
+    el.fimTitulo.textContent = 'FIM DA SALA';
+    el.fimSubtitulo.textContent = confirmado
+      ? 'Ranking confirmado pela Central.'
+      : 'Ranking local da sala.';
+    exibir(el.fimPlacarSolo, false);
+    exibir(el.fimRanking, true);
+    renderizarPlacar(el.fimRanking, linhas, false);
+
+    exibir(el.telaFase, false);
+    exibir(el.telaParabens, false);
+    exibir(el.telaFim, true);
+    atualizarControles();
+  }
+
+  function mostrarEsperaRankingDaSala() {
+    jogo.tela = 'fim';
+    el.fimTitulo.textContent = 'FIM DA SALA';
+    el.fimSubtitulo.textContent = 'Aguardando o ranking da Central...';
+    exibir(el.fimPlacarSolo, false);
+    exibir(el.fimRanking, true);
+    el.fimRanking.textContent = 'Calculando placar da turma.';
+    exibir(el.telaFase, false);
+    exibir(el.telaParabens, false);
+    exibir(el.telaFim, true);
+    atualizarControles();
+  }
+
+  function fimDaSala() {
+    if (rede.fimConfirmado) return;
+    rede.placarLocal = placarLocalDaSala();
+    rede.fimPendente = true;
+    rede.fimEspera = 0;
+    mostrarEsperaRankingDaSala();
+    if (rede.papel === 'anfitriao' && !rede.fimEnviado) {
+      rede.fimEnviado = true;
+      Rede.terminarSala(rede.placarLocal);
+    }
+  }
+
   /**
    * As tres vidas acabaram: no jogo de um jogador so a partida termina aqui,
    * com os pontos na tela. Em grupo, isto so acontece quando nao sobrou nenhum
    * come-come ativo no labirinto.
    */
   function fimDeJogo() {
+    if (emSala()) { fimDaSala(); return; }
+
     jogo.tela = 'fim';
+    el.fimTitulo.textContent = 'FIM DE JOGO';
+    el.fimSubtitulo.textContent = 'Os fantasmas pegaram você três vezes 👻';
+    exibir(el.fimPlacarSolo, true);
+    exibir(el.fimRanking, false);
     // Os pontos que aparecem sao os da CORRIDA inteira: o que os labirintos ja
     // limpos renderam (com os bonus) mais o que esta rolando neste aqui.
     el.fimPontos.textContent = String(jogo.corrida.total + jogo.pontos);
@@ -3818,7 +4020,11 @@
     jogo.tela = 'fase';
     jogo.corrida = Corrida.concluir(jogo.corrida, jogo.fase, jogo.pontos);
 
-    if (jogo.corrida.terminada) { mostrarParabens(); return; }
+    if (jogo.corrida.terminada) {
+      if (emSala()) { fimDaSala(); return; }
+      mostrarParabens();
+      return;
+    }
 
     el.faseNumero.textContent = String(jogo.fase);
     el.fasePontos.textContent = String(jogo.pontos);
@@ -4110,6 +4316,11 @@
     ultimoRecebido: 0,    // o numero do ultimo retrato aplicado
     atrasados: 0,         // retratos que chegaram velhos e foram para o lixo
     terminalEnviado: false, // o anfitriao ja contou que a tela parou?
+    fimPendente: false,   // esperando a Central devolver o ranking da sala
+    fimEspera: 0,         // quadros esperando antes do ranking local
+    fimEnviado: false,    // `terminar(placar)` ja subiu para a Central?
+    fimConfirmado: false, // a Central ja devolveu `aoTerminar`?
+    placarLocal: null,    // fallback se a Central emudecer no fim
     erro: 0,              // o quanto a previsao local errou no ultimo retrato
     correcoes: 0,         // retratos que puxaram a previsao de leve (25%)
     snaps: 0              // ... e os que precisaram encaixar de uma vez
@@ -4178,6 +4389,11 @@
       rede.ultimoRecebido = 0;
       rede.atrasados = 0;
       rede.terminalEnviado = false;
+      rede.fimPendente = false;
+      rede.fimEspera = 0;
+      rede.fimEnviado = false;
+      rede.fimConfirmado = false;
+      rede.placarLocal = null;
       rede.erro = 0;
       rede.correcoes = 0;
       rede.snaps = 0;
@@ -4316,6 +4532,7 @@
        mensagens por segundo. */
     function passo() {
       if (!rede.sala) return;
+      conferirFimPendente();
       if (jogo.tela !== 'jogando') {
         if (rede.papel === 'anfitriao' && !rede.terminalEnviado) {
           mandarEstado();
@@ -4367,14 +4584,28 @@
       mj.paraAnfitriao(Pacote.entrada(++rede.seq, entrada));
     }
 
-    /* A partida da sala foi encerrada pela Central. Ninguem pode ficar preso
-       numa partida que nao existe mais: todo mundo volta ao menu com o recado.
-       (O ranking da sala nesta tela e a fase 13.) */
-    function terminar() {
+    function terminarSala(placar) {
+      if (!mj || rede.papel !== 'anfitriao') return;
+      mj.terminar(placar);
+    }
+
+    function conferirFimPendente() {
+      if (!rede.fimPendente || rede.fimConfirmado) return;
+      rede.fimEspera++;
+      if (rede.fimEspera < 180) return;
+      rede.fimPendente = false;
+      mostrarRankingDaSala(rede.placarLocal, false);
+    }
+
+    /* A partida da sala foi encerrada pela Central. O placar que volta daqui e
+       o mesmo para todos os aparelhos; a tela de fim so troca do "aguardando"
+       para o ranking quando este pacote chega. */
+    function terminar(fim) {
       if (!rede.sala) return;
-      limparSala();
-      voltarAoMenu();
-      avisar('A partida da sala terminou.');
+      rede.fimConfirmado = true;
+      rede.fimPendente = false;
+      if (fim && fim.sala) rede.sala = fim.sala;
+      mostrarRankingDaSala(fim && fim.placar, true);
     }
 
     /* O anfitriao caiu (ou a sala se desfez). Era a maquina dele que mandava na
@@ -4404,6 +4635,12 @@
     function limparSala() {
       rede.sala = null;
       rede.papel = 'solo';
+      rede.fimPendente = false;
+      rede.fimEspera = 0;
+      rede.fimEnviado = false;
+      rede.fimConfirmado = false;
+      rede.placarLocal = null;
+      jogo.rankingSala = [];
       jogarSozinho();
       mostrarSala();
     }
@@ -4448,6 +4685,7 @@
       avisar: avisar,
       passo: passo,
       mandarEstado: mandarEstado,
+      terminarSala: terminarSala,
       /* O MUNDO anda neste aparelho? O convidado nao simula o mundo: ele
          desenha o que chega e adivinha so o proprio come-come. */
       simulaAqui: function () { return rede.papel !== 'convidado'; }
@@ -4465,7 +4703,7 @@
      celular. Escrever no DOM so quando o numero muda evita mexer na pagina 60
      vezes por segundo. */
   var COME_VIDA = '🟡';
-  var hudPintado = { pontos: -1, vidas: -1, fase: -1, faltam: -1 };
+  var hudPintado = { pontos: -1, vidas: -1, fase: -1, faltam: -1, placar: '' };
 
   function repetir(texto, n) {
     var saida = '';
@@ -4479,6 +4717,34 @@
       return repetir(COME_VIDA, vidasDoJogador(jogo.eu)) || '—';
     }
     return repetir(COME_VIDA, jogo.vidas) || '—';
+  }
+
+  function assinaturaDoPlacar(linhas) {
+    var partes = [];
+    for (var i = 0; i < linhas.length; i++) {
+      partes.push([
+        linhas[i].posicao, linhas[i].indice, linhas[i].apelido,
+        linhas[i].cor, linhas[i].pontos
+      ].join(':'));
+    }
+    return partes.join('|');
+  }
+
+  function atualizarMiniPlacar() {
+    if (!rede.sala) {
+      hudPintado.placar = '';
+      exibir(el.hudPlacar, false);
+      limparLista(el.hudPlacar);
+      return;
+    }
+
+    var linhas = Placar.ranking(jogo.jogadores);
+    var assinatura = assinaturaDoPlacar(linhas);
+    exibir(el.hudPlacar, true);
+    if (assinatura === hudPintado.placar) return;
+
+    hudPintado.placar = assinatura;
+    renderizarPlacar(el.hudPlacar, linhas, true);
   }
 
   function atualizarHud() {
@@ -4500,6 +4766,7 @@
       hudPintado.faltam = faltam;
       el.faltam.textContent = String(faltam);
     }
+    atualizarMiniPlacar();
   }
 
   // ------------------------------------------------------------- Teclado ----

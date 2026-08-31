@@ -145,12 +145,15 @@ export function carregarJogoComTela(slug = 'come_come', opcoes = {}) {
                     'hud-pontos', 'hud-vidas', 'hud-fase', 'hud-faltam',
                     'btn-pausa', 'btn-tela-cheia',
                     'hud-sala', 'hud-sala-codigo', 'hud-eu', 'hud-eu-nome',
+                    'hud-placar',
                     'tela-menu', 'campo-apelido', 'btn-jogar', 'controles',
                     'btn-amigos', 'aviso',
                     'tela-pausa', 'btn-continuar', 'btn-recomecar',
                     'tela-fase', 'fase-numero', 'fase-pontos',
                     'fase-bonus', 'fase-proxima', 'btn-proxima',
-                    'tela-fim', 'fim-fase', 'fim-pontos', 'btn-fim-de-novo',
+                    'tela-fim', 'fim-titulo', 'fim-subtitulo',
+                    'fim-placar-solo', 'fim-fase', 'fim-pontos',
+                    'fim-ranking', 'btn-fim-de-novo',
                     'tela-parabens', 'parabens-total', 'btn-de-novo',
                     'parabens-fase-1', 'parabens-fase-2', 'parabens-fase-3']) {
     elementos[id] = criarElemento('div', id);
@@ -171,6 +174,9 @@ export function carregarJogoComTela(slug = 'come_come', opcoes = {}) {
   elementos.aviso.classes.add('hidden');
   // E, desde a fase 11, a caixa do "voce e" - o nome e a cor da sala.
   elementos['hud-eu'].classes.add('hidden');
+  // E, desde a fase 13, o placar da sala e o ranking final.
+  elementos['hud-placar'].classes.add('hidden');
+  elementos['fim-ranking'].classes.add('hidden');
 
   elementos.tela = criarElemento('canvas', 'tela');
   elementos.tela.getContext = () => contexto2d;

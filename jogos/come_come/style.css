@@ -326,6 +326,82 @@ body{
   letter-spacing: 1px;
 }
 
+/* Mini-placar da sala: compacto, mas com cor e ordem suficientes para a turma
+   entender quem passou na frente sem parar de jogar. */
+.hud-placar{
+  list-style: none;
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: stretch;
+  margin: 0;
+  padding: 0;
+  line-height: 1.2;
+}
+
+.hud-placar li{
+  min-width: 84px;
+  max-width: 132px;
+  background: var(--preto);
+  border: 3px solid var(--branco);
+  padding: 3px 7px;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--branco);
+}
+
+.hud-placar .nome{
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hud-placar .pontos{
+  display: block;
+  color: var(--amarelo);
+  font-size: 13px;
+}
+
+.hud-placar .minha-linha{
+  border-color: var(--amarelo);
+}
+
+/* Ranking final da sala. A medalha segue a posição: empate repete medalha e a
+   próxima posição pula, como em ranking de corrida. */
+.ranking-sala{
+  list-style: none;
+  margin: 0 auto 10px;
+  padding: 0;
+  max-width: 360px;
+  font-size: clamp(11px, 2.3vw, 15px);
+  letter-spacing: 1px;
+  line-height: 1.35;
+}
+
+.ranking-sala li{
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 5px 8px;
+  border-bottom: 3px solid var(--cinza);
+}
+
+.ranking-sala .nome{
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.ranking-sala .pontos{ color: var(--amarelo); }
+.ranking-sala .minha-linha{
+  border-color: var(--amarelo);
+  background: rgba(252, 216, 0, .12);
+}
+
 /* ------------------------------------------------------------ Tela cheia -- */
 /* O pedido de tela cheia é feito para o documento inteiro (`<html>`), que é o
    que funciona tanto com o jogo aberto direto quanto dentro do iframe do

@@ -360,17 +360,18 @@ teste('e dali da para jogar sozinho na hora, sem recarregar nada', async () => {
     'o botao dos amigos continua de pe para a proxima sala');
 });
 
-teste('a partida da sala terminando tambem devolve todo mundo ao menu', async () => {
+teste('a partida da sala terminando abre o ranking da sala', async () => {
   const { central, dom } = await abrirComCentral();
   dom.clicar('btn-amigos');
   central.ganchos.aoComecar(salaDeMentira(true));
 
   central.ganchos.aoTerminar({ placar: [], sala: salaDeMentira(true) });
 
-  assert.equal(dom.api.jogo.tela, 'menu');
-  assert.equal(dom.api.rede.sala, null);
-  assert.equal(dom.escondido('aviso'), false);
-  assert.ok(dom.texto('aviso').length > 0, `com o recado ("${dom.texto('aviso')}")`);
+  assert.equal(dom.api.jogo.tela, 'fim');
+  assert.ok(dom.api.rede.sala, 'a sala fica disponivel para voltar ao lobby');
+  assert.equal(dom.escondido('fim-ranking'), false, 'o ranking final apareceu');
+  assert.equal(dom.texto('fim-subtitulo'), 'Ranking confirmado pela Central.');
+  assert.ok(dom.texto('fim-ranking').indexOf('Duda') >= 0, 'com a linha local');
 });
 
 teste('o pacote que chega e anotado, e o de uma sala que acabou vai para o lixo', async () => {
