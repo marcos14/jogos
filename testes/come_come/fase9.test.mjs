@@ -14,7 +14,10 @@
    labirinto, a direcao subindo para o anfitriao, o retrato inteiro descendo
    para os convidados e os avisos virando faisca do outro lado. A previsao
    local do convidado - o que ele faz ENQUANTO o pacote nao chega - e o
-   assunto da fase 10.
+   assunto da fase 10, e por causa dela as comparacoes de mundo daqui tiram a
+   linha de quem esta olhando: desde aquela fase, o come-come DE CASA e
+   adivinhado no lugar de copiado, e e a unica coisa da tela que pode estar
+   alguns pixels a frente do que o anfitriao mandou.
    ========================================================================== */
 
 import assert from 'node:assert/strict';
@@ -97,6 +100,21 @@ function retrato(aba) {
   const p = valor(aba.dom.api.Pacote.montar(aba.jogo, 999));
   delete p.n;
   return p;
+}
+
+/* O mesmo retrato sem a linha de uma pessoa - a de quem esta olhando. Desde a
+   fase 10 o come-come de casa e ADIVINHADO pelo proprio aparelho (e so puxado
+   de leve quando o pacote chega), entao ele nao e copia de nada: o que tem que
+   bater entre as tres telas e o MUNDO - as outras pessoas, os quatro
+   fantasmas, as pastilhas, o poder, a rodada e o relogio. */
+function semALinhaDe(p, aba) {
+  const meu = aba.jogo.eu.indice;
+  return { ...p, j: p.j.filter((linha) => linha[0] !== meu) };
+}
+
+/** O mundo daquela aba e o mesmo que a anfitria esta simulando? */
+function mundoIgualAoDaAna(aba, msg) {
+  assert.deepEqual(semALinhaDe(retrato(aba), aba), semALinhaDe(retrato(ana), aba), msg);
 }
 
 function jogador(aba, id) {
@@ -198,9 +216,9 @@ teste('o que o convidado aperta anda no mundo do anfitriao', () => {
 teste('o retrato do anfitriao chega igual nas tres telas', () => {
   ana.dom.api.mandarEstado();          // forca um retrato fresco para comparar
 
-  assert.deepEqual(retrato(bento), retrato(ana),
+  mundoIgualAoDaAna(bento,
     'Bento copiou as pessoas, os fantasmas, as pastilhas, o poder e a rodada');
-  assert.deepEqual(retrato(caio), retrato(ana), 'e Caio copiou o mesmo mundo');
+  mundoIgualAoDaAna(caio, 'e Caio copiou o mesmo mundo');
 
   for (const aba of [bento, caio]) {
     assert.equal(jogador(aba, 'bento').corpo.dir, 'direita',
@@ -230,13 +248,12 @@ teste('pacote perdido nao desalinha nada: e estado inteiro, nao diferenca', () =
 
   assert.ok(pacotes.filter((p) => p.de === 'ana').length > perdidosAntes,
     'a anfitria continuou mandando (e o caminho e que engoliu)');
-  assert.notDeepEqual(retrato(bento), retrato(ana),
-    'sem retrato nenhum, o convidado ficou para tras');
+  assert.notDeepEqual(semALinhaDe(retrato(bento), bento), semALinhaDe(retrato(ana), bento),
+    'sem retrato nenhum, o mundo do convidado ficou para tras');
 
   ana.dom.api.mandarEstado();          // um unico retrato depois do buraco
-  assert.deepEqual(retrato(bento), retrato(ana),
-    'e um pacote so ja poe tudo no lugar de novo');
-  assert.deepEqual(retrato(caio), retrato(ana));
+  mundoIgualAoDaAna(bento, 'e um pacote so ja poe tudo no lugar de novo');
+  mundoIgualAoDaAna(caio);
 });
 
 teste('retrato atrasado que chega fora de ordem vai para o lixo', () => {
@@ -306,20 +323,39 @@ teste('no tombo, as tres telas veem o MESMO come-come sumindo', () => {
 });
 
 // ------------------------------------------------ Quem simula, e quem nao --
-teste('o convidado nao simula: o mundo dele so anda com o retrato que chega', () => {
+teste('o convidado nao simula o MUNDO: ele so anda com o retrato que chega', () => {
+  const { Mapa } = caio.dom.api;
+  const mapa = caio.dom.api.labirinto;
+  // Uma seta que abre no corredor onde ele esta: o come-come de casa e a unica
+  // coisa que anda sem pacote (a previsao da fase 10), e sem corredor aberto
+  // "nao andou" nao provaria nada.
+  const saida = Mapa.saidas(mapa, Mapa.coluna(caio.jogo.come.x), Mapa.linha(caio.jogo.come.y))[0];
+  const TECLA = { direita: 'ArrowRight', esquerda: 'ArrowLeft', cima: 'ArrowUp', baixo: 'ArrowDown' };
+  caio.dom.tecla(TECLA[saida]);
+
   const antes = valor({
     relogio: caio.jogo.relogio,
     come: caio.jogo.come,
     fantasma: caio.jogo.fantasmas.lista[0].corpo,
+    faltam: caio.jogo.pastilhas.faltam,
+    pontos: caio.jogo.pontos,
+    vidas: caio.jogo.vidas,
   });
 
   caio.dom.avancarQuadros(30);         // meio segundo sozinho, sem pacote nenhum
 
   assert.equal(caio.jogo.relogio, antes.relogio, 'o relogio do mundo nao andou');
-  assert.deepEqual(valor(caio.jogo.come), antes.come, 'nem o come-come dele');
   assert.deepEqual(valor(caio.jogo.fantasmas.lista[0].corpo), antes.fantasma,
     'nem os fantasmas');
+  assert.equal(caio.jogo.pastilhas.faltam, antes.faltam, 'nem as pastilhas sumiram');
+  assert.equal(caio.jogo.pontos, antes.pontos, 'ninguem ganhou ponto por conta propria');
+  assert.equal(caio.jogo.vidas, antes.vidas, 'nem perdeu vida');
   assert.ok(caio.dom.pintados.length > 0, 'mas a tela continua sendo pintada');
+
+  // O corpo DELE, sim: e a previsao local da fase 10, para o controle nao
+  // ficar molenga enquanto o retrato nao chega.
+  assert.notDeepEqual(valor(caio.jogo.come), antes.come,
+    'so o come-come de casa andou, adivinhado por ele mesmo');
 });
 
 teste('a geometria e a do anfitriao: ele vira a pagina e os tres vao junto', () => {
@@ -332,7 +368,7 @@ teste('a geometria e a do anfitriao: ele vira a pagina e os tres vao junto', () 
       'com o mesmo desenho debaixo dos pes');
   }
   ana.dom.api.mandarEstado();
-  assert.deepEqual(retrato(bento), retrato(ana), 'e o mundo continua batendo');
+  mundoIgualAoDaAna(bento, 'e o mundo continua batendo');
 });
 
 // ---------------------------------------------------- Os freios da Central --

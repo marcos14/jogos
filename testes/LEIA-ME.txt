@@ -54,6 +54,7 @@ sem abrir navegador.
     node testes/come_come/fase8.test.mjs             o jogo sem a Central, e a fiacao do SDK
     node testes/come_come/fase8-tela.test.mjs        3 abas numa sala, por WebSocket
     node testes/come_come/fase9.test.mjs             o mundo unico do anfitriao
+    node testes/come_come/fase10.test.mjs            a previsao local do convidado
 
 O harness.mjs de cada pasta tem o carregador e o corredor de testes. O do
 super_adventure e o do come_come tambem sabem subir o servidor das salas de

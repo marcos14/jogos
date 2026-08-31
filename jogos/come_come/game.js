@@ -1,14 +1,13 @@
 /* ==========================================================================
    COME-COME  -  labirinto de fliperama, no clima dos consoles de 8 bits
    --------------------------------------------------------------------------
-   FASE 8 do plano: ENTRAR NA CENTRAL.
-   A partida solo inteira ja estava de pe desde a fase 7. Agora o menu tem duas
-   portas: JOGAR SOZINHO, que e o jogo de sempre, e JOGAR COM AMIGOS, que abre
-   o lobby da Central (criar sala, codigo de 4 letras, quem chegou, comecar) e
-   leva a turma inteira para o labirinto junta. O que muda no jogo, nesta fase,
-   e so a MOLDURA da sala: o codigo no HUD, o papel de cada aparelho e as
-   saidas de emergencia (a sala acabou, o anfitriao caiu). O mundo unico do
-   anfitriao - um come-come por pessoa no mesmo labirinto - e a fase 9.
+   FASE 10 do plano: A PREVISAO LOCAL DO CONVIDADO.
+   A partida solo inteira ja estava de pe desde a fase 7; a fase 8 abriu a
+   porta da Central e a 9 juntou a turma num labirinto so, o do anfitriao.
+   Agora o convidado deixa de esperar o retrato para sair do lugar: ele ADIVINHA
+   o proprio come-come com a mesmissima `Movimento.passo()` que o anfitriao
+   roda, e o pacote que chega so acerta o que ficou torto. O mundo continua
+   sendo o do anfitriao - pastilha, fantasma e ponto so ele decide.
 
    O chao de tudo (fase 1) continua sendo o mesmo:
 
@@ -222,12 +221,51 @@
        (`aoTerminar`) faz o mesmo; e "JOGAR SOZINHO" larga a sala a qualquer
        momento e volta a ser o jogo de um jogador so.
 
+   E o que a fase 9 poe por cima - UM MUNDO SO:
+
+     - A lista de jogadores substitui o heroi unico: numa sala existe um
+       come-come por pessoa no MESMO labirinto, cada um nascendo num ponto
+       diferente (`Mapa.nascimentos`) e atendendo pelo `indice` da sala, que e
+       a identidade dele na partida. Sozinho a lista tem uma pessoa so, e nada
+       do resto do arquivo mudou.
+     - `Pacote`: o tradutor da rede. `montar()` vira o mundo do anfitriao em
+       numeros inteiros (as pessoas, os quatro fantasmas, as pastilhas comidas
+       em BITS, o poder, a rodada e uma fila curta de avisos) e `aplicar()`
+       copia esse retrato por cima do mundo do convidado. E o mundo INTEIRO a
+       cada pacote, e nao a diferenca: um retrato perdido no caminho nao
+       desalinha nada.
+     - O convidado manda so a direcao desejada; o anfitriao manda o retrato
+       completo umas 20 vezes por segundo. Efeito e local: o convidado refaz a
+       faisca a partir dos AVISOS que viajam junto, e nunca recebe pixel.
+
+   E o que a fase 10 poe por cima - A PREVISAO LOCAL, que e esta fase:
+
+     - `preverCorpoLocal()`: o quadro do convidado. Ele nao simula o mundo (nao
+       come pastilha, nao come fantasma, nao leva tombo e nao ganha ponto), mas
+       roda a MESMA `Movimento.passo()` no proprio corpo, com o pedido de
+       direcao que acabou de subir pela rede. E por isso que a esquina dobra no
+       quadro em que a tecla e apertada, e nao alguns quadros depois.
+     - `Previsao`: o encontro entre o que ele adivinhou e o que o anfitriao
+       mandou. Erro de ate 90px DENTRO DO MESMO CORREDOR anda 25% do caminho,
+       em passos inteiros de 2px (a grade tem que continuar honesta, senao o
+       come-come nunca mais acertaria o centro de um quadrado e nunca mais
+       viraria uma esquina). Erro maior - ou em outro corredor, onde nao existe
+       meio caminho sem atravessar parede - encaixa de uma vez.
+     - A direcao NOVA nao espera a proxima batida da taxa: ela sobe no mesmo
+       quadro em que a tecla e apertada. Sem isso o anfitriao perderia a
+       esquina que a previsao daqui ja dobrou, e o retrato seguinte mandaria o
+       come-come de volta.
+     - Os outros come-comes e os quatro fantasmas o convidado so DESENHA, do
+       jeito que vieram no retrato: adivinhar o que nao e seu seria contar uma
+       historia diferente da do anfitriao.
+
    O que da para fazer hoje e a partida solo INTEIRA, do menu ao fim: os tres
    labirintos em fila, comendo as pastilhas todas e fugindo dos quatro, virando
    o jogo com a bolota do canto - e ou se chega ao PARABENS com o total das
    tres fases, ou os fantasmas cobram as tres vidas antes disso. E, com a
-   Central no ar, da para abrir uma sala e levar a turma para o mesmo labirinto
-   - cada um no seu mundo por enquanto: dividi-lo e a fase 9.
+   Central no ar, da para abrir uma sala e levar a turma para o MESMO
+   labirinto, com o controle respondendo na hora em todos os aparelhos - a
+   disputa das pastilhas e as regras da sala sao as fases 11 e 12.
    ========================================================================== */
 
 (function () {
@@ -2027,6 +2065,175 @@
     };
   }());
 
+  // ------------------------------------------------ A previsao do convidado -
+  /* O convidado nao pode esperar o pacote do anfitriao para sair do lugar: com
+     o vai-e-volta da rede a esquina so dobraria alguns quadros depois do dedo,
+     e num labirinto isso e a diferenca entre virar e bater na parede. Entao
+     ele ADIVINHA - roda a mesma `Movimento.passo()` da fase 1 no proprio
+     corpo, com a direcao que ele acabou de pedir, e vai andando.
+
+     Adivinhar erra: o retrato que chega foi tirado ha alguns quadros e o
+     anfitriao pode ter dobrado (ou deixado de dobrar) uma esquina que este
+     aparelho ja contou de outro jeito. Por isso, quando o pacote chega, a
+     posicao adivinhada e puxada para a oficial:
+
+         erro de ate 90px, no MESMO corredor  ->  anda 25% do caminho, e o
+                               resto vem nos retratos seguintes: ninguem ve
+                               teleporte nenhum
+         erro maior, ou em outro corredor     ->  encaixa de uma vez
+
+     Os 25% e os 90px sao os numeros da regra 4.1.2 do AGENTS.md. O "mesmo
+     corredor" e o que o labirinto acrescenta a eles, e por dois motivos:
+
+       1. NAO EXISTE MEIO CAMINHO ENTRE DOIS CORREDORES. Puxar o come-come 25%
+          na diagonal o poria dentro da parede que separa um do outro. Quando
+          o anfitriao dobrou uma esquina que a previsao daqui nao dobrou (ou o
+          contrario), o unico ajuste honesto e o encaixe seco - e ele e
+          pequeno, porque a distancia entre duas esquinas vizinhas e curta.
+       2. A GRADE TEM QUE CONTINUAR HONESTA. O movimento decide virar nos
+          CENTROS dos quadrados, e so chega neles porque anda de 2 em 2 pixels
+          a partir de um centro. Uma correcao de 1,5px tiraria o corpo desse
+          trilho para sempre: ele nunca mais acertaria um centro, e nunca mais
+          viraria uma esquina. Por isso a correcao anda em passos INTEIROS de
+          2px, e so no eixo em que o corpo esta indo - o eixo de travessia nao
+          e uma dimensao livre num labirinto, e o corredor.
+
+     O que a correcao NAO desfaz e a idade do retrato: quando o pacote chega,
+     ele conta onde o come-come estava ha alguns quadros, e por isso a previsao
+     acaba assentando um tiquinho atras do anfitriao - tantos pixels quanto a
+     rede demorar. Na rede de casa, que e onde este jogo roda, e um ou dois
+     pixels; e o preco de nao ter que carregar historico nenhum, e ele e barato
+     perto do que se ganha: a esquina dobra no quadro do dedo.
+
+     Como todo o resto por aqui, `corrigir()` e funcao pura: nao mexe nos
+     corpos que recebe. */
+  var Previsao = (function () {
+
+    var CORRECAO = 0.25;       // quanto do erro some a cada retrato
+    var ERRO_SNAP = 90;        // acima disto nao da para disfarcar: encaixa
+    var GRADE = VEL_COME;      // o passo da grade - a correcao anda de 2 em 2
+
+    /* A diferenca entre dois x, com a volta do tunel ja feita: quem acabou de
+       sair por uma ponta esta a dois passos de quem ainda nao saiu pela outra,
+       e nao a um labirinto inteiro de distancia. */
+    function diferenca(a, b, largura) {
+      var d = a - b;
+      if (!largura) return d;
+      if (d > largura / 2) d -= largura;
+      else if (d < -largura / 2) d += largura;
+      return d;
+    }
+
+    /** A distancia entre a posicao adivinhada e a oficial, em pixels. */
+    function erroEntre(local, oficial, largura) {
+      var dx = diferenca(oficial.x, local.x, largura);
+      var dy = oficial.y - local.y;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    /**
+     * Os dois corpos estao no mesmo pedaco reto de corredor? Sao duas
+     * perguntas: a diferenca esta toda no eixo em que o corpo anda (senao sao
+     * corredores que se cruzam) e todo quadrado entre um e o outro e chao
+     * (senao ha parede no meio, e o caminho de la ate aqui deu a volta).
+     */
+    function mesmoTrilho(local, mapa, dx, dy) {
+      var v = VETORES[local.dir] || VETORES.esquerda;
+      var deitado = v.dl === 0;
+      if (deitado ? dy !== 0 : dx !== 0) return false;
+
+      var l = Mapa.linha(local.y), c = Mapa.coluna(local.x);
+      var quantos = Math.ceil((deitado ? Math.abs(dx) : Math.abs(dy)) / TILE);
+      var passo = (deitado ? dx : dy) > 0 ? 1 : -1;
+
+      for (var i = 0; i <= quantos; i++) {
+        var cc = deitado ? c + passo * i : c;
+        var ll = deitado ? l : l + passo * i;
+        // Na linha do tunel, o quadrado depois da ponta e o da outra ponta.
+        if (mapa.tuneis[ll]) cc = ((cc % mapa.colunas) + mapa.colunas) % mapa.colunas;
+        if (!Mapa.livre(mapa, cc, ll)) return false;
+      }
+      return true;
+    }
+
+    /* O corpo de casa em outro lugar. A direcao, o pedido guardado e o relogio
+       da boca continuam sendo os que este aparelho adivinhou: e dai que vem a
+       resposta instantanea do controle. */
+    function em(corpo, x, y, largura) {
+      var nx = x;
+      if (largura) {
+        if (nx < 0) nx += largura;
+        else if (nx >= largura) nx -= largura;
+      }
+      return {
+        x: nx, y: y,
+        dir: corpo.dir,
+        desejada: corpo.desejada,
+        parado: corpo.parado,
+        passos: corpo.passos
+      };
+    }
+
+    /* O encaixe seco: vale o corpo do anfitriao, porque um erro desse tamanho
+       quer dizer que os dois contaram historias diferentes. Duas coisas ficam
+       sendo as de casa: o pedido de direcao (quem manda nele e o dedo que esta
+       na tecla AGORA, e nao o que o anfitriao sabia ha alguns quadros) e o
+       relogio da boca, que e enfeite e nunca deve dar um tranco. */
+    function encaixar(local, oficial) {
+      return {
+        x: oficial.x, y: oficial.y,
+        dir: oficial.dir,
+        desejada: local ? local.desejada : oficial.desejada,
+        parado: oficial.parado,
+        passos: local ? local.passos : oficial.passos
+      };
+    }
+
+    /** Um quarto do caminho, arredondado para passos inteiros da grade. */
+    function quarto(d) { return Math.round(d * CORRECAO / GRADE) * GRADE; }
+
+    /**
+     * Junta a posicao adivinhada com a que o anfitriao mandou. Devolve
+     * `{ corpo, erro, snap }`, com `snap` em `true` quando nao havia meio
+     * caminho e o corpo foi encaixado de uma vez so.
+     */
+    function corrigir(local, oficial, mapa) {
+      var largura = mapa && mapa.largura;
+      if (!local) return { corpo: encaixar(null, oficial), erro: 0, snap: true };
+
+      var dx = diferenca(oficial.x, local.x, largura);
+      var dy = oficial.y - local.y;
+      var erro = Math.sqrt(dx * dx + dy * dy);
+      if (erro === 0) return { corpo: local, erro: 0, snap: false };
+
+      if (erro > ERRO_SNAP || !mapa || !mesmoTrilho(local, mapa, dx, dy)) {
+        return { corpo: encaixar(local, oficial), erro: erro, snap: true };
+      }
+
+      var ax = quarto(dx), ay = quarto(dy);
+      /* O quarto do caminho nao chegou a um passo da grade: encosta de vez, em
+         vez de arrastar o errinho de dois pixels para sempre. O anfitriao esta
+         na grade, entao encostar nele nunca sai do corredor. */
+      if (ax === 0 && ay === 0) { ax = dx; ay = dy; }
+
+      return {
+        corpo: em(local, local.x + ax, local.y + ay, largura),
+        erro: erro, snap: false
+      };
+    }
+
+    return {
+      corrigir: corrigir,
+      erroEntre: erroEntre,
+      mesmoTrilho: mesmoTrilho,
+      medidas: {
+        CORRECAO: CORRECAO,
+        ERRO_SNAP: ERRO_SNAP,
+        GRADE: GRADE
+      }
+    };
+  }());
+
   // ------------------------------------------------------ O pacote da rede --
   /* Numa sala existe UM labirinto so, e quem roda ele e o anfitriao. Vinte
      vezes por segundo ele manda para todos um retrato desse mundo; este modulo
@@ -2208,22 +2415,36 @@
 
     /**
      * Copia o retrato recebido por cima do mundo `alvo` (o `jogo` do
-     * convidado) e devolve `{ avisos: [ {tipo,x,y,indice,valor}, ... ] }` - as
-     * faiscas que aquele pacote trouxe.
+     * convidado) e devolve
+     *
+     *     { avisos: [ {tipo,x,y,indice,valor}, ... ],   // as faiscas
+     *       correcao: { erro, snap } | null }           // o tranco na previsao
      *
      * O que NAO vem no retrato o convidado ja tem: a cor e o nome de cada
      * fantasma, o desenho do labirinto e o lugar de cada pastilha. Por isso os
      * fantasmas sao remendados por cima da lista que ele ja montou, e nao
      * criados do zero.
+     *
+     * Com `preverLocal` ligado (o convidado, desde a fase 10), o corpo de casa
+     * NAO e copiado por cima: ele foi adivinhado aqui e so e puxado para a
+     * posicao oficial por `Previsao.corrigir()` - `correcao` conta o tamanho
+     * desse tranco. Os outros come-comes sao sempre os do anfitriao.
      */
-    function aplicar(d, alvo, mapa) {
-      var i, linha;
+    function aplicar(d, alvo, mapa, preverLocal) {
+      var i, linha, correcao = null;
 
       for (i = 0; i < d.j.length; i++) {
         linha = d.j[i];
         var j = porIndice(alvo.jogadores, linha[0]);
         if (!j) continue;                     // alguem que ja saiu da sala
-        j.corpo = corpoDaLinha(linha);
+        var oficial = corpoDaLinha(linha);
+        if (preverLocal && j.local) {
+          var ajuste = Previsao.corrigir(j.corpo, oficial, mapa);
+          j.corpo = ajuste.corpo;
+          correcao = { erro: ajuste.erro, snap: ajuste.snap };
+        } else {
+          j.corpo = oficial;
+        }
         j.pontos = linha[6] | 0;
       }
 
@@ -2280,7 +2501,7 @@
           x: a[1] | 0, y: a[2] | 0, indice: a[3] | 0, valor: a[4] | 0
         });
       }
-      return { avisos: avisos };
+      return { avisos: avisos, correcao: correcao };
     }
 
     return {
@@ -2446,6 +2667,7 @@
       Poder: Poder,
       Rodada: Rodada,
       Corrida: Corrida,
+      Previsao: Previsao,
       Pacote: Pacote,
       Sorteio: Sorteio,
       Ciclos: Ciclos,
@@ -3013,6 +3235,33 @@
   }
 
   /**
+   * O quadro do CONVIDADO. O mundo nao e dele - as pastilhas, os fantasmas, o
+   * poder, as vidas e o placar sao decididos pelo anfitriao -, mas o corpo
+   * dele e adivinhado aqui, com a mesmissima `Movimento.passo()` que o
+   * anfitriao roda e com o pedido de direcao que acabou de subir pela rede.
+   *
+   * E isto que tira o "molenga" do controle: o come-come dobra a esquina no
+   * quadro em que a tecla e apertada, sem esperar o vai-e-volta. O retrato que
+   * chega depois so acerta o que ficou torto (`Previsao.corrigir`, dentro do
+   * `Pacote.aplicar`).
+   *
+   * O que NAO acontece aqui: comer pastilha, comer fantasma, levar tombo,
+   * ganhar ponto. Adivinhar isso daria a esta tela pontos que o anfitriao nao
+   * deu - e duas telas contando historias diferentes e justamente o que o
+   * modelo do anfitriao existe para evitar.
+   */
+  function preverCorpoLocal() {
+    // O mundo do anfitriao esta parado no tombo (ou a rodada acabou): a
+    // previsao para junto, senao o come-come daqui sairia andando sozinho
+    // enquanto os outros dois estao congelados.
+    if (Rodada.parado(jogo.rodada)) return;
+    var eu = jogo.eu;
+    if (!eu) return;
+    if (eu.entrada.desejada) eu.corpo.desejada = eu.entrada.desejada;
+    eu.corpo = Movimento.passo(eu.corpo, labirinto);
+  }
+
+  /**
    * Um aviso: alguem mordeu uma bolota ('poder') ou comeu um fantasma
    * ('fantasma'). Ele faz duas coisas, e nesta ordem:
    *
@@ -3546,16 +3795,18 @@
      Comecada a sala existe UM labirinto so, e ele e o do anfitriao:
 
          CONVIDADO                 ANFITRIAO                  CONVIDADO
-         a direcao  ------------->  simula o mundo  -------->  desenha
-         (20x/s)                    inteiro, com todos         (20x/s)
+         a direcao  ------------->  simula o mundo  -------->  desenha, preve
+         (20x/s, e na hora          inteiro, com todos         (20x/s) e corrige
+          em que ela muda)
 
      O anfitriao roda o `atualizar()` de sempre com a lista inteira de pessoas
      dentro (um come-come por aparelho, cada um andando com o que o dono dele
      pediu) e manda o retrato pronto (`Pacote.montar`) na taxa que o manifesto
-     pediu. O convidado nao simula nada: manda so a direcao que quer
+     pediu. O convidado nao simula o mundo: manda so a direcao que quer
      (`Pacote.entrada`) e copia o retrato que chega (`Pacote.aplicar`),
-     soltando as faiscas dos avisos que vieram junto. Prever o proprio corpo
-     enquanto o pacote nao chega e a fase 10.
+     soltando as faiscas dos avisos que vieram junto - menos o proprio corpo,
+     que ele adivinha em `preverCorpoLocal()` e so acerta com
+     `Previsao.corrigir()`.
      ========================================================================== */
   var rede = {
     ligada: false,        // o multijogador da plataforma respondeu "de pe"
@@ -3566,13 +3817,18 @@
     enviados: 0,          // pacotes que este aparelho mandou
     seq: 0,               // o numero do ultimo pacote que ele montou
     ultimoRecebido: 0,    // o numero do ultimo retrato aplicado
-    atrasados: 0          // retratos que chegaram velhos e foram para o lixo
+    atrasados: 0,         // retratos que chegaram velhos e foram para o lixo
+    erro: 0,              // o quanto a previsao local errou no ultimo retrato
+    correcoes: 0,         // retratos que puxaram a previsao de leve (25%)
+    snaps: 0              // ... e os que precisaram encaixar de uma vez
   };
 
   var Rede = (function () {
     var P = null;         // o SDK da Central, ja iniciado
     var mj = null;        // P.multijogador
     var quadrosDesdeEnvio = 0;   // para mandar na taxa certa, nao a cada quadro
+    var ultimaEnviada;    // a ultima direcao que este convidado ja contou
+    var FOLGA_PEDIDO = 2; // quadros minimos entre dois pedidos fora de hora
 
     /* Liga o jogo na plataforma. Devolve `false` (e nao muda nada na tela)
        quando o multijogador nao esta disponivel - e o caso do servidor fora do
@@ -3629,7 +3885,11 @@
       rede.seq = 0;
       rede.ultimoRecebido = 0;
       rede.atrasados = 0;
+      rede.erro = 0;
+      rede.correcoes = 0;
+      rede.snaps = 0;
       quadrosDesdeEnvio = 0;
+      ultimaEnviada = undefined;
       montarJogadores(sala);
       mostrarSala();
       comecarPartida();
@@ -3732,7 +3992,16 @@
       // senao as pastilhas seriam lidas com o desenho errado.
       if (d.f && d.f !== jogo.fase) irParaFase(d.f);
 
-      var novidades = Pacote.aplicar(d, jogo, labirinto);
+      /* O `true` do fim liga a previsao local: o corpo deste aparelho NAO e
+         copiado por cima, ele foi adivinhado aqui e so e puxado para a posicao
+         oficial. Os outros come-comes, os fantasmas e as pastilhas sao sempre
+         os do anfitriao. */
+      var novidades = Pacote.aplicar(d, jogo, labirinto, true);
+      if (novidades.correcao) {
+        rede.erro = novidades.correcao.erro;
+        if (novidades.correcao.snap) rede.snaps++;
+        else rede.correcoes++;
+      }
       for (var i = 0; i < novidades.avisos.length; i++) {
         efeitoDoAviso(novidades.avisos[i]);
       }
@@ -3756,7 +4025,23 @@
 
       var taxa = rede.sala.taxaEstado || 15;
       var cada = Math.max(1, Math.round(60 / taxa));
-      if (++quadrosDesdeEnvio < cada) return;
+      quadrosDesdeEnvio++;
+
+      /* A direcao NOVA nao espera a proxima batida: ela sobe no mesmo quadro
+         em que a tecla foi apertada. E o que faz o anfitriao dobrar a MESMA
+         esquina que a previsao daqui acabou de dobrar - esperar ate tres
+         quadros para contar seria pedir para ele perder a esquina e mandar o
+         come-come de volta. Custa pouco: so a MUDANCA sobe fora de hora, e
+         nunca duas vezes seguidas (a folga garante isso), entao o convidado
+         fica bem longe das 90 mensagens por segundo da plataforma. */
+      if (rede.papel === 'convidado' && entrada.desejada !== ultimaEnviada
+          && quadrosDesdeEnvio >= FOLGA_PEDIDO) {
+        quadrosDesdeEnvio = 0;
+        mandarEntrada();
+        return;
+      }
+
+      if (quadrosDesdeEnvio < cada) return;
       quadrosDesdeEnvio = 0;
 
       if (rede.papel === 'anfitriao') mandarEstado();
@@ -3776,6 +4061,7 @@
     function mandarEntrada() {
       if (!mj || rede.papel !== 'convidado') return;
       rede.enviados++;
+      ultimaEnviada = entrada.desejada;
       mj.paraAnfitriao(Pacote.entrada(++rede.seq, entrada));
     }
 
@@ -3841,7 +4127,8 @@
       avisar: avisar,
       passo: passo,
       mandarEstado: mandarEstado,
-      /** O mundo anda NESTE aparelho? Convidado nao simula: ele so desenha. */
+      /* O MUNDO anda neste aparelho? O convidado nao simula o mundo: ele
+         desenha o que chega e adivinha so o proprio come-come. */
       simulaAqui: function () { return rede.papel !== 'convidado'; }
     };
   }());
@@ -3974,15 +4261,17 @@
        labirinto fica ali paradinho atras do quadro de pausa. O acumulador zera
        no `else`: ao continuar, ninguem leva um punhado de quadros de uma vez.
 
-       O convidado de uma sala tambem cai no `else`: quem simula o mundo dele e
-       o anfitriao, e o que chega por aqui e retrato pronto. */
-    if (jogo.tela === 'jogando' && !jogo.pausado && Rede.simulaAqui()) {
+       Quem esta na sala como convidado anda no mesmo compasso, mas nao roda o
+       mundo: `preverCorpoLocal()` adivinha SO o come-come deste aparelho, e o
+       resto (pastilhas, fantasmas, placar) chega pronto no retrato. */
+    if (jogo.tela === 'jogando' && !jogo.pausado) {
       acumulado += dt;
       var passos = 0;
       // A fase pode acabar no meio da rajada (a ultima pastilha some): dai em
       // diante o mundo nao anda mais neste quadro.
       while (acumulado >= PASSO_MS && passos < 6 && jogo.tela === 'jogando') {
-        atualizar();
+        if (Rede.simulaAqui()) atualizar();
+        else preverCorpoLocal();
         acumulado -= PASSO_MS;
         passos++;
       }

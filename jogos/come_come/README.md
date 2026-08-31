@@ -425,6 +425,53 @@ Três decisões que valem por todas:
   mordeu a bolota aqui", "comeu um fantasma ali, por 400"), e cada aparelho
   solta a mesma faísca no mesmo lugar, na cor de quem fez a jogada.
 
+### O controle responde na hora: a previsão local
+
+Esperar o retrato do anfitrião para sair do lugar deixaria o controle
+"molenga" — e num labirinto isso não é um detalhe: é a diferença entre virar a
+esquina e bater na parede. Por isso o convidado **adivinha o próprio
+come-come**, rodando a mesmíssima `Movimento.passo()` que o anfitrião roda, com
+a direção que ele acabou de pedir. A esquina dobra **no quadro em que a tecla é
+apertada**.
+
+Ele adivinha **só o corpo dele**. Pastilha, fantasma, poder, vida e ponto são do
+anfitrião — passar por cima de uma pastilha na tela do convidado não some com
+ela nem dá ponto nenhum: ela some quando o retrato disser que sumiu. Adivinhar
+isso seria duas telas contando histórias diferentes, que é justamente o que o
+modelo do anfitrião existe para evitar.
+
+Quando o retrato chega, o `Previsao` casa o que foi adivinhado com o que veio:
+
+| Situação | O que acontece |
+|---|---|
+| erro de até 90px, **no mesmo corredor** | anda 25% do caminho, e o resto vem nos retratos seguintes — ninguém vê teleporte |
+| erro maior, ou **em outro corredor** | encaixa de uma vez |
+
+Os 25% e os 90px são a regra 4.1.2 do [AGENTS.md](../../AGENTS.md). O "mesmo
+corredor" é o que o labirinto acrescenta a ela, e vale explicar:
+
+- **Não existe meio caminho entre dois corredores.** Puxar o come-come 25% na
+  diagonal o poria dentro da parede que separa um do outro. Quando o anfitrião
+  dobrou uma esquina que a previsão daqui não dobrou, o único ajuste honesto é
+  o encaixe seco — e ele é pequeno, porque duas esquinas vizinhas são perto.
+- **A grade tem que continuar honesta.** Uma correção de 1,5px tiraria o corpo
+  do trilho de 2 em 2 pixels para sempre: ele nunca mais acertaria o centro de
+  um quadrado, e nunca mais viraria uma esquina. Por isso a correção anda em
+  passos **inteiros** de 2px, e só no eixo em que o corpo está indo — o eixo de
+  travessia não é uma dimensão livre num labirinto, é o corredor.
+
+Junto com isso, a **direção nova não espera a batida da taxa**: ela sobe no
+quadro em que a tecla é apertada, e não até três quadros depois. Sem isso o
+anfitrião perderia a esquina que a previsão daqui já dobrou, e o retrato
+seguinte mandaria o come-come de volta. Custa pouco — só a *mudança* sobe fora
+de hora, nunca duas vezes seguidas.
+
+O que a correção não desfaz é a **idade do retrato**: ele conta onde o
+come-come estava há alguns quadros, então a previsão assenta um tiquinho atrás
+do anfitrião — tantos pixels quanto a rede demorar. Na rede de casa, que é onde
+este jogo roda, é um ou dois pixels; é o preço de não carregar histórico
+nenhum, e é barato perto do que se ganha.
+
 O que **ainda não** existe é a disputa: hoje o labirinto reage ao come-come de
 quem hospeda a sala. A pastilha que some para todos com os pontos ficando com
 quem comeu, o fantasma mirando o come-come mais perto, o labirinto que o grupo
@@ -457,13 +504,14 @@ apontando para onde ele anda.
 | `Ciclos` | o relógio dos humores: em que linha da tabela dispersar↔caçar a partida está, e o aviso do quadro exato em que ela vira |
 | `Corrida` | o caderninho da partida solo: quanto cada labirinto rendeu, o bônus por limpar, o total e qual é o próximo — e a regra de que ela **só anda para a frente** |
 | `Pacote` | o tradutor da rede: o mundo do anfitrião virando números inteiros (pessoas, fantasmas, pastilhas em bits, poder, rodada e a fila de avisos) e de volta, do lado do convidado |
+| `Previsao` | o encontro entre o corpo que o convidado adivinhou e o que o anfitrião mandou: 25% do erro por retrato dentro do mesmo corredor (em passos inteiros da grade), encaixe seco acima de 90px ou em corredor diferente |
 
 Nenhum deles sabe o que é DOM, e todos são funções puras: recebem um estado e
 devolvem um estado **novo**, sem mexer no que receberam. Isso vale por dois
-motivos — os testes em Node exercitam o jogo inteiro sem abrir navegador, e
-mais adiante o convidado de uma sala vai prever o próprio corpo com
-**exatamente a mesma função** que o anfitrião roda, enquanto quem decide qual
-pastilha sumiu para todos é o `Pastilhas` rodando só no aparelho do anfitrião.
+motivos — os testes em Node exercitam o jogo inteiro sem abrir navegador, e o
+convidado de uma sala prevê o próprio corpo com **exatamente a mesma função**
+que o anfitrião roda, enquanto quem decide qual pastilha sumiu para todos é o
+`Pastilhas` rodando só no aparelho do anfitrião.
 
 **Comer é uma pergunta por quadro, e uma resposta só.** O come-come come a
 pastilha do quadrado em que ele *está* — a 2px por quadro ele passa 8 quadros
@@ -545,6 +593,7 @@ node testes/come_come/fase7-tela.test.mjs   # menu, pausa, recomeçar, tela chei
 node testes/come_come/fase8.test.mjs        # o jogo sem a Central, e a fiação do SDK
 node testes/come_come/fase8-tela.test.mjs   # 3 abas numa sala, pelo servidor de verdade
 node testes/come_come/fase9.test.mjs        # o mundo único do anfitrião, com três abas
+node testes/come_come/fase10.test.mjs       # a previsão local do convidado, com latência
 ```
 
 O `fase2-tela.test.mjs` põe um **piloto automático** no volante: a cada centro
@@ -646,3 +695,18 @@ cano de mensagens aberto nos dois sentidos. No fim ele desmancha a sala: Caio
 sai pelo *JOGAR SOZINHO* e continua jogando, e a anfitriã fecha a aba, o que
 devolve os outros ao menu com o motivo na tarja — jogáveis na hora, sem
 recarregar nada.
+
+O `fase10.test.mjs` põe duas abas (a anfitriã e um convidado) numa Central de
+mentira **com latência**: cada mensagem fica seis quadros na fila antes de ser
+entregue, que é a única razão de a previsão local existir. Ele prova que o
+convidado vira a esquina **no quadro da tecla** (e que o resultado é
+exatamente o da mesma `Movimento.passo()`), que um erro plantado de 40px
+encolhe para zero em poucos retratos **sem nenhum encaixe seco** e sem que
+nenhum retrato mexa o corpo mais do que os 25%, e que um erro de quase 100px
+encaixa de uma vez — guardando o pedido de direção do dedo daqui. Confere ainda
+o que a fase mais tem de próprio: a correção sempre em múltiplos de 2px (com
+os 44 tamanhos de erro possíveis), a curva que continua saindo depois dela, o
+encaixe seco quando os dois estão em corredores diferentes ou com parede no
+meio, a volta do túnel não virando um erro de labirinto inteiro, e que passar
+por cima de uma pastilha na tela do convidado **não** some com ela nem dá
+ponto.
