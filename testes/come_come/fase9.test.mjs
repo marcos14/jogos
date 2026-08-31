@@ -29,8 +29,11 @@ const jogadores = [
   { id: 'caio', apelido: 'Caio', cor: '#6844fc', indice: 2, pronto: true, anfitriao: false },
 ];
 
-// As cores com que cada come-come e pintado, na ordem do `indice` da sala.
-const CORES = ['#fcd800', '#ff8adc', '#7cf8a0'];
+/* As cores com que cada come-come e pintado, na ordem do `indice` da sala.
+   Desde a fase 11 elas sao as que a CENTRAL escolheu (as do `jogadores` ali de
+   cima), e nao mais a paleta de casa: a mesma cor que o lobby ja tinha mostrado
+   na lista de quem chegou. */
+const CORES = jogadores.map((j) => j.cor);
 
 const pacotes = [];        // tudo o que passou pela Central de mentira
 const abas = new Map();

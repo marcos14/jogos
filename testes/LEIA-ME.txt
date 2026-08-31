@@ -55,6 +55,7 @@ sem abrir navegador.
     node testes/come_come/fase8-tela.test.mjs        3 abas numa sala, por WebSocket
     node testes/come_come/fase9.test.mjs             o mundo unico do anfitriao
     node testes/come_come/fase10.test.mjs            a previsao local do convidado
+    node testes/come_come/fase11.test.mjs            o labirinto disputado: pastilha, poder e cor
 
 O harness.mjs de cada pasta tem o carregador e o corredor de testes. O do
 super_adventure e o do come_come tambem sabem subir o servidor das salas de

@@ -317,6 +317,15 @@ body{
   letter-spacing: 3px;
 }
 
+/* O seu nome no HUD, em grupo. A COR sai do `style` escrito pelo game.js — é a
+   que a Central escolheu para você, a mesma do seu come-come no labirinto e a
+   mesma nas cinco telas. Aqui fica só o tamanho: nome de criança cabe em 14
+   letras, e a caixa não pode empurrar o resto do HUD para a linha de baixo. */
+#hud-eu strong{
+  font-size: 13px;
+  letter-spacing: 1px;
+}
+
 /* ------------------------------------------------------------ Tela cheia -- */
 /* O pedido de tela cheia é feito para o documento inteiro (`<html>`), que é o
    que funciona tanto com o jogo aberto direto quanto dentro do iframe do

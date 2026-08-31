@@ -144,7 +144,7 @@ export function carregarJogoComTela(slug = 'come_come', opcoes = {}) {
   for (const id of ['app', 'palco', 'rodape', 'hud',
                     'hud-pontos', 'hud-vidas', 'hud-fase', 'hud-faltam',
                     'btn-pausa', 'btn-tela-cheia',
-                    'hud-sala', 'hud-sala-codigo',
+                    'hud-sala', 'hud-sala-codigo', 'hud-eu', 'hud-eu-nome',
                     'tela-menu', 'campo-apelido', 'btn-jogar', 'controles',
                     'btn-amigos', 'aviso',
                     'tela-pausa', 'btn-continuar', 'btn-recomecar',
@@ -169,6 +169,8 @@ export function carregarJogoComTela(slug = 'come_come', opcoes = {}) {
   elementos['hud-sala'].classes.add('hidden');
   elementos['btn-amigos'].classes.add('hidden');
   elementos.aviso.classes.add('hidden');
+  // E, desde a fase 11, a caixa do "voce e" - o nome e a cor da sala.
+  elementos['hud-eu'].classes.add('hidden');
 
   elementos.tela = criarElemento('canvas', 'tela');
   elementos.tela.getContext = () => contexto2d;

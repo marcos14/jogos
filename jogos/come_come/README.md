@@ -385,17 +385,24 @@ pode ficar preso numa tela parada:
 | Chega pacote de uma sala que já acabou | é ignorado, sem barulho |
 
 Apelido, cor e motivo **vêm de outro aparelho**: são dados, não código. Tudo o
-que vem de fora entra na tela por `textContent`, nunca por `innerHTML`.
+que vem de fora entra na tela por `textContent`, nunca por `innerHTML` — e a
+cor passa antes por um `corSegura()` que só deixa passar `#rgb` de verdade
+(`/^#[0-9a-fA-F]{3,8}$/`). Uma cor recusada não vira `style` nem pincel: sobra
+a paleta de casa, na ordem do `indice`.
 
 ### Um labirinto só, e ele é o do anfitrião
 
 Começada a sala, o labirinto é **um só** e tem **um come-come por pessoa**:
-cada um nasce num canto diferente e ganha uma cor própria, tirada do `indice`
-que a Central deu — a identidade de cada um dentro da partida, igual nos cinco
-aparelhos (o primeiro é o amarelo de sempre, que é o do jogo sozinho). Onde
-cada um nasce sai de uma conta sem sorteio nenhum: o primeiro no `P` do
-desenho e, daí em diante, o corredor **mais longe** de todos os já escolhidos.
-Quem faz o mundo andar é o **anfitrião**, sozinho:
+cada um nasce num canto diferente e é pintado com a **cor que a Central
+escolheu para ele** — a mesma que o lobby já mostrava na lista de quem chegou,
+e a mesma nos cinco aparelhos. A identidade de cada um dentro da partida é o
+`indice` da sala; sem sala (ou com uma cor estranha no meio do caminho) sobra a
+paleta de casa, cujo primeiro é o amarelo de sempre, o do jogo sozinho. O HUD
+ganha, em grupo, uma caixa **VOCÊ É** com o seu nome escrito nessa cor: é o que
+faz a criança achar o come-come dela num relance no meio de cinco. Onde cada um
+nasce sai de uma conta sem sorteio nenhum: o primeiro no `P` do desenho e, daí
+em diante, o corredor **mais longe** de todos os já escolhidos. Quem faz o
+mundo andar é o **anfitrião**, sozinho:
 
 ```
  CONVIDADO                 ANFITRIÃO                  CONVIDADO
@@ -472,10 +479,40 @@ do anfitrião — tantos pixels quanto a rede demorar. Na rede de casa, que é o
 este jogo roda, é um ou dois pixels; é o preço de não carregar histórico
 nenhum, e é barato perto do que se ganha.
 
-O que **ainda não** existe é a disputa: hoje o labirinto reage ao come-come de
-quem hospeda a sala. A pastilha que some para todos com os pontos ficando com
-quem comeu, o fantasma mirando o come-come mais perto, o labirinto que o grupo
-limpa junto e o placar da sala são as fases 11 a 13.
+### O labirinto é um só, e é disputado
+
+Um mundo só quer dizer **uma pastilha só**: a que alguém come some na mesma
+hora nas cinco telas, e não volta. Mas os **pontos ficam com quem chegou
+primeiro** — é o `modo: competitivo` do manifesto. Quem passar por cima do
+quadrado depois não ganha nada, porque não há mais nada ali.
+
+| O que é | De quem é |
+|---|---|
+| a pastilha comida (e o contador do que falta) | do **labirinto**: some para todos, na mesma hora |
+| os 10 (ou os 50 da bolota) que ela rendeu | de **quem a comeu**, e de mais ninguém |
+| o feitiço da bolota — os quatro azuis, o relógio, o piscar do aviso | da **sala inteira**: uma bolota assusta os fantasmas para todo mundo |
+| a escada 200 / 400 / 800 / 1600 | de **cada pessoa**: dois caçando ao mesmo tempo ganham 200 cada, e não 200 e 400 |
+| o fantasma azul em si | do **labirinto**: quem chegar primeiro leva, e para os outros ele já é um par de olhos correndo para casa |
+
+A escada por pessoa mora no próprio `Poder`: além do `comidos` (o total da
+sala) ele guarda um `escada`, um degrau por `indice`, que zera para todo mundo
+a cada bolota nova. Esses números viajam no retrato do mundo (`p[4 + indice]`),
+senão a tela do convidado contaria 400 num fantasma que, para o anfitrião,
+ainda valia 200.
+
+E os fantasmas passam a ter de quem cuidar: cada um mira o **come-come mais
+perto dele**, sem largar a personalidade — o vermelho continua indo em cima, o
+rosa continua cortando quatro casas à frente, o azul continua se acanhando de
+perto e o laranja continua sorteando. Assim os quatro se repartem pelo labirinto
+em vez de cercarem uma pessoa só enquanto as outras comem em paz; assustado,
+cada um foge exatamente de quem estava cuidando. Empate de distância resolve
+pela ordem do `indice`, que é a mesma nos cinco aparelhos — o mundo do anfitrião
+tem que dar o mesmo filme quando outra tela precisar recontar a história.
+
+O que **ainda não** existe é o resto das regras da sala: o labirinto que o
+grupo limpa junto, quem zera as vidas virando espectador até a fase seguinte e
+o placar da sala são as fases 12 e 13. Hoje o tombo ainda é do come-come de
+quem hospeda a sala.
 
 ---
 
@@ -497,9 +534,9 @@ apontando para onde ele anda.
 | `Movimento` | um quadro de movimento na grade: direção atual + direção desejada, parada na parede, alinhamento no meio do corredor e a volta do túnel |
 | `Pastilhas` | o caderninho do labirinto: quais pastilhas ainda estão de pé, o que rende comer a do quadrado em que o come-come está, e quantas faltam |
 | `Fantasmas` | os quatro corpos: a espera na casa, a rota da porta, a escolha da saída que mais aproxima do alvo recebido (ou que mais afasta, fugindo), a meia-volta de todos na virada do humor, o susto da pastilha de poder e a volta para casa de quem foi comido |
-| `Poder` | o cronômetro da pastilha de poder: quanto o feitiço ainda dura, quando o aviso começa a piscar e quanto vale o próximo fantasma na escada 200/400/800/1600 |
+| `Poder` | o cronômetro da pastilha de poder: quanto o feitiço ainda dura (o mesmo para a sala inteira), quando o aviso começa a piscar e quanto vale o próximo fantasma na escada 200/400/800/1600 **de cada pessoa** |
 | `Rodada` | as vidas e o tombo: quem machuca, quem encostou, a pausa curta que congela o mundo e o reinício que repõe as posições **sem** repor as pastilhas |
-| `Personalidades` | de quem é o alvo: o quadrado do come-come, quatro casas à frente dele, a coragem que depende da distância, o lugar sorteado — ou, na dispersão, o canto de cada um |
+| `Personalidades` | de quem é o alvo: primeiro **qual** come-come (o mais perto deste fantasma), depois o quadrado dele, quatro casas à frente, a coragem que depende da distância, o lugar sorteado — ou, na dispersão, o canto de cada um |
 | `Sorteio` | o gerador de bolso com semente: a mesma semente dá a mesma sequência em qualquer aparelho |
 | `Ciclos` | o relógio dos humores: em que linha da tabela dispersar↔caçar a partida está, e o aviso do quadro exato em que ela vira |
 | `Corrida` | o caderninho da partida solo: quanto cada labirinto rendeu, o bônus por limpar, o total e qual é o próximo — e a regra de que ela **só anda para a frente** |
@@ -594,6 +631,7 @@ node testes/come_come/fase8.test.mjs        # o jogo sem a Central, e a fiação
 node testes/come_come/fase8-tela.test.mjs   # 3 abas numa sala, pelo servidor de verdade
 node testes/come_come/fase9.test.mjs        # o mundo único do anfitrião, com três abas
 node testes/come_come/fase10.test.mjs       # a previsão local do convidado, com latência
+node testes/come_come/fase11.test.mjs       # o labirinto disputado: pastilha, poder e cor da sala
 ```
 
 O `fase2-tela.test.mjs` põe um **piloto automático** no volante: a cada centro

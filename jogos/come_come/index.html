@@ -50,6 +50,16 @@
       <strong id="hud-sala-codigo">----</strong>
     </div>
 
+    <!-- Também só existe em grupo: o seu nome, escrito na cor com que o SEU
+         come-come é pintado nas cinco telas. No meio de cinco bocas correndo
+         pelo mesmo labirinto é o que faz a criança achar a dela num relance.
+         O nome e a cor vêm da sala, ou seja, de outro aparelho: entram aqui
+         como texto (`textContent`) e como cor conferida — nunca como HTML. -->
+    <div id="hud-eu" class="hud-box hidden">
+      <span class="hud-label">Você é</span>
+      <strong id="hud-eu-nome">—</strong>
+    </div>
+
     <!-- Os dois botões da partida. Eles moram no HUD, então só aparecem com o
          labirinto em andamento — no menu não há nada para pausar. -->
     <div class="hud-botoes">
@@ -129,6 +139,7 @@
           <li>🟡 coma todas as pastilhas para limpar o labirinto</li>
           <li>⬤ a bolota grande deixa os fantasmas azuis: corra atrás deles!</li>
           <li>👥 <b>JOGAR COM AMIGOS</b> abre uma sala para até 5 na rede de casa</li>
+          <li>🏁 em grupo o labirinto é um só: a pastilha é de quem chegar primeiro</li>
         </ul>
       </div>
     </section>

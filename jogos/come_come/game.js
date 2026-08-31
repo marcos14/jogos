@@ -1,13 +1,14 @@
 /* ==========================================================================
    COME-COME  -  labirinto de fliperama, no clima dos consoles de 8 bits
    --------------------------------------------------------------------------
-   FASE 10 do plano: A PREVISAO LOCAL DO CONVIDADO.
+   FASE 11 do plano: MUNDO UNICO - PASTILHAS, PODER E FANTASMAS DA SALA.
    A partida solo inteira ja estava de pe desde a fase 7; a fase 8 abriu a
-   porta da Central e a 9 juntou a turma num labirinto so, o do anfitriao.
-   Agora o convidado deixa de esperar o retrato para sair do lugar: ele ADIVINHA
-   o proprio come-come com a mesmissima `Movimento.passo()` que o anfitriao
-   roda, e o pacote que chega so acerta o que ficou torto. O mundo continua
-   sendo o do anfitriao - pastilha, fantasma e ponto so ele decide.
+   porta da Central, a 9 juntou a turma num labirinto so - o do anfitriao - e a
+   10 deu ao convidado a previsao do proprio corpo. Ate aqui, porem, o labirinto
+   ainda reagia a um come-come so. Agora ele e DISPUTADO: a pastilha que um come
+   some para todos, mas os pontos ficam com quem chegou primeiro; a bolota
+   grande vira o jogo para a sala inteira; e os quatro fantasmas passam a ter de
+   quem cuidar - cada um mira o come-come mais perto dele.
 
    O chao de tudo (fase 1) continua sendo o mesmo:
 
@@ -238,7 +239,7 @@
        completo umas 20 vezes por segundo. Efeito e local: o convidado refaz a
        faisca a partir dos AVISOS que viajam junto, e nunca recebe pixel.
 
-   E o que a fase 10 poe por cima - A PREVISAO LOCAL, que e esta fase:
+   E o que a fase 10 poe por cima - A PREVISAO LOCAL:
 
      - `preverCorpoLocal()`: o quadro do convidado. Ele nao simula o mundo (nao
        come pastilha, nao come fantasma, nao leva tombo e nao ganha ponto), mas
@@ -259,13 +260,45 @@
        jeito que vieram no retrato: adivinhar o que nao e seu seria contar uma
        historia diferente da do anfitriao.
 
+   E o que a fase 11 poe por cima - O LABIRINTO DISPUTADO, que e esta fase:
+
+     - `comerPastilhas()`: a mordida deixa de ser de um come-come e passa a ser
+       de TODOS. O labirinto e um so, entao a pastilha que um come some na mesma
+       hora nas cinco telas e nao volta - mas os PONTOS ficam so com quem estava
+       em cima dela, que e o `modo: competitivo` do manifesto. Quem passar por
+       cima do quadrado depois nao ganha nada: nao ha mais nada ali.
+     - A BOLOTA e a excecao que confirma a regra: os 50 pontos sao de quem a
+       mordeu, mas o feitico e da SALA - os quatro ficam azuis, ao mesmo tempo,
+       para todo mundo. Ja a escada 200/400/800/1600 e de CADA UM: o `Poder`
+       guarda um degrau por `indice` (`escada`), e por isso dois come-comes
+       cacando juntos ganham 200 cada, e nao 200 e 400. Os degraus viajam no
+       retrato do mundo, senao a tela do convidado contaria 400 num fantasma
+       que, para o anfitriao, ainda valia 200.
+     - Os FANTASMAS ganham de quem cuidar: `Personalidades.maisPerto()` escolhe,
+       para cada um, o come-come mais proximo - e so depois a personalidade
+       fala. O vermelho continua indo em cima, o rosa continua cortando quatro
+       casas a frente, o azul continua se acanhando de perto e o laranja
+       continua sorteando; o que muda e de QUEM eles estao falando. Assim os
+       quatro se repartem pelo labirinto em vez de cercarem uma pessoa so
+       enquanto as outras comem em paz. Assustado, cada um foge exatamente de
+       quem estava cuidando. Empate resolve pela ordem do `indice`, que e a
+       mesma em todos os aparelhos.
+     - A COR de cada come-come passa a ser a que a Central escolheu (a mesma que
+       o lobby ja mostrava na lista de quem chegou), e o HUD ganha em grupo a
+       caixa "VOCE E" com o seu nome escrito nela. Os dois vem de outro
+       aparelho: sao DADOS. O nome entra por `textContent` e a cor so entra no
+       desenho e no `style` depois de passar pelo `corSegura()` - recusada, sobra
+       a paleta de casa.
+
    O que da para fazer hoje e a partida solo INTEIRA, do menu ao fim: os tres
    labirintos em fila, comendo as pastilhas todas e fugindo dos quatro, virando
    o jogo com a bolota do canto - e ou se chega ao PARABENS com o total das
    tres fases, ou os fantasmas cobram as tres vidas antes disso. E, com a
-   Central no ar, da para abrir uma sala e levar a turma para o MESMO
-   labirinto, com o controle respondendo na hora em todos os aparelhos - a
-   disputa das pastilhas e as regras da sala sao as fases 11 e 12.
+   Central no ar, da para abrir uma sala e DISPUTAR o mesmo labirinto com a
+   turma: as pastilhas somem para todos, a bolota assusta os quatro para todo
+   mundo e cada um caca a sua escada. O que falta sao as regras da sala - a fase
+   que o grupo fecha junto, quem zera as vidas virando espectador e o placar de
+   todos: as fases 12 e 13.
    ========================================================================== */
 
 (function () {
@@ -1135,8 +1168,9 @@
     /**
      * As velocidades de um quadro, a partir do que o jogo pediu. Aceita um
      * numero (o jeito antigo: so a velocidade normal) ou um objeto com
-     * `velocidade`, `olhos`, a posicao de quem foge (`fuga`), a `pressa` da
-     * fase e o `quadro` em que estamos (e ele que da o compasso da pressa).
+     * `velocidade`, `olhos`, de quem se foge (`fuga` - um quadrado so, ou um
+     * por fantasma), a `pressa` da fase e o `quadro` em que estamos (e ele que
+     * da o compasso da pressa).
      */
     function opcoesDe(opcoes) {
       var op = (typeof opcoes === 'number') ? { velocidade: opcoes } : (opcoes || {});
@@ -1294,8 +1328,10 @@
       if (Movimento.noCentro(corpo)) {
         var c = Mapa.coluna(corpo.x), l = Mapa.linha(corpo.y);
         /* Fugindo, o alvo deixa de ser o que a personalidade queria e passa a
-           ser o come-come - de quem ele quer distancia. */
-        var mira = f.assustado ? (op.fuga || alvo) : alvo;
+           ser o come-come - de quem ele quer distancia. Numa sala o `fuga` vem
+           com um por fantasma (cada um foge de quem estava cuidando); sozinho
+           e um so, o mesmo para os quatro. */
+        var mira = f.assustado ? (alvoDe(op.fuga, f.indice) || alvo) : alvo;
         novo = junta(corpo, {
           desejada: escolher(mapa, c, l, corpo.dir, mira, f.assustado)
         });
@@ -1704,32 +1740,66 @@
     }
 
     /**
+     * De qual come-come este fantasma vai cuidar. Sozinho a lista tem um so, e
+     * a resposta e sempre ele. Numa sala cada fantasma escolhe o MAIS PERTO -
+     * e assim os quatro se repartem pelo labirinto em vez de cercarem uma
+     * pessoa so e deixarem as outras comendo em paz.
+     *
+     * A personalidade nao muda com isso: escolhido o alvo humano, o vermelho
+     * continua indo em cima dele, o rosa continua cortando quatro casas a
+     * frente e o azul continua se acanhando de perto. O que a sala troca e de
+     * QUEM eles estao falando, e nao o que cada um faz.
+     *
+     * Empate resolve pela ordem da lista (o `indice` da sala), que e a mesma em
+     * todos os aparelhos: o mundo do anfitriao tem que dar o mesmo filme quando
+     * outra tela precisar recontar a historia.
+     */
+    function maisPerto(comes, aqui) {
+      var melhor = null, melhorDist = -1;
+      for (var i = 0; i < comes.length; i++) {
+        var d = Fantasmas.distancia(comes[i].c, comes[i].l, aqui.c, aqui.l);
+        if (melhor === null || d < melhorDist) { melhor = comes[i]; melhorDist = d; }
+      }
+      return melhor;
+    }
+
+    /**
      * Um quadro: sorteia (se der a hora) e devolve o alvo de cada fantasma, na
-     * ordem da lista. Sai `{ estado, alvos }` - o `alvos` vai direto para o
-     * `Fantasmas.passo()`.
+     * ordem da lista. Sai `{ estado, alvos, fugas }` - o `alvos` vai direto
+     * para o `Fantasmas.passo()`, e o `fugas` diz de quem cada um corre quando
+     * esta assustado (o mesmo come-come de que ele estava cuidando).
+     *
+     * O contexto aceita a sala inteira (`comes`, um quadrado por pessoa) ou um
+     * come-come so (`come`, que e o jogo de sempre).
      */
     function passo(estado, fantasmas, mapa, contexto) {
       var ctx = contexto || {};
       var novo = sortear(estado, mapa);
       var modo = ctx.modo || 'cacar';
-      var alvos = [];
+      var comes = (ctx.comes && ctx.comes.length) ? ctx.comes
+                : (ctx.come ? [ctx.come] : []);
+      var alvos = [], fugas = [];
 
       for (var i = 0; i < fantasmas.lista.length; i++) {
         var f = fantasmas.lista[i];
+        var aqui = { c: Mapa.coluna(f.corpo.x), l: Mapa.linha(f.corpo.y) };
+        var come = maisPerto(comes, aqui);
+        fugas.push(come);
         alvos.push(alvoDe(f.chave, {
           mapa: mapa,
           modo: modo,
-          come: ctx.come,
-          fantasma: { c: Mapa.coluna(f.corpo.x), l: Mapa.linha(f.corpo.y) },
+          come: come,
+          fantasma: aqui,
           sorteado: novo.sorteado
         }));
       }
-      return { estado: novo, alvos: alvos };
+      return { estado: novo, alvos: alvos, fugas: fugas };
     }
 
     return {
       novoEstado: novoEstado,
       passo: passo,
+      maisPerto: maisPerto,
       sortear: sortear,
       alvoDe: alvoDe,
       cantoDe: cantoDe,
@@ -1747,7 +1817,8 @@
          { ativo: true,      // o feitico esta valendo?
            restam: 480,      // quantos quadros ainda faltam
            duracao: 480,     // quantos ele tinha quando comecou
-           comidos: 0 }      // fantasmas comidos DENTRO desta pastilha
+           comidos: 2,       // fantasmas comidos DENTRO desta pastilha
+           escada: [2, 0] }  // ... e quantos foram de cada pessoa da sala
 
      Tres coisas moram aqui, e nenhuma delas precisa de tela:
 
@@ -1757,9 +1828,17 @@
        2. O AVISO. Nos ultimos dois segundos `piscando()` alterna entre ligado
           e desligado a cada dez quadros: e o que faz o fantasma piscar entre o
           azul e o branco, avisando a crianca para largar a caca e correr.
-       3. A ESCADA. 200 no primeiro fantasma, 400 no segundo, 800 no terceiro e
-          1600 no quarto - e cada pastilha nova recomeca do 200. Comer os
-          quatro numa pastilha so vale 3000 pontos.
+       3. A ESCADA, UMA POR PESSOA. 200 no primeiro fantasma, 400 no segundo,
+          800 no terceiro e 1600 no quarto - e cada pastilha nova recomeca do
+          200. Comer os quatro numa pastilha so vale 3000 pontos.
+
+          Numa sala o FEITICO e um so - a bolota que um morde deixa os quatro
+          azuis para todo mundo, ao mesmo tempo -, mas a ESCADA e de cada um: o
+          `escada` guarda um degrau por `indice` da sala. E por isso que dois
+          come-comes cacando ao mesmo tempo ganham 200 cada, e nao 200 e 400: o
+          que o vizinho comeu nao encarece nem barateia o seu fantasma. O
+          `comidos` continua sendo o total da sala (e no jogo de um jogador so
+          os dois numeros sao o mesmo).
 
      Puro como todo o resto: `passo()` devolve um estado NOVO e avisa, junto,
      no exato quadro em que o feitico acaba - e desse aviso que sai o
@@ -1772,9 +1851,15 @@
       return (typeof d === 'number' && d > 0) ? d : PODER_QUADROS;
     }
 
-    /** O comeco da rodada: nenhum feitico valendo. */
+    /** O comeco da rodada: nenhum feitico valendo, e ninguem em degrau nenhum. */
     function novoEstado() {
-      return { ativo: false, restam: 0, duracao: 0, comidos: 0 };
+      return { ativo: false, restam: 0, duracao: 0, comidos: 0, escada: [] };
+    }
+
+    /** Quantos fantasmas AQUELA pessoa ja comeu dentro desta pastilha. */
+    function escadaDe(estado, indice) {
+      var escada = estado.escada || [];
+      return escada[indice | 0] | 0;
     }
 
     /**
@@ -1784,7 +1869,8 @@
      */
     function ligar(estado, mapa) {
       var d = duracaoDe(mapa);
-      return { ativo: true, restam: d, duracao: d, comidos: 0 };
+      // A escada zera para TODO mundo: bolota nova, disputa nova.
+      return { ativo: true, restam: d, duracao: d, comidos: 0, escada: [] };
     }
 
     /**
@@ -1799,7 +1885,8 @@
         return {
           estado: {
             ativo: true, restam: restam,
-            duracao: estado.duracao, comidos: estado.comidos
+            duracao: estado.duracao, comidos: estado.comidos,
+            escada: estado.escada || []
           },
           acabou: false
         };
@@ -1807,7 +1894,8 @@
       return {
         estado: {
           ativo: false, restam: 0,
-          duracao: estado.duracao, comidos: estado.comidos
+          duracao: estado.duracao, comidos: estado.comidos,
+          escada: estado.escada || []
         },
         acabou: true
       };
@@ -1824,25 +1912,36 @@
           && (estado.restam % PISCA_PODER) < (PISCA_PODER / 2);
     }
 
-    /** Quanto vale o proximo fantasma comido nesta pastilha. */
-    function proximoPremio(estado) {
-      var i = estado.comidos;
+    /**
+     * Quanto vale o proximo fantasma comido POR AQUELA PESSOA nesta pastilha.
+     * Sem dizer quem, vale o primeiro da lista - que sozinho e o unico.
+     */
+    function proximoPremio(estado, indice) {
+      var i = escadaDe(estado, indice);
       return PREMIOS[i < PREMIOS.length ? i : PREMIOS.length - 1];
     }
 
     /**
-     * Mais um fantasma comido: sobe um degrau da escada e devolve quanto ele
-     * valeu. Sem feitico valendo nao ha premio nenhum - fantasma que nao esta
-     * assustado nao se come.
+     * Mais um fantasma comido por `indice`: sobe um degrau da escada DELE e
+     * devolve quanto ele valeu. Sem feitico valendo nao ha premio nenhum -
+     * fantasma que nao esta assustado nao se come.
      */
-    function comer(estado) {
+    function comer(estado, indice) {
       if (!estado.ativo) return { estado: estado, pontos: 0 };
+
+      var quem = indice | 0;
+      var escada = (estado.escada || []).slice();
+      while (escada.length <= quem) escada.push(0);
+      var pontos = proximoPremio(estado, quem);
+      escada[quem] = escada[quem] + 1;
+
       return {
         estado: {
           ativo: true, restam: estado.restam,
-          duracao: estado.duracao, comidos: estado.comidos + 1
+          duracao: estado.duracao, comidos: estado.comidos + 1,
+          escada: escada
         },
-        pontos: proximoPremio(estado)
+        pontos: pontos
       };
     }
 
@@ -1853,6 +1952,7 @@
       passo: passo,
       avisando: avisando,
       piscando: piscando,
+      escadaDe: escadaDe,
       proximoPremio: proximoPremio,
       comer: comer,
       PREMIOS: PREMIOS,
@@ -2372,6 +2472,18 @@
         comidas.push(!estado.pastilhas.restam[i]);
       }
 
+      /* O feitico: ligado, quanto falta, quanto durava e quantos fantasmas a
+         sala ja comeu dentro dele - e, dai em diante, um degrau da escada por
+         pessoa (`p[4 + indice]`). O feitico e da sala inteira, a escada e de
+         cada um: sem esses numeros a tela do convidado contaria 400 no
+         fantasma que, para o anfitriao, ainda valia 200. */
+      var poder = [
+        estado.poder.ativo ? 1 : 0, estado.poder.restam | 0,
+        estado.poder.duracao | 0, estado.poder.comidos | 0
+      ];
+      var escada = estado.poder.escada || [];
+      for (i = 0; i < escada.length; i++) poder.push(escada[i] | 0);
+
       return {
         k: 'e', n: numero | 0,
         f: estado.fase | 0,
@@ -2380,10 +2492,7 @@
         j: jogadores,
         g: fantasmas,
         c: empacotar(comidas),
-        p: [
-          estado.poder.ativo ? 1 : 0, estado.poder.restam | 0,
-          estado.poder.duracao | 0, estado.poder.comidos | 0
-        ],
+        p: poder,
         r: [
           estado.rodada.vidas | 0, estado.rodada.pausa | 0,
           estado.rodada.pego, estado.rodada.acabou ? 1 : 0,
@@ -2480,7 +2589,8 @@
       var p = d.p || [0, 0, 0, 0];
       alvo.poder = {
         ativo: p[0] === 1, restam: p[1] | 0,
-        duracao: p[2] | 0, comidos: p[3] | 0
+        duracao: p[2] | 0, comidos: p[3] | 0,
+        escada: p.slice(4)
       };
 
       var r = d.r || [0, 0, -1, 0, -1];
@@ -2717,14 +2827,29 @@
   var COR_PUPILA = '#2020c0';
 
   /* Numa sala ha um come-come por pessoa no mesmo labirinto, e a crianca
-     precisa achar o DELA num relance: a cor sai do `indice` da sala, que e
-     igual nos cinco aparelhos. O primeiro e o amarelo de sempre, que e o do
-     jogo de um jogador so. (A cor que a Central escolheu para cada um entra no
-     desenho na fase 11, junto com o mini-placar.) */
+     precisa achar o DELA num relance. Quem escolhe a cor de cada um e a
+     CENTRAL: ela manda uma cor por jogador em `sala.jogadores[].cor`, a mesma
+     nos cinco aparelhos e a mesma que o lobby ja mostrou na lista de quem
+     chegou - entao a crianca chega ao labirinto ja sabendo qual e a sua.
+
+     Essa cor vem de outro aparelho: e DADO, e nao codigo. So entra no desenho
+     depois de passar pelo `corSegura()`. Sem sala nenhuma (ou com uma cor
+     estranha no meio do caminho) sobra a paleta de casa, na ordem do `indice`
+     - e o primeiro dela e o amarelo de sempre, o do jogo de um jogador so. */
   var CORES_JOGADOR = ['#fcd800', '#ff8adc', '#7cf8a0', '#8ad0ff', '#ffa030'];
 
-  function corDoJogador(j) {
+  /** So aceita cor de verdade; qualquer outra coisa devolve `null`. */
+  function corSegura(cor) {
+    return /^#[0-9a-fA-F]{3,8}$/.test(String(cor || '')) ? String(cor) : null;
+  }
+
+  /** A cor de casa daquele lugar da fila - a que vale quando nao ha sala. */
+  function corDaPaleta(j) {
     return CORES_JOGADOR[(j.indice | 0) % CORES_JOGADOR.length] || COR_COME;
+  }
+
+  function corDoJogador(j) {
+    return corSegura(j.cor) || corDaPaleta(j);
   }
 
   /* O fantasma com medo: azul-marinho de cara boba, e branco no piscar que
@@ -2807,6 +2932,9 @@
     // e a tarja de recado do menu (a sala acabou, o anfitriao caiu).
     hudSala: $('hud-sala'),
     hudSalaCodigo: $('hud-sala-codigo'),
+    // Quem e voce no labirinto (fase 11): o nome e a cor que vieram da sala.
+    hudEu: $('hud-eu'),
+    hudEuNome: $('hud-eu-nome'),
     btnAmigos: $('btn-amigos'),
     aviso: $('aviso'),
 
@@ -3151,7 +3279,10 @@
       id: d.id || '',
       indice: d.indice | 0,
       apelido: d.apelido || '',
-      cor: d.cor || '',              // a cor da sala (o desenho e a fase 11)
+      // O apelido e a cor vem da sala, ou seja, de OUTRO aparelho: sao dados.
+      // A cor so vira desenho depois de passar pelo `corSegura()`, e o apelido
+      // so vira tela por `textContent`.
+      cor: corSegura(d.cor) || '',
       local: casa,                   // este e o come-come DESTE aparelho?
       // Todo mundo nasce no `P` do desenho e e espalhado logo em seguida por
       // `recolocarJogadores()`, que e quem sabe quantas pessoas ha na partida.
@@ -3302,6 +3433,57 @@
     jogo.efeitos = vivos;
   }
 
+  /**
+   * Um quadro de mordidas: cada come-come do labirinto come o que estiver
+   * debaixo dos pes DELE. Cada pastilha conta uma vez so - nos outros 7 quadros
+   * dentro do mesmo quadrado ja nao ha nada ali.
+   *
+   * Sozinho isto e exatamente o que sempre foi: a lista tem uma pessoa so.
+   *
+   * Numa sala e aqui que mora a disputa: o labirinto e UM, entao a pastilha que
+   * um come some na mesma hora nas cinco telas - mas os PONTOS ficam so com
+   * quem chegou primeiro, que e o `modo: competitivo` do manifesto. Ninguem
+   * come a pastilha do vizinho: quem come e quem estava em cima dela.
+   *
+   * A bolota grande e a excecao que confirma a regra: os 50 pontos sao de quem
+   * a mordeu, mas o FEITICO e da sala inteira - os quatro fantasmas ficam
+   * azuis, ao mesmo tempo, para todo mundo. Quanto vale cada fantasma comido
+   * depois disso, ai sim, e conta de cada um (a escada do `Poder`, por
+   * `indice`).
+   */
+  function comerPastilhas() {
+    for (var i = 0; i < jogo.jogadores.length; i++) {
+      var j = jogo.jogadores[i];
+      var mordida = Pastilhas.passo(jogo.pastilhas, labirinto, j.corpo);
+      if (mordida.comeu < 0) continue;
+
+      jogo.pastilhas = mordida.estado;
+      j.pontos += mordida.pontos;
+
+      if (mordida.poder) {
+        jogo.poder = Poder.ligar(jogo.poder, labirinto);
+        jogo.fantasmas = Fantasmas.assustar(jogo.fantasmas);
+        soltarAviso('poder', j.corpo.x, j.corpo.y, j.indice, mordida.pontos);
+      }
+      // A ultima pastilha fecha a fase, tenha sido quem tiver que a comeu: o
+      // labirinto e do grupo. (As regras da sala - quem vira a pagina e quem
+      // vira espectador - sao a fase 12.)
+      if (mordida.limpou) { concluirFase(); return; }
+    }
+  }
+
+  /** Onde esta cada come-come, em quadrados: e o que os fantasmas miram. */
+  function quadradosDeTodos() {
+    var lista = [];
+    for (var i = 0; i < jogo.jogadores.length; i++) {
+      var corpo = jogo.jogadores[i].corpo;
+      lista.push({
+        c: Mapa.coluna(corpo.x), l: Mapa.linha(corpo.y), dir: corpo.dir
+      });
+    }
+    return lista;
+  }
+
   /** Um passo do mundo. */
   function atualizar() {
     /* O tombo congela TUDO - inclusive o relogio do mundo, que e o mesmo dos
@@ -3317,28 +3499,9 @@
 
     jogo.relogio++;
     moverJogadores();
+    comerPastilhas();
 
-    // O que estiver debaixo dos pes dele some e vira ponto. Cada pastilha conta
-    // uma vez so: nos outros 7 quadros dentro do mesmo quadrado ja nao ha nada.
-    var mordida = Pastilhas.passo(jogo.pastilhas, labirinto, jogo.come);
-    if (mordida.comeu >= 0) {
-      jogo.pastilhas = mordida.estado;
-      jogo.pontos += mordida.pontos;
-      // A bolota grande vira o jogo: o feitico comeca (ou recomeca do zero, se
-      // ja estava valendo) e os quatro levam o susto.
-      if (mordida.poder) {
-        jogo.poder = Poder.ligar(jogo.poder, labirinto);
-        jogo.fantasmas = Fantasmas.assustar(jogo.fantasmas);
-        soltarAviso('poder', jogo.come.x, jogo.come.y, jogo.eu.indice, mordida.pontos);
-      }
-      if (mordida.limpou) concluirFase();
-    }
-
-    var quadradoDoCome = {
-      c: Mapa.coluna(jogo.come.x),
-      l: Mapa.linha(jogo.come.y),
-      dir: jogo.come.dir
-    };
+    var quadradosDosComes = quadradosDeTodos();
 
     /* Enquanto o feitico vale, o relogio dos humores fica PARADO: quando ele
        acabar, os quatro voltam exatamente ao ciclo em que estavam - sem
@@ -3357,17 +3520,22 @@
        quatro casas a frente dele, o azul so caca de longe e o laranja vai
        aonde o sorteio mandar - ou, na dispersao, cada um para o seu canto.
        Quem esta assustado ignora tudo isso e so quer distancia do come-come
-       (`fuga`) - e nesse estado ele nao machuca ninguem. */
+       (`fuga`) - e nesse estado ele nao machuca ninguem.
+
+       Numa sala ha varios come-comes, e cada fantasma cuida do MAIS PERTO
+       (`comes`): assim os quatro se repartem pelo labirinto em vez de cercarem
+       uma pessoa so enquanto as outras comem em paz. A personalidade de cada
+       um continua a mesma - o que muda e de quem ela esta falando. */
     var mira = Personalidades.passo(jogo.miras, jogo.fantasmas, labirinto, {
       modo: jogo.ciclo.modo,
-      come: quadradoDoCome
+      comes: quadradosDosComes
     });
     jogo.miras = mira.estado;
     /* A PRESSA e o degrau de velocidade da fase: no labirinto 1 os quatro
        correm como o come-come, e nos outros dois eles dao um passo a mais de
        vez em quando (a tabela de dificuldade diz quantos). */
     jogo.fantasmas = Fantasmas.passo(jogo.fantasmas, labirinto, mira.alvos, {
-      fuga: quadradoDoCome,
+      fuga: mira.fugas,
       pressa: labirinto.dificuldade.pressa
     });
 
@@ -3382,20 +3550,30 @@
    *
    * A conferencia vem DEPOIS do passo dos fantasmas: o encontro so existe
    * quando os dois ja andaram, e assim ninguem e comido de mentira.
+   *
+   * Numa sala o feitico e um so - a bolota que um mordeu deixa os quatro azuis
+   * para todo mundo -, mas cada pessoa tem a SUA escada (`Poder.comer` recebe o
+   * `indice`): dois come-comes cacando ao mesmo tempo ganham 200 cada, e nao
+   * 200 e 400. O fantasma, esse sim, e um so: quem chegar primeiro leva, e para
+   * os outros ele ja e um par de olhos correndo para casa.
    */
   function comerFantasmas() {
-    var lista = jogo.fantasmas.lista;
-    for (var i = 0; i < lista.length; i++) {
-      var f = lista[i];
-      if (!Fantasmas.comestivel(f)) continue;
-      if (!Fantasmas.encostou(f, jogo.come, labirinto)) continue;
+    for (var p = 0; p < jogo.jogadores.length; p++) {
+      var jog = jogo.jogadores[p];
+      var lista = jogo.fantasmas.lista;
 
-      var premio = Poder.comer(jogo.poder);
-      jogo.poder = premio.estado;
-      jogo.pontos += premio.pontos;
-      soltarAviso('fantasma', f.corpo.x, f.corpo.y, jogo.eu.indice, premio.pontos);
-      jogo.fantasmas = Fantasmas.comido(jogo.fantasmas, i);
-      lista = jogo.fantasmas.lista;
+      for (var i = 0; i < lista.length; i++) {
+        var f = lista[i];
+        if (!Fantasmas.comestivel(f)) continue;
+        if (!Fantasmas.encostou(f, jog.corpo, labirinto)) continue;
+
+        var premio = Poder.comer(jogo.poder, jog.indice);
+        jogo.poder = premio.estado;
+        jog.pontos += premio.pontos;
+        soltarAviso('fantasma', f.corpo.x, f.corpo.y, jog.indice, premio.pontos);
+        jogo.fantasmas = Fantasmas.comido(jogo.fantasmas, i);
+        lista = jogo.fantasmas.lista;
+      }
     }
   }
 
@@ -3901,6 +4079,7 @@
         jogo.apelido = naSala;
         el.campoApelido.value = naSala;
         guardarApelido(naSala);
+        mostrarQuemSouEu();          // o HUD conta a novidade
       }
     }
 
@@ -4110,6 +4289,25 @@
     function mostrarSala() {
       if (rede.sala) el.hudSalaCodigo.textContent = rede.sala.codigo;
       exibir(el.hudSala, !!rede.sala);
+      mostrarQuemSouEu();
+    }
+
+    /* Quem e voce no labirinto: o nome que ficou na sala, escrito na cor com
+       que o seu come-come e pintado nas cinco telas. So em grupo - sozinho nao
+       ha com quem se confundir, e a caixa nem aparece.
+
+       Os dois vem da sala, ou seja, de OUTRO aparelho: sao dados, e nao codigo.
+       O nome entra por `textContent` (nunca por `innerHTML`, que transformaria
+       um apelido esperto em pagina) e a cor so entra no `style` depois de
+       passar pelo `corSegura()` - o mesmo caminho do desenho no canvas. */
+    function mostrarQuemSouEu() {
+      var eu = jogo.eu;
+      var emGrupo = !!rede.sala && !!eu;
+      exibir(el.hudEu, emGrupo);
+      if (!emGrupo) return;
+
+      el.hudEuNome.textContent = eu.apelido || 'Voce';
+      el.hudEuNome.style.color = corDoJogador(eu);
     }
 
     /* A tarja de recado do menu. Texto vazio apaga e esconde. O que chega aqui
