@@ -4316,6 +4316,9 @@
     ultimoRecebido: 0,    // o numero do ultimo retrato aplicado
     atrasados: 0,         // retratos que chegaram velhos e foram para o lixo
     terminalEnviado: false, // o anfitriao ja contou que a tela parou?
+    primeiroEstado: false,  // o convidado ja recebeu ao menos um retrato?
+    semNoticias: 0,         // quadros sem retrato do anfitriao
+    conexaoInstavel: false, // a tarja de silencio esta acesa?
     fimPendente: false,   // esperando a Central devolver o ranking da sala
     fimEspera: 0,         // quadros esperando antes do ranking local
     fimEnviado: false,    // `terminar(placar)` ja subiu para a Central?
@@ -4345,6 +4348,7 @@
       // O erro que o servidor devolve (sala cheia, codigo que nao existe) vira
       // a tarja do menu: a crianca precisa saber o que aconteceu.
       mj.em('erro', function (texto) { avisar(texto); });
+      mj.em('saiu', saiu);
 
       el.btnAmigos.classList.remove('hidden');
       el.btnAmigos.addEventListener('click', abrirLobby);
@@ -4389,6 +4393,9 @@
       rede.ultimoRecebido = 0;
       rede.atrasados = 0;
       rede.terminalEnviado = false;
+      rede.primeiroEstado = false;
+      rede.semNoticias = 0;
+      rede.conexaoInstavel = false;
       rede.fimPendente = false;
       rede.fimEspera = 0;
       rede.fimEnviado = false;
@@ -4466,6 +4473,30 @@
       else if (Pacote.ehEstado(d) && rede.papel === 'convidado') aplicarEstado(d);
     }
 
+    /** Alguem saiu no meio: some do labirinto e do placar, mas a sala segue. */
+    function saiu(jogador) {
+      if (!rede.sala || !jogador || !jogador.id) return;
+
+      var listaSala = [], i;
+      var todos = rede.sala.jogadores || [];
+      for (i = 0; i < todos.length; i++) {
+        if (todos[i].id !== jogador.id) listaSala.push(todos[i]);
+      }
+      rede.sala.jogadores = listaSala;
+
+      var lista = [];
+      for (i = 0; i < jogo.jogadores.length; i++) {
+        if (jogo.jogadores[i].id !== jogador.id) lista.push(jogo.jogadores[i]);
+      }
+      if (lista.length === jogo.jogadores.length) return;
+
+      jogo.jogadores = lista;
+      jogo.eu = jogadorPorId(rede.sala.eu) || jogo.eu;
+      jogo.tombado = jogo.tombado === jogador.indice ? -1 : jogo.tombado;
+      hudPintado.placar = '';
+      atualizarHud();
+    }
+
     /* A direcao que um convidado pediu, do lado do anfitriao. Ela fica na
        linha dele e vale no proximo quadro, exatamente como a seta daqui - e e
        isso que faz o come-come do convidado andar no mundo do anfitriao.
@@ -4498,6 +4529,12 @@
           && !(jogo.tela === 'fase' && d.f && d.f !== jogo.fase)) return;
       if (d.n && d.n <= rede.ultimoRecebido) { rede.atrasados++; return; }
       rede.ultimoRecebido = d.n || 0;
+      rede.primeiroEstado = true;
+      rede.semNoticias = 0;
+      if (rede.conexaoInstavel) {
+        rede.conexaoInstavel = false;
+        avisar('');
+      }
 
       // O anfitriao virou a pagina: o labirinto novo entra ANTES do resto,
       // senao as pastilhas seriam lidas com o desenho errado.
@@ -4533,6 +4570,7 @@
     function passo() {
       if (!rede.sala) return;
       conferirFimPendente();
+      conferirSilencioDaSala();
       if (jogo.tela !== 'jogando') {
         if (rede.papel === 'anfitriao' && !rede.terminalEnviado) {
           mandarEstado();
@@ -4589,6 +4627,15 @@
       mj.terminar(placar);
     }
 
+    function conferirSilencioDaSala() {
+      if (rede.papel !== 'convidado' || jogo.tela !== 'jogando') return;
+      if (!rede.primeiroEstado) return;
+      rede.semNoticias++;
+      if (rede.semNoticias <= 120 || rede.conexaoInstavel) return;
+      rede.conexaoInstavel = true;
+      avisar('Conex\u00e3o inst\u00e1vel');
+    }
+
     function conferirFimPendente() {
       if (!rede.fimPendente || rede.fimConfirmado) return;
       rede.fimEspera++;
@@ -4617,6 +4664,13 @@
     function abortar(motivo) {
       if (!rede.sala) return;
       var recado = (motivo && motivo.motivo) || 'A sala foi encerrada.';
+      if (rede.fimPendente || jogo.tela === 'fim') {
+        var placar = rede.placarLocal || placarLocalDaSala();
+        mostrarRankingDaSala(placar, false);
+        limparSala(true);
+        avisar('');
+        return;
+      }
       limparSala();
       voltarAoMenu();
       avisar(recado);
@@ -4632,15 +4686,18 @@
     /* Largar a sala e desfazer o mundo de todos: o labirinto volta a ter um
        come-come so, o de casa. Sem isto os come-comes dos outros ficariam
        parados na tela, esperando pacotes que nao chegam mais. */
-    function limparSala() {
+    function limparSala(preservarRanking) {
       rede.sala = null;
       rede.papel = 'solo';
+      rede.primeiroEstado = false;
+      rede.semNoticias = 0;
+      rede.conexaoInstavel = false;
       rede.fimPendente = false;
       rede.fimEspera = 0;
       rede.fimEnviado = false;
       rede.fimConfirmado = false;
       rede.placarLocal = null;
-      jogo.rankingSala = [];
+      if (!preservarRanking) jogo.rankingSala = [];
       jogarSozinho();
       mostrarSala();
     }

@@ -296,11 +296,16 @@ body{
 .ajuda b{ color: var(--amarelo); }
 
 /* ------------------------------------------------------------- A sala -- */
-/* A tarja do menu: o motivo de uma partida em grupo ter acabado, ou o erro que
-   o servidor devolveu na hora de entrar numa sala. Vermelha para ser lida sem
-   procurar, e escondida enquanto não há recado nenhum. */
+/* A tarja da sala: o motivo de uma partida em grupo ter acabado, o erro que o
+   servidor devolveu na hora de entrar ou o aviso de conexao instavel. Ela fica
+   no palco para aparecer tambem durante o labirinto. */
 .aviso{
-  margin: 16px auto 0;
+  position: absolute;
+  z-index: 20;
+  left: 10px;
+  right: 10px;
+  top: 10px;
+  margin: 0 auto;
   max-width: 420px;
   background: var(--vermelho);
   border: 3px solid var(--branco);
@@ -308,6 +313,8 @@ body{
   font-size: clamp(10px, 2vw, 13px);
   letter-spacing: 1px;
   line-height: 1.4;
+  text-align: center;
+  pointer-events: none;
 }
 
 /* O código da sala no HUD: amarelo e espaçado, para a criança do lado

@@ -93,6 +93,11 @@
       <span><b>F</b> = Tela cheia</span>
     </aside>
 
+    <!-- Os recados da sala (conexao instavel, anfitriao caiu, erro ao entrar).
+         Fica acima do canvas e das telas para funcionar tanto no menu quanto
+         durante a partida. -->
+    <p id="aviso" class="aviso hidden"></p>
+
     <!-- Pausa: o mundo congela onde está e ficam os dois caminhos — voltar
          para o mesmo lugar ou recomeçar a corrida inteira, do labirinto 1.
          Perder o foco da janela (trocar de aba, chegar uma ligação) pausa
@@ -132,10 +137,6 @@
                o jogo inteiro funciona sozinho. -->
           <button id="btn-amigos" type="button" class="botao botao-claro hidden">JOGAR COM AMIGOS</button>
         </div>
-
-        <!-- Os recados da sala (a partida do grupo acabou, o anfitrião caiu,
-             deu erro na hora de entrar). Fica vazio e escondido no dia a dia. -->
-        <p id="aviso" class="aviso hidden"></p>
 
         <ul class="ajuda">
           <li><b>&larr; &uarr; &rarr; &darr;</b> ou <b>W A S D</b> — virar nas esquinas</li>
