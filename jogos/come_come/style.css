@@ -95,8 +95,9 @@ body{
 }
 
 /* ----------------------------------------------------------------- Telas -- */
-/* As telas que sobem POR CIMA do labirinto (hoje só a de fim de fase). Elas
-   ocupam o palco inteiro, com o mundo congelado aparecendo por trás. */
+/* As telas que sobem POR CIMA do labirinto: o fim de fase, o fim de jogo e o
+   PARABÉNS. Elas ocupam o palco inteiro, com o mundo congelado aparecendo por
+   trás. */
 .tela{
   position: absolute;
   inset: 0;
@@ -147,6 +148,47 @@ body{
   font-size: clamp(9px, 2vw, 11px);
   letter-spacing: 1px;
   color: var(--cinza);
+}
+
+/* O resumo da tela de PARABÉNS: uma linha por labirinto, com o nome de um
+   lado e o "pastilhas + bônus = total" do outro. */
+.resumo{
+  list-style: none;
+  margin: 0 auto 6px;
+  padding: 0;
+  max-width: 340px;
+  font-size: clamp(11px, 2.2vw, 15px);
+  letter-spacing: 1px;
+}
+
+.resumo li{
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 8px;
+  border-bottom: 3px solid var(--cinza);
+}
+
+.resumo b{ color: var(--amarelo); }
+
+/* O botão de "ir para o próximo labirinto" e o de "jogar de novo": bloco
+   amarelo com sombra dura, do jeito 8-bit, e grande o bastante para o dedo. */
+.botao{
+  font-family: inherit;
+  font-size: clamp(13px, 2.6vw, 18px);
+  letter-spacing: 3px;
+  color: var(--preto);
+  background: var(--amarelo);
+  border: 4px solid var(--branco);
+  box-shadow: 6px 6px 0 var(--preto);
+  padding: 12px 22px;
+  margin-top: 6px;
+  cursor: pointer;
+}
+
+.botao:active{
+  transform: translate(3px, 3px);
+  box-shadow: 3px 3px 0 var(--preto);
 }
 
 /* ---------------------------------------------------------------- Rodape -- */

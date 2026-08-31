@@ -47,26 +47,28 @@
   <div id="palco">
     <canvas id="tela" width="448" height="496"></canvas>
 
-    <!-- Fim de fase: sobe quando a última pastilha do labirinto some. Por
-         enquanto ela só mostra o que a fase rendeu e o mundo fica congelado
-         atrás dela — quem encadeia o labirinto seguinte é a corrida das três
-         fases, que ainda vai ser escrita. -->
+    <!-- Fim de fase: sobe quando a última pastilha do labirinto some, nos
+         labirintos 1 e 2. Mostra o que a fase rendeu, o bônus por limpar e o
+         botão que abre o labirinto seguinte — o mundo fica congelado atrás
+         dela até o clique. Depois do terceiro quem sobe é o PARABÉNS. -->
     <section id="tela-fase" class="tela hidden">
       <div class="painel">
         <h1 class="titulo"><span class="destaque">LABIRINTO</span><br>LIMPO!</h1>
         <p class="subtitulo">Você comeu todas as pastilhas 🟡</p>
         <p class="placar">
           Fase <b id="fase-numero">1</b> de 3<br>
-          Pontos da fase: <b id="fase-pontos">0</b>
+          Pontos da fase: <b id="fase-pontos">0</b><br>
+          Bônus por limpar: <b id="fase-bonus">+500</b>
         </p>
-        <p class="legenda">Os outros dois labirintos chegam em breve</p>
+
+        <button id="btn-proxima" type="button" class="botao">IR PARA O LABIRINTO <span id="fase-proxima">2</span></button>
       </div>
     </section>
 
     <!-- Fim de jogo: as três vidas acabaram. No jogo de um jogador só a
-         partida termina aqui, com os pontos na tela. (Em grupo, quem zera as
-         vidas vira espectador até a próxima fase — isso ainda vai ser
-         escrito, junto com o botão de jogar de novo.) -->
+         partida termina aqui, com os pontos da corrida inteira na tela. (Em
+         grupo, quem zera as vidas vira espectador até a próxima fase — isso
+         ainda vai ser escrito.) -->
     <section id="tela-fim" class="tela hidden">
       <div class="painel">
         <h1 class="titulo"><span class="destaque">FIM DE</span><br>JOGO</h1>
@@ -78,9 +80,29 @@
         <p class="legenda">Recarregue a página para tentar de novo</p>
       </div>
     </section>
+
+    <!-- PARABÉNS: os três labirintos limpos. É o fim feliz da partida solo —
+         uma linha por fase, com o que ela rendeu mais o bônus, o total da
+         corrida e o botão que recomeça tudo do labirinto 1. -->
+    <section id="tela-parabens" class="tela hidden">
+      <div class="painel">
+        <h1 class="titulo"><span class="destaque">PARABÉNS!</span></h1>
+        <p class="subtitulo">Você limpou os três labirintos 🏆</p>
+
+        <ul class="resumo">
+          <li><span>Labirinto 1</span><b id="parabens-fase-1">0</b></li>
+          <li><span>Labirinto 2</span><b id="parabens-fase-2">0</b></li>
+          <li><span>Labirinto 3</span><b id="parabens-fase-3">0</b></li>
+        </ul>
+        <p class="legenda">pastilhas e fantasmas + bônus por limpar</p>
+        <p class="placar">Total: <b id="parabens-total">0</b></p>
+
+        <button id="btn-de-novo" type="button" class="botao">JOGAR DE NOVO</button>
+      </div>
+    </section>
   </div>
 
-  <footer id="rodape">Setas ou W A S D para virar nas esquinas — coma todas as pastilhas e use o túnel dos lados. Morda uma bolota grande e os fantasmas ficam azuis: aí é você que corre atrás deles! Quando eles piscarem em branco, o feitiço está acabando — e aí é melhor correr: encostar num fantasma bravo custa uma vida.</footer>
+  <footer id="rodape">Setas ou W A S D para virar nas esquinas — coma todas as pastilhas e use o túnel dos lados. Morda uma bolota grande e os fantasmas ficam azuis: aí é você que corre atrás deles! Quando eles piscarem em branco, o feitiço está acabando — e aí é melhor correr: encostar num fantasma bravo custa uma vida. Limpe os três labirintos para chegar ao PARABÉNS!</footer>
 </div>
 
 <script src="game.js" charset="utf-8"></script>

@@ -260,8 +260,11 @@ teste('o piloto percorre o labirinto 3 inteiro e o deixa limpo', () => {
   const decisoes = limparOLabirinto();
   assert.ok(decisoes > 100, `o piloto andou de verdade (${decisoes} decisoes)`);
   assert.equal(faltam(), 0, 'nenhuma pastilha sobrou');
-  assert.equal(jogo().tela, 'fase');
-  assert.equal(dom.texto('fase-numero'), '3');
+  // O terceiro e o ultimo: limpa-lo fecha a corrida, e quem sobe e o
+  // PARABENS, e nao o quadro de fim de fase (a corrida e a fase 6b - quem a
+  // confere de ponta a ponta e o `fase6b-tela.test.mjs`).
+  assert.equal(jogo().tela, 'parabens');
+  assert.equal(dom.escondido('tela-parabens'), false);
 });
 
 // ------------------------------------------------- A dificuldade na tela ---

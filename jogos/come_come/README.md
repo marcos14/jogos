@@ -5,18 +5,19 @@ corredores, coma todas as pastilhas e escape dos quatro fantasmas. Três
 labirintos, cada um mais difícil que o anterior — sozinho ou com até 5 amigos
 na mesma sala.
 
-> **Estado de hoje: fase 6a do plano.** Já dá para correr por qualquer um dos
-> **três labirintos** comendo todas as pastilhas, ver o placar subir no HUD e
-> limpar o labirinto; os **quatro fantasmas** moram na casa do centro, saem um
-> a um pela porta e caçam cada um do seu jeito, alternando com os respiros de
-> dispersão pelos cantos; a **pastilha de poder** vira o jogo do avesso — os
-> quatro ficam azuis, fogem em meia velocidade e podem ser comidos por 200,
-> 400, 800 e 1600; **o jogo machuca** — encostar num fantasma que não está
-> assustado custa uma vida, e quando as três acabam a partida termina numa
-> tela de fim de jogo; e cada labirinto é **mais difícil que o anterior**, por
-> uma tabela de dificuldade que mora num lugar só. Limpar um labirinto ainda
-> não chama o seguinte (fase 6b) e a partida ainda entra direto no jogo, sem
-> menu (fase 7).
+> **Estado de hoje: fase 6b do plano.** A **partida solo está inteira**: os
+> três labirintos vêm em fila, cada um limpo abrindo o seguinte, e limpar o
+> terceiro fecha a corrida numa tela de **PARABÉNS** com o que cada fase rendeu
+> e o total — com o botão de jogar de novo. Pelo caminho: os **quatro
+> fantasmas** moram na casa do centro, saem um a um pela porta e caçam cada um
+> do seu jeito, alternando com os respiros de dispersão pelos cantos; a
+> **pastilha de poder** vira o jogo do avesso — os quatro ficam azuis, fogem em
+> meia velocidade e podem ser comidos por 200, 400, 800 e 1600; **o jogo
+> machuca** — encostar num fantasma que não está assustado custa uma vida, e
+> quando as três acabam a partida termina numa tela de fim de jogo; e cada
+> labirinto é **mais difícil que o anterior**, por uma tabela de dificuldade
+> que mora num lugar só. Falta a moldura: a partida ainda entra direto no jogo,
+> sem menu e sem pausa (fase 7).
 
 ---
 
@@ -36,7 +37,10 @@ pela outra sem parar de andar. Cada labirinto tem o seu, e em cada um ele passa
 por um lugar diferente.
 
 O objetivo é **limpar o labirinto**: comer todas as pastilhas (244 no primeiro,
-284 no segundo, 292 no terceiro). Quando a última some, a fase acabou.
+284 no segundo, 292 no terceiro). Quando a última some, a fase acabou — e o
+botão do quadro *LABIRINTO LIMPO* leva para o próximo. Limpar os três fecha a
+corrida na tela de **PARABÉNS**, com o resumo fase a fase e o botão de jogar de
+novo, que recomeça tudo do labirinto 1.
 
 As quatro **bolotas grandes** são as pastilhas de poder: morder uma deixa os
 fantasmas azuis e comestíveis — por 8 segundos no labirinto 1, 6 no 2 e só 4
@@ -63,6 +67,7 @@ Fora do feitiço, **encostar num fantasma custa uma vida**. São três: quando a
 | **as pastilhas do labirinto 1** | **2 600** (240 × 10 + 4 × 50) |
 | **as pastilhas do labirinto 2** | **3 000** (280 × 10 + 4 × 50) |
 | **as pastilhas do labirinto 3** | **3 080** (288 × 10 + 4 × 50) |
+| **bônus por limpar um labirinto** | **500** — meia centena de pastilhas de presente |
 
 Cada pastilha conta **uma vez só**: o come-come come a que estiver debaixo dos
 pés dele, ela some da tela e o quadrado fica limpo para sempre — voltar por
@@ -76,11 +81,17 @@ morder a bolota.
 Perder uma vida **não tira ponto nenhum**: o que a criança já comeu é dela, e
 continua no placar até o fim da partida.
 
+O **total da corrida** é a soma das três fases mais os três bônus — uma partida
+perfeita, sem comer fantasma nenhum, dá 2 600 + 3 000 + 3 080 + 3 × 500 =
+**10 180 pontos**. Ele aparece nas telas de fim: na de PARABÉNS, com uma linha
+por labirinto, e na de fim de jogo, com o que a corrida rendeu até o tombo
+final.
+
 O HUD, em cima do labirinto, mostra quatro números:
 
 | Caixa | O que é |
 |---|---|
-| **Pontos** | o que a fase rendeu até agora |
+| **Pontos** | o que a **fase** rendeu até agora (o total da corrida só aparece no fim) |
 | **Vidas** | 🟡🟡🟡 — três, como no fliperama; some uma a cada tombo |
 | **Fase** | qual dos três labirintos está em jogo |
 | **Faltam** | quantas pastilhas ainda estão de pé; zerou, a fase acabou |
@@ -342,6 +353,7 @@ apontando para onde ele anda.
 | `Personalidades` | de quem é o alvo: o quadrado do come-come, quatro casas à frente dele, a coragem que depende da distância, o lugar sorteado — ou, na dispersão, o canto de cada um |
 | `Sorteio` | o gerador de bolso com semente: a mesma semente dá a mesma sequência em qualquer aparelho |
 | `Ciclos` | o relógio dos humores: em que linha da tabela dispersar↔caçar a partida está, e o aviso do quadro exato em que ela vira |
+| `Corrida` | o caderninho da partida solo: quanto cada labirinto rendeu, o bônus por limpar, o total e qual é o próximo — e a regra de que ela **só anda para a frente** |
 
 Nenhum deles sabe o que é DOM, e todos são funções puras: recebem um estado e
 devolvem um estado **novo**, sem mexer no que receberam. Isso vale por dois
@@ -395,6 +407,8 @@ node testes/come_come/fase5.test.mjs        # as vidas, o tombo e o reinício
 node testes/come_come/fase5-tela.test.mjs   # perder as três vidas até o fim de jogo
 node testes/come_come/fase6a.test.mjs       # os três desenhos e a tabela de dificuldade
 node testes/come_come/fase6a-tela.test.mjs  # os labirintos 2 e 3 percorridos até ficarem limpos
+node testes/come_come/fase6b.test.mjs       # a corrida das três fases e o bônus
+node testes/come_come/fase6b-tela.test.mjs  # uma partida inteira, 1 → 2 → 3, até o PARABÉNS
 ```
 
 O `fase2-tela.test.mjs` põe um **piloto automático** no volante: a cada centro
@@ -457,3 +471,20 @@ vermelho para ver a pressa da tabela chegar no mundo. Ali o come-come é
 imortal, como no `fase3b-tela`: nas fases 2 e 3 os fantasmas andam mais rápido
 do que ele, e o assunto deste arquivo é **percorrer** os labirintos novos —
 quem prova o tombo e as vidas é o `fase5-tela`.
+
+O `fase6b.test.mjs` confere o caderninho sem DOM nenhum: a linha de cada fase
+com o bônus, o total fechando pelas duas contas (a soma das linhas e a soma dos
+pontos + 3 × 500), a ordem que **só anda para a frente** (1 → 2 → 3 → 3, nunca
+uma fase 4) e a pureza de `concluir()`, que não encosta no estado que recebe.
+Ele também confronta o `index.html` com o `game.js`: todo `$('id')` procurado
+pelo jogo tem de existir no HTML, e as três telas de fim nascem escondidas.
+
+O `fase6b-tela.test.mjs` joga a **partida inteira**: o piloto limpa os três
+labirintos em fila, e o teste confere cada quadro de fim de fase (pontos, bônus
+e para onde o botão aponta), o mundo congelado atrás dele, o PARABÉNS com uma
+linha por fase e o total, que o botão de próximo labirinto **não** anda no meio
+da fase nem depois do PARABÉNS, e que "Jogar de novo" devolve tudo ao começo —
+caderno em branco, vidas cheias, labirinto 1 cheio. No fim ele larga a
+imortalidade e prova a outra saída da corrida: perdendo as vidas no labirinto
+2, a tela de fim de jogo mostra os pontos da **corrida inteira**, e não só os
+daquela fase.

@@ -1,13 +1,12 @@
 /* ==========================================================================
    COME-COME  -  labirinto de fliperama, no clima dos consoles de 8 bits
    --------------------------------------------------------------------------
-   FASE 6a do plano: OS TRES LABIRINTOS, CADA UM MAIS DIFICIL QUE O ANTERIOR.
-   Ate aqui o jogo inteiro acontecia num labirinto so. Agora sao tres desenhos
-   diferentes - a Praca Redonda, a Vila Estreita e a Avenida Longa -, cada um
-   com o seu tunel numa linha diferente, e uma TABELA DE DIFICULDADE que diz,
-   num lugar so, o que muda de um para o outro: o feitico encurta, os
-   fantasmas apertam o passo, eles saem da casa mais cedo e a caca come o
-   tempo da dispersao.
+   FASE 6b do plano: A CORRIDA DAS TRES FASES E A TELA DE PARABENS.
+   Os tres labirintos existiam desde a fase 6a, mas soltos: limpar um deles
+   parava o jogo numa tela sem saida, e so a porta dos fundos (`irParaFase`)
+   levava aos outros. Agora eles sao UMA CORRIDA - do labirinto 1 ao 3, cada
+   um limpo abrindo o proximo, e o terceiro fechando a partida solo com o
+   PARABENS e o resumo do que cada fase rendeu.
 
    O chao de tudo (fase 1) continua sendo o mesmo:
 
@@ -143,19 +142,36 @@
        os dois da frente; no 3 os quatro. Nunca mais do que isso: fantasma bem
        mais rapido que o come-come nao e dificuldade, e beco sem saida.
      - `irParaFase(n)` carrega um dos tres e comeca do zero. Ele so CARREGA;
-       quem manda na ordem, no bonus e na tela de Parabens e a corrida das tres
-       fases, que e a fase 6b do plano.
+       quem manda na ordem, no bonus e na tela de Parabens e a corrida.
+
+   E o que a fase 6b poe por cima:
+
+     - `Corrida`: o caderninho da partida solo - quanto cada labirinto rendeu,
+       o bonus de 500 por deixa-lo sem nenhuma pastilha de pe, o total ate
+       agora e qual e o proximo. Puro como o resto, e com uma regra so: a
+       corrida anda para a FRENTE. Ou fecha uma fase e abre a seguinte, ou para
+       na terceira - nao existe voltar, nem fase 4.
+     - Limpar o labirinto 1 ou o 2 sobe o quadro LABIRINTO LIMPO, com o que a
+       fase rendeu, o bonus e o botao que abre o proximo. O mundo fica
+       congelado atras dele: quem troca de labirinto e o clique, e nao o
+       relogio.
+     - Limpar o 3 fecha a corrida e traz o PARABENS, com uma linha por fase
+       ("pastilhas + bonus = total"), o total das tres e o botao de jogar de
+       novo - que zera o caderno, enche as vidas e volta para o labirinto 1.
+     - O HUD continua contando os pontos DA FASE, e nao os da corrida: e o
+       numero que a crianca acompanha enquanto joga. O total da corrida so
+       aparece nas telas de fim - a de Parabens e a de fim de jogo.
 
    Todo labirinto tem 28 colunas por 31 linhas de quadrados de 16px - 448 x 496
    pixels, que e o tamanho de dentro do canvas. O tamanho de FORA (o quanto ele
    aparece na tela) e escolhido pelo CSS, mantendo a proporcao: as contas do
    jogo acontecem sempre nos mesmos 448 x 496, em qualquer aparelho.
 
-   A tela ainda entra direto no jogo, sem menu (fase 7), e uma fase limpa ainda
-   nao chama a seguinte (fase 6b). O que da para fazer hoje e uma partida de
-   fliperama inteira dentro de qualquer um dos tres labirintos: comer as
-   pastilhas todas fugindo dos quatro, virar o jogo com a bolota do canto e -
-   quando eles alcancam - perder as tres vidas ate a tela de fim de jogo.
+   A tela ainda entra direto no jogo, sem menu e sem pausa (isso e a fase 7).
+   O que da para fazer hoje e a partida solo INTEIRA: os tres labirintos em
+   fila, comendo as pastilhas todas e fugindo dos quatro, virando o jogo com a
+   bolota do canto - e ou se chega ao PARABENS com o total das tres fases, ou
+   os fantasmas cobram as tres vidas antes disso.
    ========================================================================== */
 
 (function () {
@@ -326,6 +342,13 @@
   var PONTOS_PODER = 50;                  // a pastilha de poder (efeito: fase 4)
   var VIDAS_INICIAIS = 3;                 // tres tombos e a partida solo acaba
   var TOTAL_FASES = 3;                    // os tres labirintos do jogo (fase 6a)
+
+  /* O premio por deixar um labirinto sem nenhuma pastilha de pe. Sao 50
+     pastilhas de bonus: o bastante para a crianca sentir que limpar o
+     labirinto vale mais do que so as pastilhas que ela comeu, e pouco o
+     bastante para nao virar o jogo de cabeca para baixo - com 244 pastilhas na
+     mesa, quem joga bem continua ganhando pelo que comeu. */
+  var PONTOS_LIMPOU = 500;
 
   // ------------------------------------------------------------ As direcoes -
   /* A ordem importa: e ela que vira numero quando a direcao viajar pela rede,
@@ -1815,6 +1838,61 @@
     };
   }());
 
+  // ------------------------------------------------------------ A corrida ---
+  /* O caderninho da partida solo: os tres labirintos sao UMA corrida so, e e
+     aqui que ela e anotada.
+
+       { fase: 2,          // qual labirinto vem agora
+         fases: [ … ],     // uma linha por labirinto ja limpo
+         total: 2940,      // a soma de todas as linhas
+         terminada: false} // o terceiro labirinto ja foi limpo?
+
+     Cada linha guarda o que o labirinto rendeu:
+
+         { numero: 1, pontos: 2440, bonus: 500, total: 2940 }
+
+     `pontos` sao as pastilhas e os fantasmas daquele labirinto (o mesmo numero
+     que estava no HUD na hora em que a ultima pastilha sumiu) e `bonus` e o
+     premio fixo por limpar. O modulo e puro como o resto - `concluir()`
+     devolve um estado NOVO - e a regra de ouro mora aqui: a corrida so anda
+     para a FRENTE, e para na terceira. */
+  var Corrida = (function () {
+
+    /** O comeco de tudo: labirinto 1, caderno em branco. */
+    function novoEstado() {
+      return { fase: 1, fases: [], total: 0, terminada: false };
+    }
+
+    /**
+     * Fecha o labirinto `numero` com os `pontos` que ele rendeu e abre o
+     * seguinte. No terceiro nao ha seguinte: a corrida termina, e a tela de
+     * Parabens monta o resumo com `fases` e `total`.
+     */
+    function concluir(estado, numero, pontos) {
+      var linha = {
+        numero: numero,
+        pontos: pontos,
+        bonus: PONTOS_LIMPOU,
+        total: pontos + PONTOS_LIMPOU
+      };
+      var ultima = numero >= TOTAL_FASES;
+      return {
+        // Nunca para tras: ou anda um labirinto, ou para no ultimo.
+        fase: ultima ? TOTAL_FASES : numero + 1,
+        fases: estado.fases.concat([linha]),
+        total: estado.total + linha.total,
+        terminada: ultima
+      };
+    }
+
+    return {
+      novoEstado: novoEstado,
+      concluir: concluir,
+      PONTOS_LIMPOU: PONTOS_LIMPOU,
+      TOTAL_FASES: TOTAL_FASES
+    };
+  }());
+
   // ------------------------------------------------------- O labirinto 1 ----
   /* O primeiro dos tres labirintos do jogo: corredores largos, quatro
      pastilhas de poder nos cantos e um tunel na linha do meio. A casa dos
@@ -1960,6 +2038,7 @@
       Fantasmas: Fantasmas,
       Poder: Poder,
       Rodada: Rodada,
+      Corrida: Corrida,
       Sorteio: Sorteio,
       Ciclos: Ciclos,
       Personalidades: Personalidades,
@@ -1983,7 +2062,8 @@
         PASSOS_A_FRENTE: PASSOS_A_FRENTE, DISTANCIA_TIMIDO: DISTANCIA_TIMIDO,
         SEMENTE_PADRAO: SEMENTE_PADRAO,
         PONTOS_PASTILHA: PONTOS_PASTILHA, PONTOS_PODER: PONTOS_PODER,
-        VIDAS_INICIAIS: VIDAS_INICIAIS, TOTAL_FASES: TOTAL_FASES
+        VIDAS_INICIAIS: VIDAS_INICIAIS, TOTAL_FASES: TOTAL_FASES,
+        PONTOS_LIMPOU: PONTOS_LIMPOU
       }
     };
   }
@@ -2075,15 +2155,24 @@
     fase: $('hud-fase'),
     faltam: $('hud-faltam'),
 
-    // A tela provisoria de fim de fase (o encadeamento e a fase 6b do plano).
+    // Fim de fase: um labirinto limpo, e o botao que abre o proximo.
     telaFase: $('tela-fase'),
     faseNumero: $('fase-numero'),
     fasePontos: $('fase-pontos'),
+    faseBonus: $('fase-bonus'),
+    faseProxima: $('fase-proxima'),
+    btnProxima: $('btn-proxima'),
 
     // Fim de jogo: as tres vidas acabaram.
     telaFim: $('tela-fim'),
     fimPontos: $('fim-pontos'),
-    fimFase: $('fim-fase')
+    fimFase: $('fim-fase'),
+
+    // Parabens: os tres labirintos limpos, com o resumo da corrida.
+    telaParabens: $('tela-parabens'),
+    parabensFases: [$('parabens-fase-1'), $('parabens-fase-2'), $('parabens-fase-3')],
+    parabensTotal: $('parabens-total'),
+    btnDeNovo: $('btn-de-novo')
   };
 
   /** As paredes: bloco cheio, com brilho so nas beiradas que dao para o chao. */
@@ -2358,7 +2447,8 @@
     ciclo: Ciclos.novoEstado(labirinto.dificuldade),  // dispersar ou cacar, e ha quanto tempo
     miras: Personalidades.novoEstado(),      // a semente e o alvo sorteado do laranja
     poder: Poder.novoEstado(),               // o cronometro da pastilha de poder
-    rodada: Rodada.novoEstado()              // as vidas e a pausa do tombo
+    rodada: Rodada.novoEstado(),             // as vidas e a pausa do tombo
+    corrida: Corrida.novoEstado()            // o caderninho dos tres labirintos
   };
 
   // O estado vivo, para os testes dirigirem o jogo sem navegador.
@@ -2491,8 +2581,8 @@
    *
    * Este e o degrau de baixo: ele CARREGA uma fase, nao decide qual vem
    * depois. Quem manda na ordem (o bonus por limpar, a proxima, a tela de
-   * Parabens) e a corrida das tres fases, que e a fase 6b do plano. Os testes
-   * chamam esta funcao direto para entrar na 2 ou na 3 sem jogar as
+   * Parabens) e a corrida - o `Corrida` e o `avancarFase()` logo abaixo. Os
+   * testes chamam esta funcao direto para entrar na 2 ou na 3 sem jogar as
    * anteriores.
    */
   function irParaFase(numero) {
@@ -2521,6 +2611,7 @@
 
     el.telaFase.classList.add('hidden');
     el.telaFim.classList.add('hidden');
+    el.telaParabens.classList.add('hidden');
     atualizarHud();
   }
 
@@ -2550,22 +2641,73 @@
    */
   function fimDeJogo() {
     jogo.tela = 'fim';
-    el.fimPontos.textContent = String(jogo.pontos);
+    // Os pontos que aparecem sao os da CORRIDA inteira: o que os labirintos ja
+    // limpos renderam (com os bonus) mais o que esta rolando neste aqui.
+    el.fimPontos.textContent = String(jogo.corrida.total + jogo.pontos);
     el.fimFase.textContent = String(jogo.fase);
     el.telaFim.classList.remove('hidden');
   }
 
   /**
-   * A ultima pastilha sumiu: o labirinto esta limpo e a fase acabou. Por ora a
-   * tela so mostra o que a fase rendeu e o mundo congela - quem encadeia o
-   * labirinto seguinte e a corrida das tres fases (fase 6b do plano).
+   * A ultima pastilha sumiu: o labirinto esta limpo. A fase e fechada no
+   * caderninho da corrida - com os pontos dela e o bonus por limpar - e dai
+   * saem dois caminhos: nos labirintos 1 e 2 sobe o quadro "LABIRINTO LIMPO",
+   * com o botao que abre o proximo; no 3 a corrida acaba, e o que sobe e o
+   * PARABENS com o resumo das tres.
    */
   function concluirFase() {
     jogo.tela = 'fase';
+    jogo.corrida = Corrida.concluir(jogo.corrida, jogo.fase, jogo.pontos);
+
+    if (jogo.corrida.terminada) { mostrarParabens(); return; }
+
     el.faseNumero.textContent = String(jogo.fase);
     el.fasePontos.textContent = String(jogo.pontos);
+    el.faseBonus.textContent = '+' + PONTOS_LIMPOU;
+    el.faseProxima.textContent = String(jogo.corrida.fase);
     el.telaFase.classList.remove('hidden');
   }
+
+  /**
+   * Os tres labirintos limpos: a tela de PARABENS, com uma linha por fase
+   * ("pastilhas + bonus = total") e o total da corrida embaixo.
+   */
+  function mostrarParabens() {
+    jogo.tela = 'parabens';
+    for (var i = 0; i < el.parabensFases.length; i++) {
+      var linha = jogo.corrida.fases[i];
+      el.parabensFases[i].textContent = linha
+        ? linha.pontos + ' + ' + linha.bonus + ' = ' + linha.total
+        : '—';
+    }
+    el.parabensTotal.textContent = String(jogo.corrida.total);
+    el.telaFase.classList.add('hidden');
+    el.telaParabens.classList.remove('hidden');
+  }
+
+  /**
+   * O botao do quadro de fim de fase. Ele so anda para a FRENTE, e so depois
+   * de um labirinto limpo: clicar no meio da fase (ou depois do Parabens) nao
+   * leva a lugar nenhum. Qual e a proxima quem diz e o caderninho.
+   */
+  function avancarFase() {
+    if (jogo.tela !== 'fase' || jogo.corrida.terminada) return;
+    irParaFase(jogo.corrida.fase);
+  }
+
+  /**
+   * O botao da tela de Parabens: caderno em branco, vidas cheias e de volta ao
+   * labirinto 1. E o unico jeito de a corrida voltar para tras - recomecando
+   * do zero.
+   */
+  function recomecarCorrida() {
+    jogo.corrida = Corrida.novoEstado();
+    jogo.rodada = Rodada.novoEstado();
+    irParaFase(1);
+  }
+
+  el.btnProxima.addEventListener('click', avancarFase);
+  el.btnDeNovo.addEventListener('click', recomecarCorrida);
 
   // ----------------------------------------------------------------- HUD ----
   /* Pontos, vidas, fase e quantas pastilhas faltam ficam no HTML (fora do

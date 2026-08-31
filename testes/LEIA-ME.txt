@@ -48,6 +48,8 @@ sem abrir navegador.
     node testes/come_come/fase5-tela.test.mjs        perder as tres vidas ate o fim de jogo
     node testes/come_come/fase6a.test.mjs            os tres desenhos e a tabela de dificuldade
     node testes/come_come/fase6a-tela.test.mjs       os labirintos 2 e 3 ate ficarem limpos
+    node testes/come_come/fase6b.test.mjs            a corrida das 3 fases e o bonus
+    node testes/come_come/fase6b-tela.test.mjs       uma partida inteira, 1 -> 2 -> 3
 
 O harness.mjs de cada pasta tem o carregador e o corredor de testes. O do
 super_adventure tambem sabe subir o servidor das salas de verdade numa porta
