@@ -1,0 +1,24 @@
+Aqui fica o certificado do HTTPS da Central - e opcional.
+
+Ele so e preciso para instalar a Central como app no Android (o Chrome so
+instala, e so liga o modo sem rede, num endereco https). No iPhone e no iPad
+o "Adicionar a Tela de Inicio" do Safari funciona sem nada disto.
+
+Gere o par de arquivos aqui dentro (troque o IP pelo do computador da Central):
+
+    openssl req -x509 -newkey rsa:2048 -sha256 -days 3650 -nodes \
+      -keyout certificados/chave.pem -out certificados/cert.pem \
+      -subj "/CN=Central de Jogos" \
+      -addext "subjectAltName=IP:192.168.0.10,DNS:localhost"
+
+    (no Git Bash do Windows, comece o comando com  MSYS_NO_PATHCONV=1 )
+
+Depois, no .env:
+
+    HTTPS_CERT=/app/certificados/cert.pem
+    HTTPS_CHAVE=/app/certificados/chave.pem
+
+e "docker compose up -d". O passo a passo inteiro - inclusive como fazer cada
+aparelho confiar no certificado - esta no README, em "Instalar no celular".
+
+Os .pem nao entram no git (estao no .gitignore): a chave e sua.

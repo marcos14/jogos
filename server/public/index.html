@@ -6,9 +6,21 @@
 <title>Central de Jogos</title>
 <meta name="description" content="Catálogo de jogos da família.">
 <link rel="stylesheet" href="/estilo.css">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎮</text></svg>">
+
+<!-- A Central como app: o manifesto diz o nome, a cor e os ícones; as metas
+     apple-* fazem o iPhone abrir sem a barra do Safari; o apple-touch-icon é
+     o ícone que ele usa (o iPhone ignora os do manifesto). -->
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#ff5fa2">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Central de Jogos">
+<link rel="apple-touch-icon" href="/icones/apple-touch-icon.png">
+<link rel="icon" href="/icones/icone.svg" type="image/svg+xml">
+<link rel="icon" href="/icones/icone-192.png" type="image/png" sizes="192x192">
 </head>
-<body>
+<body data-pwa="catalogo">
 
 <div class="envolve">
 
@@ -25,6 +37,8 @@
       <input id="busca" type="search" placeholder="Procurar jogo…" autocomplete="off">
     </div>
 
+    <!-- Some quando a Central já está aberta como app (pwa.js cuida). -->
+    <button id="btn-instalar" type="button" class="botao" hidden>📲 Instalar</button>
     <a class="botao claro" href="/admin">⚙️ Admin</a>
   </header>
 
@@ -47,6 +61,49 @@
 
 </div>
 
+<!-- O passo a passo de instalar, para quando o navegador não oferece o
+     pedido nativo. O pwa.js mostra só o bloco que serve para o aparelho. -->
+<dialog id="dialogo-instalar" class="dialogo" aria-labelledby="instalar-titulo">
+  <h2 id="instalar-titulo">📲 Instalar a Central</h2>
+
+  <div data-modo="ios" hidden>
+    <p>No iPhone e no iPad é pelo <b>Safari</b>:</p>
+    <ol>
+      <li>Toque em <b>Compartilhar</b> (o quadrado com a seta para cima).</li>
+      <li>Role a lista e toque em <b>Adicionar à Tela de Início</b>.</li>
+      <li>Confirme em <b>Adicionar</b>. Pronto: o 🎮 aparece junto dos outros apps.</li>
+    </ol>
+  </div>
+
+  <div data-modo="inseguro" hidden>
+    <p>O Android só instala apps de endereço <b>https</b>, e a Central está
+       aberta em <b>http</b>. Dois jeitos de resolver:</p>
+    <ol>
+      <li><b>Ligar o HTTPS da Central</b> (está no README, em <i>Instalar no
+          celular</i>) e abrir o app por esse endereço.</li>
+      <li><b>Só neste aparelho:</b> no Chrome, abra
+          <code>chrome://flags/#unsafely-treat-insecure-origin-as-secure</code>,
+          cole o endereço abaixo, marque <b>Enabled</b> e reinicie o Chrome.
+          Depois volte aqui e toque em Instalar de novo.</li>
+    </ol>
+    <input class="endereco" type="text" readonly aria-label="Endereço da Central">
+    <p class="dica">Enquanto isso, dá para ter um atalho: menu ⋮ do navegador →
+       <b>Adicionar à tela inicial</b>.</p>
+  </div>
+
+  <div data-modo="manual" hidden>
+    <p>No menu do navegador (⋮ ou ⋯), toque em <b>Instalar app</b> ou
+       <b>Adicionar à tela inicial</b>.</p>
+    <p class="dica">Se não aparecer, é porque a Central já está instalada
+       neste aparelho: procure o 🎮 entre os apps.</p>
+  </div>
+
+  <div class="acoes">
+    <button type="button" class="botao fechar">Entendi</button>
+  </div>
+</dialog>
+
 <script src="/catalogo.js"></script>
+<script src="/pwa.js"></script>
 </body>
 </html>

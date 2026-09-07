@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sem conexão</title>
+<meta name="theme-color" content="#ff5fa2">
+<link rel="stylesheet" href="/estilo.css">
+<link rel="icon" href="/icones/icone.svg" type="image/svg+xml">
+</head>
+<body>
+<!-- O service worker mostra esta pagina quando alguem abre, sem rede, algo
+     que ainda nao foi guardado neste aparelho. O catalogo em si e os jogos ja
+     jogados abrem normalmente: eles nunca caem aqui. -->
+<div class="envolve">
+  <div class="vazio" style="padding-top:18vh">
+    <span class="emoji">📴</span>
+    <h1 style="margin:0 0 8px">Sem conexão com a Central</h1>
+    <p>Isto ainda não foi guardado neste aparelho. Confira o Wi-Fi da casa
+       (e se o computador da Central está ligado) e tente de novo.</p>
+    <p style="margin-top:20px">
+      <button type="button" class="botao" onclick="location.reload()">🔄 Tentar de novo</button>
+      <a class="botao claro" href="/">🎮 Voltar ao catálogo</a>
+    </p>
+    <p class="dica">Os jogos que já foram jogados aqui continuam abrindo sem rede.</p>
+  </div>
+</div>
+</body>
+</html>

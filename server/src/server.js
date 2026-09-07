@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import https from 'node:https';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import express from 'express';
@@ -15,6 +16,7 @@ import {
   podeTentar, registrarFalha, limparTentativas,
 } from './auth.js';
 import { montarRotas as montarPlataforma, montarWebSocket } from './plataforma/index.js';
+import { montarPwa } from './pwa.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -58,6 +60,11 @@ app.get('/api/jogos/:slug', async (req, res) => {
 
 // ------------------------------------------- Plataforma (salas, SDK, etc.)
 montarPlataforma(app);
+
+// --------------------------------------- A Central como app (PWA)
+// Manifesto montado na hora e o service worker sem cache HTTP. Precisa vir
+// antes do express.static, que senão entregaria o sw.js com cache.
+montarPwa(app);
 
 // ---------------------------------------------------------- Sessão do admin
 app.get('/api/sessao', (req, res) => res.json({ logado: estaLogado(req) }));
@@ -248,3 +255,39 @@ const servidor = app.listen(config.porta, '0.0.0.0', () => {
 
 // O canal das salas mora no mesmo servidor HTTP (mesma porta, mesma origem).
 montarWebSocket(servidor);
+
+// ------------------------------------------------------- HTTPS (opcional)
+// O Android só instala a Central como app (e só liga o service worker) num
+// endereço https. Com HTTPS_CERT e HTTPS_CHAVE apontando para um certificado,
+// a mesma Central sobe também numa segunda porta, segura — salas inclusive
+// (o SDK troca ws:// por wss:// sozinho). O http continua no ar: é o que o
+// healthcheck do Docker e os atalhos antigos usam.
+async function subirHttps() {
+  if (!config.httpsCert && !config.httpsChave) return;
+
+  let seguro;
+  try {
+    seguro = https.createServer({
+      cert: await fs.readFile(config.httpsCert),
+      key: await fs.readFile(config.httpsChave),
+    }, app);
+  } catch (erro) {
+    console.warn(`  HTTPS desligado: não consegui usar o certificado (${erro.message}).
+`);
+    return;
+  }
+
+  seguro.on('error', (erro) => {
+    console.warn(`  HTTPS desligado: ${erro.code === 'EADDRINUSE' ? `a porta ${config.portaHttps} já está ocupada` : erro.message}.
+`);
+  });
+
+  seguro.listen(config.portaHttps, '0.0.0.0', () => {
+    const porta = config.portaHttpsPublica || config.portaHttps;
+    console.log(`  HTTPS    : https://localhost:${porta}/   (é por aqui que se instala como app)
+`);
+  });
+  montarWebSocket(seguro);
+}
+
+subirHttps();

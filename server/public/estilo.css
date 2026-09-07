@@ -52,6 +52,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
   max-width: 1180px;
   margin: 0 auto;
   padding: 22px clamp(14px, 3vw, 32px) 64px;
+  /* Instalada como app, a Central abre sem a barra do navegador: o topo
+     encosta no recorte da câmera e o pé, na barrinha de gestos. */
+  padding-top: max(22px, env(safe-area-inset-top));
+  padding-bottom: max(64px, env(safe-area-inset-bottom));
 }
 
 .pular { position: absolute; left: -9999px; }
@@ -250,7 +254,8 @@ label { display: block; font-weight: 700; margin-bottom: 6px; font-size: .92rem;
   border-radius: 999px;
 }
 
-/* Selos da plataforma: multijogador, faixa etária… */
+/* Selos da plataforma: multijogador, faixa etária… e, sem rede, o aviso de
+   que o jogo ainda não foi guardado neste aparelho. */
 .capa .selos {
   position: absolute;
   bottom: 10px;
@@ -270,6 +275,9 @@ label { display: block; font-weight: 700; margin-bottom: 6px; font-size: .92rem;
 }
 
 .capa .selo.adulto { background: #c0392b; }
+.capa .selo.rede { background: rgba(214, 59, 59, .85); }
+
+.cartao.sem-rede .capa { filter: grayscale(.6); }
 
 .corpo { padding: 14px 16px 18px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
 .corpo h2 { margin: 0; font-size: 1.15rem; letter-spacing: -.01em; }
@@ -349,3 +357,36 @@ label { display: block; font-weight: 700; margin-bottom: 6px; font-size: .92rem;
 }
 
 .rodape a { font-weight: 700; }
+
+/* ------------------------------------------------------- instalar (PWA) --- */
+/* A caixa com o passo a passo de instalar, quando o navegador não oferece o
+   pedido nativo (iPhone, ou um endereço http no Android). */
+.dialogo {
+  max-width: min(92vw, 460px);
+  padding: clamp(18px, 3vw, 28px);
+  border: 2px solid var(--borda);
+  border-radius: var(--raio);
+  background: var(--papel);
+  color: var(--tinta);
+  box-shadow: var(--sombra);
+  line-height: 1.5;
+}
+
+.dialogo::backdrop { background: rgba(20, 16, 30, .55); }
+.dialogo h2 { margin: 0 0 10px; font-size: 1.3rem; }
+.dialogo p { margin: 0 0 10px; }
+.dialogo ol { margin: 0 0 10px; padding-left: 22px; }
+.dialogo li { margin-bottom: 6px; }
+.dialogo code { font-size: .85em; word-break: break-all; }
+
+.dialogo .endereco {
+  width: 100%;
+  padding: 10px 12px;
+  border: 2px solid var(--borda);
+  border-radius: 12px;
+  background: var(--fundo-2);
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: .95rem;
+}
+
+.dialogo .acoes { display: flex; justify-content: flex-end; margin-top: 14px; }

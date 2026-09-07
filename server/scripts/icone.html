@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Ícone da Central</title>
+<!--
+  A fonte dos ícones do app (server/public/icones/*.png). Não é servido pela
+  Central: o gerar-icones.mjs abre este arquivo no Chrome headless e tira uma
+  foto do quadrado, num tamanho e num "modo" passados pela URL:
+
+    ?tamanho=512&modo=normal     cantos arredondados, fora deles transparente
+    ?tamanho=512&modo=maskable   quadrado inteiro; o emoji menor, dentro da
+                                 zona segura que o Android não recorta
+    ?tamanho=180&modo=apple      quadrado inteiro; o iPhone arredonda sozinho
+
+  O visual é o mesmo do logo do catálogo (.marca .logo no estilo.css): o
+  gradiente amarelo → rosa com o 🎮 no meio.
+-->
+<style>
+  html, body { margin: 0; background: transparent; }
+  #icone {
+    display: grid;
+    place-items: center;
+    line-height: 1;
+    font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
+    background: linear-gradient(150deg, #ffd166, #ff5fa2);
+  }
+</style>
+</head>
+<body>
+<div id="icone">🎮</div>
+<script>
+  var q = new URLSearchParams(location.search);
+  var tamanho = Number(q.get('tamanho')) || 512;
+  var modo = q.get('modo') || 'normal';
+  var el = document.getElementById('icone');
+  el.style.width = el.style.height = tamanho + 'px';
+  el.style.borderRadius = modo === 'normal' ? Math.round(tamanho * 0.22) + 'px' : '0';
+  // O maskable pode ser recortado em círculo pelo Android: só o miolo
+  // (um círculo de 80% do lado) é garantido, então o emoji fica menor.
+  el.style.fontSize = Math.round(tamanho * (modo === 'maskable' ? 0.45 : 0.58)) + 'px';
+</script>
+</body>
+</html>

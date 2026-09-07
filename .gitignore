@@ -6,3 +6,6 @@ jogos/_antigo-*/
 *.log
 .DS_Store
 Thumbs.db
+certificados/*.pem
+certificados/*.key
+certificados/*.crt

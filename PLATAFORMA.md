@@ -185,7 +185,8 @@ Mensagens do canal (JSON, sempre com `t`):
 A plataforma não tem login nem senha: quem está na mesma rede e sabe o código
 entra na sala. É de propósito — é o mesmo nível de confiança do resto da Central
 de Jogos. Para expor na internet, coloque um proxy com HTTPS na frente (o SDK já
-troca `ws://` por `wss://` sozinho) e trate a rede como pública.
+troca `ws://` por `wss://` sozinho) e trate a rede como pública. O HTTPS da
+própria Central (`HTTPS_CERT`/`HTTPS_CHAVE`, no README) também serve as salas.
 
 ---
 

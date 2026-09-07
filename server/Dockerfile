@@ -14,7 +14,8 @@ COPY public ./public
 RUN mkdir -p /app/jogos /app/tmp
 VOLUME ["/app/jogos"]
 
-EXPOSE 3000
+# 3000 = http; 3443 = https (so responde se HTTPS_CERT/HTTPS_CHAVE forem dados)
+EXPOSE 3000 3443
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD wget -qO- http://127.0.0.1:3000/api/saude >/dev/null 2>&1 || exit 1
