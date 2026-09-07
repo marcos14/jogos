@@ -3371,6 +3371,16 @@
     return !!(document.fullscreenElement || document.webkitFullscreenElement);
   }
 
+  /* O iPhone nao tem tela cheia de pagina (so de video), e um iframe sem
+     `allowfullscreen` tambem nao: nesses lugares o botao some, em vez de
+     ficar ali sem fazer nada quando a crianca aperta. */
+  function telaCheiaDisponivel() {
+    if (document.fullscreenEnabled !== undefined) return !!document.fullscreenEnabled;
+    if (document.webkitFullscreenEnabled !== undefined) return !!document.webkitFullscreenEnabled;
+    var raiz = document.documentElement;
+    return !!(raiz && (raiz.requestFullscreen || raiz.webkitRequestFullscreen));
+  }
+
   /* Tela cheia pela API do navegador, pedida para o documento inteiro: assim
      funciona tanto com o jogo aberto direto quanto dentro do iframe do
      catalogo (`/jogar/super_adventure`), que ja vem com `allowfullscreen`. */
@@ -3387,6 +3397,7 @@
      usuario pode sair pelo ESC, sem passar por aqui). */
   function aoMudarTelaCheia() {
     var cheia = emTelaCheia();
+    exibir(el.btnTelaCheia, telaCheiaDisponivel());
     el.btnTelaCheia.textContent = cheia ? '🗗' : '⛶';
     el.btnTelaCheia.title = cheia ? 'Sair da tela cheia (F)' : 'Tela cheia (F)';
     el.btnTelaCheia.setAttribute('aria-label',
@@ -4240,16 +4251,39 @@
 
   // ------------------------------------------------------- Tamanho da tela --
   // O canvas tem sempre 960x540 por dentro; aqui so escolhemos de que tamanho
-  // ele aparece, mantendo a proporcao.
+  // ele aparece, mantendo a proporcao: o maior que couber na janela depois de
+  // descontar o que esta em volta dele.
+  //
+  //   - `sobra` e o que fica EM FLUXO em cima e embaixo (o HUD em pe, o
+  //     rodape). Deitado, o HUD e absoluto e nao entra na conta;
+  //   - `--banda` e a faixa que o CSS pode reservar de cada lado (aqui e zero:
+  //     o HUD translucido pode ficar por cima do ceu);
+  //   - a folga vertical e o padding de verdade do body (zero no celular),
+  //     lido do estilo em vez de chutado;
+  //   - a largura escolhida volta para o CSS em `--palco-l`: deitado, o HUD
+  //     encosta no palco por ela.
+  function folgaVertical() {
+    if (!window.getComputedStyle || !document.body) return 16;
+    var estilo = window.getComputedStyle(document.body);
+    return (parseFloat(estilo.paddingTop) || 0) + (parseFloat(estilo.paddingBottom) || 0);
+  }
+
+  function bandaLateral() {
+    if (!window.getComputedStyle) return 0;
+    return parseFloat(window.getComputedStyle(el.app).getPropertyValue('--banda')) || 0;
+  }
+
   function ajustarPalco() {
     el.palco.style.width = '';
     el.palco.style.height = '';
     var sobra = el.app.offsetHeight - el.palco.offsetHeight;
-    var dispL = el.app.clientWidth;
-    var dispA = window.innerHeight - sobra - 16;
+    var dispL = el.app.clientWidth - 2 * bandaLateral();
+    var dispA = window.innerHeight - sobra - folgaVertical();
     var escala = Math.max(0.2, Math.min(dispL / LARGURA, dispA / ALTURA));
-    el.palco.style.width = Math.floor(LARGURA * escala) + 'px';
+    var largura = Math.floor(LARGURA * escala);
+    el.palco.style.width = largura + 'px';
     el.palco.style.height = Math.floor(ALTURA * escala) + 'px';
+    if (el.app.style.setProperty) el.app.style.setProperty('--palco-l', largura + 'px');
   }
 
   window.addEventListener('resize', ajustarPalco);

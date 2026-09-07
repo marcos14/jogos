@@ -1,6 +1,20 @@
 /* ==========================================================================
    Come-Come - visual 8-bit: cores chapadas, cantos vivos, nada de desfoque
    nem degradê. Tudo em pixel grande, como nos fliperamas antigos.
+
+   O palco manda na tela: ele pega o maior tamanho que couber, e tudo o que
+   não é labirinto (HUD, botões, cruzeta) é translúcido e fica em volta dele,
+   sem roubar espaço:
+
+     - DEITADO (o normal no computador, e o que a Central pede no celular): o
+       HUD vira uma coluna na faixa da esquerda e a cruzeta fica na faixa da
+       direita. O palco pega a altura inteira. O JS lê `--banda` para reservar
+       essas faixas, de modo que nada fique por cima das pastilhas;
+     - EM PÉ: o HUD é uma faixa em cima do palco e a cruzeta, uma faixa
+       embaixo, as duas em fluxo.
+
+   O canto de cima à direita da tela é da Central (o Voltar dela mora ali,
+   deitado): nada importante do jogo fica nele.
    ========================================================================== */
 
 :root{
@@ -13,6 +27,12 @@
   --branco:   #fcfcfc;
   --cinza:    #6c6c74;
   --vermelho: #d02020;
+
+  /* O "vidro" dos controles: escuro e translúcido, com borda clara. */
+  --vidro:         rgba(13, 13, 23, .62);
+  --vidro-borda:   rgba(252, 252, 252, .85);
+  --vidro-amarelo: rgba(252, 216, 0, .78);
+  --vidro-claro:   rgba(252, 252, 252, .42);
 }
 
 *{ box-sizing: border-box; }
@@ -37,28 +57,35 @@ body{
 }
 
 #app{
-  width: min(100%, 900px);
+  position: relative;
+  width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
+  /* A faixa reservada de cada lado do palco, deitado (o JS lê daqui) e a
+     largura do palco (o JS escreve aqui), para o HUD encostar nele. */
+  --banda: 0px;
+  --palco-l: 0px;
 }
 
 /* ------------------------------------------------------------------- HUD -- */
 /* Os números ficam FORA do canvas, em HTML de verdade: assim eles crescem
    junto com a tela e continuam legíveis no celular, sem depender do zoom do
-   labirinto. */
+   labirinto. Em pé é uma faixa em cima do palco; deitado, uma coluna do lado. */
 #hud{
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
   justify-content: center;
   width: 100%;
+  z-index: 5;
+  pointer-events: none;      /* as caixas deixam o dedo passar; so os botoes recebem clique */
 }
 
 .hud-box{
-  background: var(--preto);
-  border: 3px solid var(--branco);
+  background: var(--vidro);
+  border: 3px solid var(--vidro-borda);
   padding: 2px 10px;
   min-width: 86px;
   text-align: center;
@@ -91,10 +118,12 @@ body{
   width: 44px;
   height: 44px;
   color: var(--preto);
-  background: var(--amarelo);
-  border: 3px solid var(--branco);
+  background: var(--vidro-amarelo);
+  border: 3px solid var(--vidro-borda);
   cursor: pointer;
   padding: 0;
+  pointer-events: auto;
+  touch-action: manipulation;
 }
 
 .botao-icone:active{ background: var(--branco); }
@@ -105,7 +134,8 @@ body{
   line-height: 0;
   border: 4px solid var(--azul);
   background: var(--preto);
-  /* No dedo, arrastar em cima do palco é jogo, nunca rolagem nem zoom. */
+  /* No dedo, arrastar em cima do palco é jogo (o deslize), nunca rolagem nem
+     zoom. */
   touch-action: none;
 }
 
@@ -119,7 +149,8 @@ body{
 
 /* --------------------------------------------------- Caixa dos controles -- */
 /* Um cartaz no canto de baixo à direita do palco, por cima do canvas. Não
-   recebe clique (`pointer-events: none`) para nunca roubar o toque do jogo. */
+   recebe clique (`pointer-events: none`) para nunca roubar o toque do jogo.
+   Só existe em aparelho com teclado: no dedo entra a cruzeta no lugar dele. */
 #controles{
   position: absolute;
   right: 8px;
@@ -127,8 +158,8 @@ body{
   display: flex;
   gap: 8px;
   align-items: center;
-  background: rgba(13, 13, 23, .78);
-  border: 3px solid var(--branco);
+  background: var(--vidro);
+  border: 3px solid var(--vidro-borda);
   padding: 4px 9px;
   font-size: clamp(8px, 1.6vw, 11px);
   line-height: 1.4;
@@ -140,6 +171,56 @@ body{
 #controles b{ color: var(--amarelo); }
 #controles .separador{ color: var(--cinza); }
 
+/* ------------------------------------------------------------- A cruzeta -- */
+/* As quatro setas do dedo, em cruz. Deitado ela fica na faixa da direita do
+   palco, na altura do polegar; em pé, numa faixa embaixo dele. A grade não
+   recebe toque nenhum (`pointer-events: none`): quem recebe são as setas. */
+#toque{
+  --seta: 44px;
+  display: grid;
+  grid-template-columns: repeat(3, var(--seta));
+  grid-template-rows: repeat(3, var(--seta));
+  gap: 6px;
+  z-index: 6;
+  pointer-events: none;
+}
+
+/* Translúcida, para o labirinto continuar aparecendo por baixo se um dia ela
+   ficar por cima dele. `touch-action: none` desliga o rolar e o zoom de dois
+   toques do navegador em cima das setas. */
+.toque-botao{
+  font-family: inherit;
+  font-size: 20px;
+  line-height: 1;
+  width: var(--seta);
+  height: var(--seta);
+  padding: 0;
+  color: var(--preto);
+  background: var(--vidro-claro);
+  border: 3px solid var(--vidro-borda);
+  box-shadow: 3px 3px 0 rgba(13, 13, 23, .45);
+  cursor: pointer;
+  pointer-events: auto;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;   /* segurar a seta não abre menu do sistema */
+}
+
+.toque-cima{     grid-column: 2; grid-row: 1; }
+.toque-esquerda{ grid-column: 1; grid-row: 2; }
+.toque-direita{  grid-column: 3; grid-row: 2; }
+.toque-baixo{    grid-column: 2; grid-row: 3; }
+
+/* A seta apertada acende em amarelo cheio e afunda. A classe é posta pelo
+   game.js (e não `:active`) porque um dedo que ARRASTA de uma seta para a
+   outra precisa acender a nova. */
+.toque-botao.apertado{
+  background: var(--amarelo);
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 rgba(13, 13, 23, .45);
+}
+
 /* ----------------------------------------------------------------- Telas -- */
 /* As telas que sobem POR CIMA do labirinto: o menu, a pausa, o fim de fase, o
    fim de jogo e o PARABÉNS. Elas ocupam o palco inteiro, com o mundo congelado
@@ -147,6 +228,7 @@ body{
 .tela{
   position: absolute;
   inset: 0;
+  z-index: 10;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -230,6 +312,7 @@ body{
   padding: 12px 22px;
   margin-top: 6px;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .botao:active{
@@ -294,6 +377,8 @@ body{
 
 .ajuda li{ margin: 4px 0; }
 .ajuda b{ color: var(--amarelo); }
+/* A linha do dedo só aparece em aparelho de dedo; as das teclas, só com teclado. */
+.ajuda .so-toque{ display: none; }
 
 /* ------------------------------------------------------------- A sala -- */
 /* A tarja da sala: o motivo de uma partida em grupo ter acabado, o erro que o
@@ -350,8 +435,8 @@ body{
 .hud-placar li{
   min-width: 84px;
   max-width: 132px;
-  background: var(--preto);
-  border: 3px solid var(--branco);
+  background: var(--vidro);
+  border: 3px solid var(--vidro-borda);
   padding: 3px 7px;
   font-size: 11px;
   letter-spacing: 1px;
@@ -427,19 +512,99 @@ html:-webkit-full-screen body{ padding: 0; background: var(--preto); }
   opacity: .85;
 }
 
-/* Telas bem baixinhas (celular deitado): o rodapé sai da frente para o
-   labirinto ficar com a altura toda, e os painéis se apertam para o botão não
-   ficar fora da tela. */
-@media (max-height: 420px){
+/* ==========================================================================
+   DEITADO: o HUD vira coluna na faixa da esquerda, encostado no palco; a
+   cruzeta vai para a faixa da direita, na altura do polegar. Os dois saem do
+   fluxo, e o palco fica com a altura inteira.
+   ========================================================================== */
+@media (orientation: landscape){
+  #app{ --banda: 148px; }
+
+  /* A coluna encosta no palco pela DIREITA dela, e quando nao cabe na altura
+     (sala cheia) quebra para a esquerda - nunca por cima das pastilhas. E o
+     `direction: rtl` que faz a quebra ir para esse lado; os filhos voltam ao
+     normal. */
+  #hud{
+    position: absolute;
+    top: 0;
+    right: calc(50% + var(--palco-l) / 2 + 12px);
+    width: 132px;
+    max-height: 100%;
+    flex-direction: column;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    justify-content: flex-start;
+    gap: 6px;
+    direction: rtl;
+  }
+  #hud > *{ direction: ltr; }
+
+  .hud-box{ width: 132px; min-width: 0; padding: 3px 6px; }
+  .hud-label{ font-size: 9px; letter-spacing: 1px; }
+  .hud-botoes{ width: 132px; justify-content: center; }
+  .hud-placar{ width: 132px; flex-direction: column; flex-wrap: nowrap; }
+  .hud-placar li{ min-width: 0; max-width: none; }
+
+  #toque{
+    position: absolute;
+    right: 0;
+    bottom: 0;
+  }
+}
+
+/* ==========================================================================
+   APARELHO DE DEDO: setas maiores, nada de teclado na ajuda, e o rodapé (que
+   fala de teclas) sai. Deitado, a faixa da direita cresce para a cruzeta.
+   ========================================================================== */
+@media (pointer: coarse){
   #rodape{ display: none; }
-  .hud-label{ font-size: 9px; }
-  .botao-icone{ width: 38px; height: 38px; font-size: 15px; }
+  .ajuda .teclado{ display: none; }
+  .ajuda .so-toque{ display: list-item; }
+  #toque{ --seta: 56px; }
+  .toque-botao{ font-size: 24px; }
+}
+
+@media (pointer: coarse) and (orientation: landscape){
+  #app{ --banda: 196px; }
+}
+
+/* ==========================================================================
+   TELA BAIXINHA (celular deitado, janela pequena): sem rodapé, painéis
+   apertados e as telas (menu, pausa, fim) por cima da janela inteira - no
+   palco só, elas não caberiam. A ajuda vira duas colunas.
+   ========================================================================== */
+@media (max-height: 520px){
+  body{ padding: 0; }
+  #app{ gap: 4px; }
+  #rodape{ display: none; }
+  .tela{ position: fixed; }
+  .painel{ max-width: 620px; }
+  .titulo{ margin-bottom: 6px; }
   .subtitulo{ margin-bottom: 10px; }
   .resumo li{ padding: 2px 8px; border-bottom-width: 2px; }
   .legenda{ margin-bottom: 8px; }
   .botao{ padding: 8px 18px; }
   .botoes{ gap: 10px; margin-bottom: 8px; }
-  .ajuda{ margin-top: 10px; }
+  .ajuda{ margin-top: 10px; columns: 2; column-gap: 18px; text-align: left; }
+  .ajuda li{ break-inside: avoid; }
   #campo-apelido{ margin-bottom: 8px; padding: 5px 8px; }
   #controles{ padding: 2px 6px; gap: 6px; }
+  .botao-icone{ width: 40px; height: 40px; font-size: 16px; }
+}
+
+/* ==========================================================================
+   EM PÉ E ESTREITO (celular em pé): sem folga nas bordas, HUD miúdo numa
+   faixa só e a cruzeta logo abaixo do palco.
+   ========================================================================== */
+@media (orientation: portrait) and (max-width: 560px){
+  body{ padding: 4px; }
+  #app{ gap: 6px; }
+  #hud{ gap: 4px; }
+  .hud-box{ min-width: 66px; padding: 2px 6px; }
+  .hud-label{ font-size: 8px; letter-spacing: 1px; }
+  .hud-box strong{ font-size: 14px; }
+  .botao-icone{ width: 40px; height: 40px; font-size: 16px; }
+  #toque{ --seta: 50px; }
+  .tela{ position: fixed; }
+  #rodape{ display: none; }
 }

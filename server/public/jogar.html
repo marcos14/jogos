@@ -19,6 +19,7 @@
   html, body { height: 100%; overflow: hidden; }
 
   #palco {
+    position: relative;
     display: flex;
     flex-direction: column;
     height: 100dvh;
@@ -64,25 +65,117 @@
     background: #12101a;
   }
 
-  /* Em tela cheia a barra vira uma pílula discreta no canto. */
-  #palco:fullscreen #barra {
-    position: fixed;
-    top: 8px;
-    left: 8px;
+  /* ------------------------------------------------------------------------
+     A barra por cima do jogo: pílulas translúcidas no canto de cima à direita.
+     É o mesmo desenho em três situações em que a altura é o que falta: em
+     tela cheia, num aparelho de dedo deitado e em qualquer janela baixinha.
+     O jogo fica com a tela inteira; sobram o Voltar e o Tela cheia, meio
+     transparentes, acendendo quando o dedo (ou o mouse) chega perto. Os jogos
+     sabem que este canto é da Central e não põem nada importante nele.
+     ------------------------------------------------------------------------ */
+  #palco:fullscreen #barra,
+  #palco.compacta #barra {
+    position: absolute;
+    top: max(6px, env(safe-area-inset-top));
+    right: max(6px, env(safe-area-inset-right));
+    left: auto;
     z-index: 10;
     padding: 4px;
     gap: 4px;
     border: none;
     border-radius: 999px;
-    background: rgba(20, 16, 30, .55);
-    opacity: .35;
+    background: rgba(20, 16, 30, .45);
+    opacity: .55;
     transition: opacity .2s ease;
   }
 
   #palco:fullscreen #barra:hover,
-  #palco:fullscreen #barra:focus-within { opacity: 1; }
+  #palco:fullscreen #barra:focus-within,
+  #palco:fullscreen #barra:active,
+  #palco.compacta #barra:hover,
+  #palco.compacta #barra:focus-within,
+  #palco.compacta #barra:active { opacity: 1; }
+
   #palco:fullscreen #barra .nome,
-  #palco:fullscreen #barra .espaco { display: none; }
+  #palco:fullscreen #barra .espaco,
+  #palco:fullscreen #barra .rotulo,
+  #palco.compacta #barra .nome,
+  #palco.compacta #barra .espaco,
+  #palco.compacta #barra .rotulo { display: none; }
+
+  #palco:fullscreen #barra .botao,
+  #palco.compacta #barra .botao {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    font-size: 1.05rem;
+    background: rgba(255, 255, 255, .88);
+    color: #2f2440;
+  }
+
+  /* Deitado, o recorte da câmera fica num dos lados: o jogo é afastado dele. */
+  #palco.compacta {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  /* Aparelho de dedo em pé: a altura sobra, então a barra continua no fluxo,
+     só mais magra - o nome do jogo fica, os rótulos dos botões saem. */
+  #palco.magra #barra { padding-top: max(4px, env(safe-area-inset-top)); padding-bottom: 4px; gap: 8px; }
+  #palco.magra #barra .rotulo { display: none; }
+  #palco.magra #barra .botao { padding: 7px 12px; }
+  #palco.magra #barra .nome { font-size: .95rem; }
+
+  /* ------------------------------------------------------------------------
+     "Gire o celular": o cartão que sobe num celular em pé. Os jogos são feitos
+     para a tela deitada; quando dá, a Central gira sozinha (no app instalado e
+     em tela cheia no Android), e quando não dá, pede. Sai sozinho quando o
+     aparelho deita e nunca volta a incomodar na mesma partida.
+     ------------------------------------------------------------------------ */
+  #girar {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(20, 16, 30, .88);
+    color: #fff;
+    text-align: center;
+  }
+
+  #girar .girar-caixa {
+    max-width: 340px;
+  }
+
+  #girar .telefone {
+    display: inline-block;
+    font-size: 4.4rem;
+    line-height: 1;
+    margin-bottom: 8px;
+    animation: deitar 2.2s ease-in-out infinite;
+  }
+
+  @keyframes deitar {
+    0%, 20% { transform: rotate(0deg); }
+    55%, 80% { transform: rotate(-90deg); }
+    100% { transform: rotate(0deg); }
+  }
+
+  #girar h2 { margin: 0 0 6px; font-size: 1.5rem; }
+  #girar p { margin: 0 0 18px; color: rgba(255, 255, 255, .8); }
+
+  #girar .acoes {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: stretch;
+  }
+
+  #girar .botao.claro { background: transparent; color: #fff; border-color: rgba(255, 255, 255, .5); }
 </style>
 </head>
 <body data-pwa="jogo">
@@ -97,6 +190,18 @@
 
   <iframe id="quadro" title="Jogo" allow="fullscreen; autoplay; gamepad; accelerometer; gyroscope"
           allowfullscreen></iframe>
+
+  <div id="girar" hidden role="dialog" aria-labelledby="girar-titulo">
+    <div class="girar-caixa">
+      <span class="telefone" aria-hidden="true">📱</span>
+      <h2 id="girar-titulo">Gire o celular</h2>
+      <p>Este jogo fica melhor com a tela deitada.</p>
+      <div class="acoes">
+        <button class="botao" id="btn-girar">⛶ Girar e jogar</button>
+        <button class="botao claro" id="btn-em-pe">Jogar em pé mesmo</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -104,6 +209,9 @@
   const palco = document.getElementById('palco');
   const quadro = document.getElementById('quadro');
   const btnTela = document.getElementById('btn-tela');
+  const girar = document.getElementById('girar');
+  const btnGirar = document.getElementById('btn-girar');
+  const btnEmPe = document.getElementById('btn-em-pe');
   const slug = decodeURIComponent(location.pathname.split('/').filter(Boolean)[1] || '');
 
   fetch(`/api/jogos/${encodeURIComponent(slug)}`)
@@ -120,13 +228,100 @@
   // Sem o foco no iframe o teclado não chega ao jogo.
   quadro.addEventListener('load', () => quadro.focus());
 
+  // ------------------------------------------------------------ a tela ----
+  // O que este aparelho é: dedo ou mouse, celular ou tablet, em pé ou deitado.
+  // "Celular" é aparelho de dedo com o lado menor abaixo de 600px - a mesma
+  // régua que o Android usa para separar celular de tablet.
+  const consulta = (q) => (window.matchMedia ? matchMedia(q) : { matches: false });
+  // Safari antigo so tem o addListener; o tablet velho da casa merece o mesmo cuidado.
+  const aoMudar = (mq, fn) => {
+    if (mq.addEventListener) mq.addEventListener('change', fn);
+    else if (mq.addListener) mq.addListener(fn);
+  };
+  const deDedo = consulta('(pointer: coarse)');
+  const emPe = consulta('(orientation: portrait)');
+  const baixinha = consulta('(max-height: 520px)');
+  const ehCelular = () => deDedo.matches && Math.min(screen.width, screen.height) < 600;
+  const podeTelaCheia = Boolean(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+
+  // A barra: por cima do jogo quando a altura é o que falta (dedo deitado ou
+  // janela baixinha), magra num aparelho de dedo em pé, e a de sempre no resto.
+  function ajustarBarra() {
+    const compacta = (deDedo.matches && !emPe.matches) || baixinha.matches;
+    palco.classList.toggle('compacta', compacta);
+    palco.classList.toggle('magra', !compacta && deDedo.matches);
+  }
+
+  // ------------------------------------------------- deitar o celular ----
+  // A trava de orientação só é aceita pelo navegador em tela cheia ou com a
+  // Central instalada como app (e o iPhone não tem nenhuma das duas). Então:
+  // tenta na hora (o app instalado gira sozinho), tenta de novo a cada entrada
+  // em tela cheia - inclusive a pedida pelo botão do próprio jogo, que também
+  // chega aqui pelo fullscreenchange - e, quando nada disso dá, pede para a
+  // criança girar, com o botão que entra em tela cheia e gira de uma vez.
+  let dispensado = false;
+
+  async function travarPaisagem() {
+    if (!ehCelular()) return false;
+    try {
+      await screen.orientation.lock('landscape');
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function destravar() {
+    try { screen.orientation.unlock(); } catch { /* navegador sem a API */ }
+  }
+
+  function atualizarAviso() {
+    if (!emPe.matches) dispensado = true;     // deitou uma vez: não incomoda mais
+    girar.hidden = !(ehCelular() && emPe.matches && !dispensado);
+    ajustarBarra();
+  }
+
+  async function entrarEmTelaCheia() {
+    if (document.fullscreenElement) return;
+    await palco.requestFullscreen();
+  }
+
+  btnGirar.hidden = !podeTelaCheia;
+  btnGirar.addEventListener('click', async () => {
+    try { await entrarEmTelaCheia(); } catch { /* navegador recusou */ }
+    if (!(await travarPaisagem())) dispensado = true;   // não dá para girar aqui: segue em pé
+    atualizarAviso();
+    quadro.focus();
+  });
+
+  btnEmPe.addEventListener('click', () => {
+    dispensado = true;
+    atualizarAviso();
+    quadro.focus();
+  });
+
+  document.addEventListener('fullscreenchange', () => {
+    if (document.fullscreenElement) travarPaisagem().then(atualizarAviso);
+    else destravar();
+  });
+
+  aoMudar(emPe, atualizarAviso);
+  aoMudar(deDedo, ajustarBarra);
+  aoMudar(baixinha, ajustarBarra);
+  window.addEventListener('pagehide', destravar);
+
+  // ------------------------------------------------------- tela cheia ----
+  btnTela.hidden = !podeTelaCheia;
   btnTela.addEventListener('click', async () => {
     try {
       if (document.fullscreenElement) await document.exitFullscreen();
-      else await palco.requestFullscreen();
+      else await entrarEmTelaCheia();
       quadro.focus();
     } catch { /* navegador recusou: segue na tela normal */ }
   });
+
+  ajustarBarra();
+  travarPaisagem().then(atualizarAviso);
 })();
 </script>
 <script src="/pwa.js"></script>

@@ -23,7 +23,9 @@
 
        O HUD nasce escondido: no menu não há pontos, nem vidas, nem nada para
        pausar. Ele entra junto com o labirinto, quando a partida começa — pelo
-       "JOGAR SOZINHO" ou pela sala da Central. -->
+       "JOGAR SOZINHO" ou pela sala da Central. As caixas são translúcidas e
+       ficam em volta do palco (coluna do lado, deitado; faixa em cima, em pé):
+       o style.css explica. -->
   <header id="hud" class="hidden">
     <div class="hud-box">
       <span class="hud-label">Pontos</span>
@@ -65,7 +67,8 @@
     <ol id="hud-placar" class="hud-placar hidden" aria-label="Placar da sala"></ol>
 
     <!-- Os dois botões da partida. Eles moram no HUD, então só aparecem com o
-         labirinto em andamento — no menu não há nada para pausar. -->
+         labirinto em andamento — no menu não há nada para pausar. O de tela
+         cheia some sozinho onde o navegador não tem tela cheia (iPhone). -->
     <div class="hud-botoes">
       <button id="btn-pausa" type="button" class="botao-icone"
               title="Pausar (P ou ESC)" aria-label="Pausar">⏸</button>
@@ -78,13 +81,16 @@
   <!-- O canvas tem por dentro o tamanho exato do labirinto (28 x 31 quadrados
        de 16px = 448 x 496). O CSS só decide de que tamanho ele APARECE, sempre
        na mesma proporção: assim as posições são as mesmas em qualquer tela —
-       que é o que vai deixar anfitrião e convidado batendo certo lá na frente. -->
+       que é o que vai deixar anfitrião e convidado batendo certo lá na frente.
+       No dedo, arrastar em cima dele é o DESLIZE: pede a curva na direção em
+       que o dedo andou. -->
   <div id="palco">
     <canvas id="tela" width="448" height="496"></canvas>
 
     <!-- Lembrete dos controles, no canto de baixo à direita. Fica só com o
-         labirinto rolando; qualquer tela por cima (menu, pausa, fim de fase)
-         o esconde. Não recebe clique: é só um cartaz. -->
+         labirinto rolando e só em aparelho com teclado (no dedo entra a
+         cruzeta no lugar dele); qualquer tela por cima (menu, pausa, fim de
+         fase) o esconde. Não recebe clique: é só um cartaz. -->
     <aside id="controles" class="hidden">
       <span><b>← ↑ → ↓</b> = Virar</span>
       <span class="separador">|</span>
@@ -118,7 +124,8 @@
     <!-- Tela inicial: é por onde o jogo começa, pelas duas portas. O nome fica
          guardado no aparelho (localStorage) para a criança não ter que digitar
          de novo a cada partida — e é ele que vira o apelido dela na sala da
-         Central. -->
+         Central. As linhas de ajuda que falam de tecla só aparecem em aparelho
+         com teclado; a do dedo, só em aparelho de dedo (classes do CSS). -->
     <section id="tela-menu" class="tela">
       <div class="painel">
         <h1 class="titulo">COME<br><span class="destaque">COME</span></h1>
@@ -139,8 +146,9 @@
         </div>
 
         <ul class="ajuda">
-          <li><b>&larr; &uarr; &rarr; &darr;</b> ou <b>W A S D</b> — virar nas esquinas</li>
-          <li><b>P</b> ou <b>ESC</b> — pausar &nbsp;·&nbsp; <b>F</b> — tela cheia</li>
+          <li class="teclado"><b>&larr; &uarr; &rarr; &darr;</b> ou <b>W A S D</b> — virar nas esquinas</li>
+          <li class="teclado"><b>P</b> ou <b>ESC</b> — pausar &nbsp;·&nbsp; <b>F</b> — tela cheia</li>
+          <li class="so-toque">📱 <b>deslize</b> o dedo no labirinto ou use as <b>setas na tela</b></li>
           <li>🟡 coma todas as pastilhas para limpar o labirinto</li>
           <li>⬤ a bolota grande deixa os fantasmas azuis: corra atrás deles!</li>
           <li>👥 <b>JOGAR COM AMIGOS</b> abre uma sala para até 5 na rede de casa</li>
@@ -204,6 +212,23 @@
         <button id="btn-de-novo" type="button" class="botao">JOGAR DE NOVO</button>
       </div>
     </section>
+  </div>
+
+  <!-- ------------------------------------------------------- A cruzeta ---- -->
+  <!-- As quatro setas do dedo (fase 15). Só aparecem em aparelho de dedo, com
+       o labirinto rolando, e no lugar do cartaz dos controles. Deitado, o CSS
+       as leva para a faixa à direita do palco; em pé, elas ficam nesta faixa
+       aqui embaixo. Encostar numa seta pede a curva — não precisa segurar. A
+       grade em si não recebe toque: quem recebe são as quatro setas. -->
+  <div id="toque" class="hidden" aria-label="Setas de toque">
+    <button id="toque-cima" type="button" class="toque-botao toque-cima"
+            aria-label="Virar para cima">▲</button>
+    <button id="toque-esquerda" type="button" class="toque-botao toque-esquerda"
+            aria-label="Virar para a esquerda">◀</button>
+    <button id="toque-direita" type="button" class="toque-botao toque-direita"
+            aria-label="Virar para a direita">▶</button>
+    <button id="toque-baixo" type="button" class="toque-botao toque-baixo"
+            aria-label="Virar para baixo">▼</button>
   </div>
 
   <footer id="rodape">Setas ou W A S D para virar nas esquinas — coma todas as pastilhas e use o túnel dos lados. Morda uma bolota grande e os fantasmas ficam azuis: aí é você que corre atrás deles! Quando eles piscarem em branco, o feitiço está acabando — e aí é melhor correr: encostar num fantasma bravo custa uma vida. <b>P</b> ou <b>ESC</b> pausa, <b>F</b> abre em tela cheia. Limpe os três labirintos para chegar ao PARABÉNS!</footer>

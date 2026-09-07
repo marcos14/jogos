@@ -187,6 +187,13 @@
      - O CARTAZ dos controles no canto de baixo do palco, so com o labirinto
        rolando: qualquer tela que suba por cima (menu, pausa, fim de fase, fim
        de jogo, Parabens) o esconde.
+     - OS CONTROLES DE TOQUE (fase 15): num aparelho de dedo o cartaz das
+       setas nao serve para nada, e no lugar dele entram a CRUZETA (quatro
+       setas translucidas no canto do palco) e o DESLIZE (arrastar o dedo em
+       cima do labirinto na direcao da curva). Os dois escrevem no mesmo
+       `entrada.desejada` do teclado, pelo mesmo `pedirDirecao()`: a fisica e
+       a rede nao ficam sabendo de onde veio o pedido. A geometria do deslize
+       e o modulo puro `Toque`, testavel sem DOM.
      - Perder o foco PAUSA sozinho, e girar o aparelho so refaz a conta do
        tamanho do palco. Nem um nem outro toca em uma linha do mundo: a partida
        continua exatamente de onde parou.
@@ -2886,9 +2893,54 @@
   // O labirinto que esta em jogo agora.
   var labirinto = mapas[0];
 
+  // --------------------------------------------------------------- O toque --
+  /* No celular e no tablet nao existe seta: existe um dedo no vidro. O que ele
+     faz aqui e pedir uma curva - a mesma coisa que a seta do teclado pede -, e
+     ha dois jeitos de pedir: encostar numa das quatro setas da cruzeta, ou
+     DESLIZAR o dedo em cima do labirinto na direcao em que quer virar.
+
+     Este modulo e a geometria do deslize: dado o quanto o dedo andou desde
+     onde encostou, diz se aquilo ja e um pedido de curva e para que lado. A
+     regra e simples de proposito, porque quem desliza e uma crianca:
+
+       - o dedo precisa andar pelo menos `minimo` pixels (um tremor nao vira
+         o come-come);
+       - vale o eixo em que ele andou MAIS: um deslize meio torto para a
+         direita e "direita", nao "direita e um pouco para baixo".
+
+     Puro: nao sabe nada de DOM nem de eventos. */
+  var Toque = (function () {
+
+    var DIRECOES = ['esquerda', 'direita', 'cima', 'baixo'];
+
+    /**
+     * A direcao de um deslize de (dx, dy) pixels, ou null se ainda foi
+     * curto demais para contar. Empate exato entre os eixos vale o horizontal
+     * - e o que o labirinto tem mais.
+     */
+    function direcaoDoDeslize(dx, dy, minimo) {
+      var ax = Math.abs(dx), ay = Math.abs(dy);
+      if (Math.max(ax, ay) < minimo) return null;
+      if (ax >= ay) return dx < 0 ? 'esquerda' : 'direita';
+      return dy < 0 ? 'cima' : 'baixo';
+    }
+
+    function ehDirecao(dir) {
+      for (var i = 0; i < DIRECOES.length; i++) if (DIRECOES[i] === dir) return true;
+      return false;
+    }
+
+    return {
+      direcaoDoDeslize: direcaoDoDeslize,
+      ehDirecao: ehDirecao,
+      DIRECOES: DIRECOES
+    };
+  }());
+
   // Aberto para os testes em Node. Nada disto depende de DOM.
   if (typeof window !== 'undefined') {
     window.ComeCome = {
+      Toque: Toque,
       Mapa: Mapa,
       Movimento: Movimento,
       Pastilhas: Pastilhas,
@@ -3065,6 +3117,15 @@
     campoApelido: $('campo-apelido'),
     btnJogar: $('btn-jogar'),
     controles: $('controles'),
+    // A cruzeta de toque (fase 15): quatro setas por cima do palco, so em
+    // aparelho de dedo - e no lugar do cartaz, que ali nao serve para nada.
+    toque: $('toque'),
+    setas: [
+      { elemento: $('toque-cima'), dir: 'cima' },
+      { elemento: $('toque-esquerda'), dir: 'esquerda' },
+      { elemento: $('toque-direita'), dir: 'direita' },
+      { elemento: $('toque-baixo'), dir: 'baixo' }
+    ],
     telaPausa: $('tela-pausa'),
     btnContinuar: $('btn-continuar'),
     btnRecomecar: $('btn-recomecar'),
@@ -4084,7 +4145,10 @@
      nas telas de fim ha sempre um quadro por cima, e o lembrete atras dele so
      sujaria a tela. */
   function atualizarControles() {
-    exibir(el.controles, jogo.tela === 'jogando' && !jogo.pausado);
+    var rolando = jogo.tela === 'jogando' && !jogo.pausado;
+    exibir(el.controles, rolando && !toqueLigado);
+    exibir(el.toque, rolando && toqueLigado);
+    if (!rolando) apagarSetas();
   }
 
   /* Pausar so faz sentido com um labirinto em andamento: no menu nao ha o que
@@ -4139,6 +4203,16 @@
     return !!(document.fullscreenElement || document.webkitFullscreenElement);
   }
 
+  /* O iPhone nao tem tela cheia de pagina (so de video), e um iframe sem
+     `allowfullscreen` tambem nao: nesses lugares o botao some, em vez de
+     ficar ali sem fazer nada quando a crianca aperta. */
+  function telaCheiaDisponivel() {
+    if (document.fullscreenEnabled !== undefined) return !!document.fullscreenEnabled;
+    if (document.webkitFullscreenEnabled !== undefined) return !!document.webkitFullscreenEnabled;
+    var raiz = document.documentElement;
+    return !!(raiz && (raiz.requestFullscreen || raiz.webkitRequestFullscreen));
+  }
+
   /* Tela cheia pela API do navegador, pedida para o documento inteiro: assim
      funciona tanto com o jogo aberto direto quanto dentro do iframe do
      catalogo (`/jogar/come_come`), que ja vem com `allowfullscreen`. */
@@ -4156,6 +4230,7 @@
      porque a janela acabou de mudar de tamanho. */
   function aoMudarTelaCheia() {
     var cheia = emTelaCheia();
+    exibir(el.btnTelaCheia, telaCheiaDisponivel());
     el.btnTelaCheia.textContent = cheia ? '🗗' : '⛶';
     el.btnTelaCheia.title = cheia ? 'Sair da tela cheia (F)' : 'Tela cheia (F)';
     el.btnTelaCheia.setAttribute('aria-label',
@@ -4858,11 +4933,137 @@
     var dir = TECLAS[ev.key];
     if (!dir) return;
     ev.preventDefault();
-    // No menu, na pausa e nas telas de fim a seta nao guarda nada: sem isto,
-    // uma tecla apertada atras do quadro viraria o come-come na volta.
-    if (jogo.tela !== 'jogando' || jogo.pausado) return;
-    entrada.desejada = dir;
+    pedirDirecao(dir);
   });
+
+  /* O pedido de curva, venha da seta, da cruzeta ou do deslize. So vale com o
+     labirinto rolando: no menu, na pausa e nas telas de fim ele nao guarda
+     nada - sem isto, um toque atras do quadro viraria o come-come na volta. */
+  function pedirDirecao(dir) {
+    if (!Toque.ehDirecao(dir)) return false;
+    if (jogo.tela !== 'jogando' || jogo.pausado) return false;
+    entrada.desejada = dir;
+    return true;
+  }
+
+  // ------------------------------------------------- Controles de toque ---
+  /* No tablet e no celular nao ha seta: a curva e pedida com o dedo, de dois
+     jeitos que escrevem no MESMO `entrada.desejada` do teclado (pelo
+     `pedirDirecao()` ali em cima) - a fisica e a rede nao ficam sabendo de
+     onde veio o pedido.
+
+       - A CRUZETA: quatro setas translucidas por cima do palco. Encostar numa
+         e pedir a curva; arrastar o polegar de uma seta para a outra sem
+         levantar tambem vale (por isso a captura implicita do ponteiro e
+         solta no `pointerdown`, como nos botoes do Super Adventure).
+       - O DESLIZE: arrastar o dedo em cima do labirinto. Quando ele anda
+         `DESLIZE_MINIMO` pixels, a direcao em que andou mais vira o pedido, e
+         a conta recomeca dali - o dedo pode mudar de ideia sem sair da tela.
+
+     Os eventos sao os de ponteiro (`pointer*`), que valem para dedo, caneta
+     e mouse de uma vez so. O aparelho e "de dedo" quando o ponteiro grosso
+     (`pointer: coarse`) responde que sim - e, como rede de seguranca, no
+     primeiro toque de verdade em qualquer canto da pagina. */
+  var DESLIZE_MINIMO = 24;             // pixels de tela, nao do labirinto
+  var toqueLigado = aparelhoDeToque();
+  var deslize = null;                  // o dedo arrastando no palco: { id, x, y }
+
+  function aparelhoDeToque() {
+    var nav = window.navigator;
+    if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) return true;
+    if (nav && (nav.maxTouchPoints | 0) > 0) return true;
+    return 'ontouchstart' in window;
+  }
+
+  /* Liga ou desliga o modo dedo. Ligado, a cruzeta entra e o cartaz das setas
+     sai: ele fala de teclas que num aparelho sem teclado nao existem. */
+  function definirToque(ligado) {
+    if (toqueLigado === ligado) return;
+    toqueLigado = ligado;
+    atualizarControles();
+  }
+
+  function acenderSeta(elemento) {
+    for (var i = 0; i < el.setas.length; i++) {
+      var s = el.setas[i].elemento;
+      if (!s) continue;
+      if (s === elemento) s.classList.add('apertado');
+      else s.classList.remove('apertado');
+    }
+  }
+
+  function apagarSetas() { acenderSeta(null); }
+
+  function ligarSeta(elemento, dir) {
+    if (!elemento) return;
+    elemento.addEventListener('pointerdown', function (ev) {
+      ev.preventDefault();
+      if (ev.stopPropagation) ev.stopPropagation();   // nao e um deslize no palco
+      if (elemento.hasPointerCapture && elemento.releasePointerCapture &&
+          elemento.hasPointerCapture(ev.pointerId)) {
+        elemento.releasePointerCapture(ev.pointerId);
+      }
+      if (ev.pointerType === 'touch') definirToque(true);
+      acenderSeta(elemento);
+      pedirDirecao(dir);
+    });
+    // O dedo entrou arrastando, vindo da seta do lado. Um mouse so passeando
+    // por cima (nenhum botao apertado) nao conta.
+    elemento.addEventListener('pointerenter', function (ev) {
+      if (!ev.buttons) return;
+      acenderSeta(elemento);
+      pedirDirecao(dir);
+    });
+    elemento.addEventListener('pointerleave', function () {
+      elemento.classList.remove('apertado');
+    });
+  }
+
+  for (var iSeta = 0; iSeta < el.setas.length; iSeta++) {
+    ligarSeta(el.setas[iSeta].elemento, el.setas[iSeta].dir);
+  }
+
+  /* O deslize: comeca com o dedo encostando no palco (e nao numa seta nem num
+     quadro por cima - com o labirinto parado nao ha o que virar). */
+  el.palco.addEventListener('pointerdown', function (ev) {
+    if (jogo.tela !== 'jogando' || jogo.pausado) return;
+    if (ev.pointerType === 'touch') definirToque(true);
+    deslize = { id: ev.pointerId, x: ev.clientX || 0, y: ev.clientY || 0 };
+  });
+
+  el.palco.addEventListener('pointermove', function (ev) {
+    if (!deslize || ev.pointerId !== deslize.id) return;
+    var x = ev.clientX || 0, y = ev.clientY || 0;
+    var dir = Toque.direcaoDoDeslize(x - deslize.x, y - deslize.y, DESLIZE_MINIMO);
+    if (!dir) return;
+    if (ev.preventDefault) ev.preventDefault();
+    pedirDirecao(dir);
+    deslize.x = x;                     // a conta recomeca de onde o dedo esta
+    deslize.y = y;
+  });
+
+  function soltarDedo(ev) {
+    if (deslize && (!ev || ev.pointerId === undefined || ev.pointerId === deslize.id)) {
+      deslize = null;
+    }
+    apagarSetas();
+  }
+
+  // Soltar e sempre na JANELA: o dedo pode terminar fora do palco.
+  window.addEventListener('pointerup', soltarDedo);
+  window.addEventListener('pointercancel', soltarDedo);
+
+  // A rede de seguranca da deteccao: um toque em qualquer canto da pagina ja
+  // prova que este aparelho e de dedo (navegador antigo, notebook hibrido).
+  window.addEventListener('pointerdown', function (ev) {
+    if (ev.pointerType === 'touch') definirToque(true);
+  }, true);
+
+  // Os testes dirigem o toque por aqui.
+  window.ComeCome.toqueLigado = function () { return toqueLigado; };
+  window.ComeCome.definirToque = function (ligado) { definirToque(ligado); };
+  window.ComeCome.pedirDirecao = function (dir) { return pedirDirecao(dir); };
+  window.ComeCome.DESLIZE_MINIMO = DESLIZE_MINIMO;
 
   /* Perder o foco pausa sozinho (a crianca trocou de aba, chegou uma ligacao,
      o tablet apagou a tela): ninguem volta e encontra as tres vidas gastas por
@@ -4880,16 +5081,41 @@
 
   // ------------------------------------------------------- Tamanho da tela --
   // O canvas tem sempre 448x496 por dentro; aqui so escolhemos de que tamanho
-  // ele aparece, mantendo a proporcao.
+  // ele aparece, mantendo a proporcao: o maior que couber na janela depois de
+  // descontar o que esta em volta dele.
+  //
+  //   - `sobra` e o que fica EM FLUXO em cima e embaixo (o HUD em pe, a
+  //     cruzeta em pe, o rodape). Deitado, o HUD e a cruzeta sao absolutos e
+  //     nao entram na conta - eles moram nas faixas dos lados;
+  //   - `--banda` e a faixa que o CSS reserva de cada lado quando o aparelho
+  //     esta deitado, para o HUD e a cruzeta nao ficarem por cima das
+  //     pastilhas. Em pe o CSS zera a faixa;
+  //   - a folga vertical e o padding de verdade do body (zero no celular),
+  //     lido do estilo em vez de chutado;
+  //   - a largura escolhida volta para o CSS em `--palco-l`: deitado, o HUD
+  //     encosta no palco por ela.
+  function folgaVertical() {
+    if (!window.getComputedStyle || !document.body) return 16;
+    var estilo = window.getComputedStyle(document.body);
+    return (parseFloat(estilo.paddingTop) || 0) + (parseFloat(estilo.paddingBottom) || 0);
+  }
+
+  function bandaLateral() {
+    if (!window.getComputedStyle) return 0;
+    return parseFloat(window.getComputedStyle(el.app).getPropertyValue('--banda')) || 0;
+  }
+
   function ajustarPalco() {
     el.palco.style.width = '';
     el.palco.style.height = '';
     var sobra = el.app.offsetHeight - el.palco.offsetHeight;
-    var dispL = el.app.clientWidth;
-    var dispA = window.innerHeight - sobra - 16;
+    var dispL = el.app.clientWidth - 2 * bandaLateral();
+    var dispA = window.innerHeight - sobra - folgaVertical();
     var escala = Math.max(0.2, Math.min(dispL / LARGURA, dispA / ALTURA));
-    el.palco.style.width = Math.floor(LARGURA * escala) + 'px';
+    var largura = Math.floor(LARGURA * escala);
+    el.palco.style.width = largura + 'px';
     el.palco.style.height = Math.floor(ALTURA * escala) + 'px';
+    if (el.app.style.setProperty) el.app.style.setProperty('--palco-l', largura + 'px');
   }
 
   /* Girar o aparelho nao mexe no mundo - so na conta do tamanho do palco. A

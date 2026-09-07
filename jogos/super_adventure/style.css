@@ -1,6 +1,20 @@
 /* ==========================================================================
    Super Adventure - visual 8-bit: cores chapadas, cantos vivos, nada de
    desfoque nem degrade. Tudo em pixel grande, como nos consoles antigos.
+
+   O palco manda na tela: ele pega o maior tamanho que couber, e tudo o que
+   nao e fase (HUD, botoes, controles de toque) e translucido e fica POR CIMA
+   ou em volta dele, sem roubar espaco:
+
+     - DEITADO (o normal no computador, e o que a Central pede no celular): o
+       HUD vira uma coluna translucida encostada na esquerda do palco (por
+       cima do ceu, se nao houver faixa sobrando) e os botoes de toque ficam
+       nos cantos de baixo da TELA, um para cada polegar;
+     - EM PE: o HUD e uma faixa em cima do palco, e os botoes continuam nos
+       cantos de baixo da tela.
+
+   O canto de cima a direita da tela e da Central (o Voltar dela mora ali,
+   deitado): nada importante do jogo fica nele.
    ========================================================================== */
 
 :root{
@@ -14,6 +28,12 @@
   --branco:   #fcfcfc;
   --preto:    #0d0d17;
   --cinza:    #6c6c74;
+
+  /* O "vidro" dos controles: escuro e translucido, com borda clara. */
+  --vidro:         rgba(13, 13, 23, .62);
+  --vidro-borda:   rgba(252, 252, 252, .85);
+  --vidro-amarelo: rgba(252, 216, 0, .78);
+  --vidro-claro:   rgba(252, 252, 252, .42);
 }
 
 *{ box-sizing: border-box; }
@@ -38,29 +58,39 @@ body{
 }
 
 #app{
-  width: min(100%, 1200px);
+  position: relative;
+  width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 6px;
+  /* A faixa reservada de cada lado do palco (o JS le daqui; aqui e zero: o
+     HUD pode ficar por cima do ceu) e a largura do palco (o JS escreve aqui),
+     para o HUD encostar nele deitado. */
+  --banda: 0px;
+  --palco-l: 0px;
 }
 
 /* ------------------------------------------------------------------- HUD -- */
+/* Translucido e sem roubar toque: as caixas deixam o dedo passar para o
+   palco; so os botoes recebem clique. */
 #hud{
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
   justify-content: center;
   width: 100%;
+  z-index: 5;
+  pointer-events: none;
 }
 
 .hud-box{
-  background: var(--preto);
-  border: 3px solid var(--branco);
+  background: var(--vidro);
+  border: 3px solid var(--vidro-borda);
   padding: 2px 10px;
   min-width: 90px;
   text-align: center;
-  /* Os botões são mais altos que os números; a coluna centralizada mantém as
+  /* Os botoes sao mais altos que os numeros; a coluna centralizada mantem as
      caixas alinhadas com eles, sem sobra em cima nem embaixo. */
   display: flex;
   flex-direction: column;
@@ -80,8 +110,8 @@ body{
   letter-spacing: 1px;
 }
 
-/* Os botões de pausa e tela cheia, do lado dos números. Quadrados e grandes o
-   bastante para o dedo de uma criança (44px é o mínimo confortável). */
+/* Os botoes de pausa e tela cheia, do lado dos numeros. Quadrados e grandes o
+   bastante para o dedo de uma crianca (44px e o minimo confortavel). */
 .hud-botoes{
   display: flex;
   gap: 6px;
@@ -94,10 +124,12 @@ body{
   width: 44px;
   height: 44px;
   color: var(--preto);
-  background: var(--amarelo);
-  border: 3px solid var(--branco);
+  background: var(--vidro-amarelo);
+  border: 3px solid var(--vidro-borda);
   cursor: pointer;
   padding: 0;
+  pointer-events: auto;
+  touch-action: manipulation;
 }
 
 .botao-icone:active{ background: var(--branco); }
@@ -108,7 +140,7 @@ body{
   line-height: 0;
   border: 4px solid var(--preto);
   background: var(--ceu);
-  /* No dedo, arrastar em cima do palco é jogo, nunca rolagem nem zoom. */
+  /* No dedo, arrastar em cima do palco e jogo, nunca rolagem nem zoom. */
   touch-action: none;
 }
 
@@ -121,8 +153,9 @@ body{
 }
 
 /* ------------------------------------------------- Caixa dos controles --- */
-/* Um cartaz no canto de baixo à direita do palco, por cima do canvas. Não
-   recebe clique (`pointer-events: none`) para nunca roubar o toque do jogo. */
+/* Um cartaz no canto de baixo a direita do palco, por cima do canvas. Nao
+   recebe clique (`pointer-events: none`) para nunca roubar o toque do jogo.
+   So existe em aparelho com teclado: no dedo entram os botoes no lugar dele. */
 #controles{
   position: absolute;
   right: 8px;
@@ -130,8 +163,8 @@ body{
   display: flex;
   gap: 8px;
   align-items: center;
-  background: rgba(13, 13, 23, .78);
-  border: 3px solid var(--branco);
+  background: var(--vidro);
+  border: 3px solid var(--vidro-borda);
   padding: 4px 9px;
   font-size: clamp(8px, 1.2vw, 12px);
   line-height: 1.4;
@@ -144,15 +177,18 @@ body{
 #controles .separador{ color: var(--cinza); }
 
 /* ------------------------------------------------- Controles de toque --- */
-/* Os botões do dedo, por cima do canvas: a cruzeta no canto de baixo à esquerda
-   e o pulo no de baixo à direita — um polegar em cada, com o aparelho segurado
-   nas duas mãos. A moldura ocupa a largura toda do palco mas não recebe toque
-   nenhum (`pointer-events: none`): quem recebe são os três botões. */
+/* Os botoes do dedo: a cruzeta no canto de baixo a esquerda e o pulo no de
+   baixo a direita - um polegar em cada, com o aparelho segurado nas duas
+   maos. A moldura ocupa a largura toda mas nao recebe toque nenhum
+   (`pointer-events: none`): quem recebe sao os tres botoes. Em aparelho de
+   dedo ela e presa aos cantos da TELA (veja mais abaixo), para o polegar
+   achar sem olhar. */
 #toque{
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
+  z-index: 6;
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
@@ -166,57 +202,60 @@ body{
   gap: 10px;
 }
 
-/* 72px é bem mais que os 44px do mínimo confortável: aqui o dedo é de criança e
-   o botão é apertado correndo. `touch-action: none` desliga o rolar e o
-   zoom-de-dois-toques do navegador em cima deles — segurar o botão para andar
-   não pode arrastar a página. */
+/* 64px e bem mais que os 44px do minimo confortavel: aqui o dedo e de crianca
+   e o botao e apertado correndo. Translucido, para a fase continuar aparecendo
+   por baixo. `touch-action: none` desliga o rolar e o zoom-de-dois-toques do
+   navegador em cima deles - segurar o botao para andar nao pode arrastar a
+   pagina. */
 .toque-botao{
   font-family: inherit;
-  font-size: 26px;
+  font-size: 24px;
   line-height: 1;
-  width: 72px;
-  height: 72px;
+  width: 64px;
+  height: 64px;
   padding: 0;
   color: var(--preto);
-  background: rgba(252, 216, 0, .82);
-  border: 4px solid var(--branco);
-  box-shadow: 4px 4px 0 rgba(13, 13, 23, .6);
+  background: var(--vidro-claro);
+  border: 3px solid var(--vidro-borda);
+  box-shadow: 3px 3px 0 rgba(13, 13, 23, .45);
   cursor: pointer;
   pointer-events: auto;
   touch-action: none;
   -webkit-user-select: none;
   user-select: none;
-  -webkit-touch-callout: none;   /* segurar o botão não abre menu do sistema */
+  -webkit-touch-callout: none;   /* segurar o botao nao abre menu do sistema */
 }
 
-/* O botão de pular é o mais usado da partida: um pouco maior e branco, para o
-   polegar achar sem olhar. */
+/* O botao de pular e o mais usado da partida: um pouco maior e amarelado,
+   para o polegar achar sem olhar. */
 .toque-salto{
-  width: 88px;
-  height: 88px;
-  font-size: 30px;
-  background: rgba(252, 252, 252, .86);
+  width: 76px;
+  height: 76px;
+  font-size: 28px;
+  background: var(--vidro-amarelo);
 }
 
-/* Apertado ele afunda, como os botões das telas. A classe é posta pelo game.js
-   (e não `:active`) porque um dedo que ARRASTA de um botão para o outro precisa
-   acender o novo, e o `:active` do navegador fica preso no primeiro. */
+/* Apertado ele acende e afunda, como os botoes das telas. A classe e posta
+   pelo game.js (e nao `:active`) porque um dedo que ARRASTA de um botao para
+   o outro precisa acender o novo, e o `:active` do navegador fica preso no
+   primeiro. */
 .toque-botao.apertado{
-  background: var(--branco);
+  background: var(--amarelo);
   transform: translate(2px, 2px);
-  box-shadow: 2px 2px 0 rgba(13, 13, 23, .6);
+  box-shadow: 1px 1px 0 rgba(13, 13, 23, .45);
 }
 
 /* ------------------------------------------------- Tarja do palco -------- */
-/* O recado que vale mais que o jogo: a conexão que engasgou (mais de 2 segundos
-   sem notícia da sala) ou a partida que acabou no meio. Fica no alto do palco,
-   centralizada, e como é o último filho do #palco ela é pintada por cima das
-   telas de fim de fase e de parabéns. Vermelha, como a tarja do menu, e sem
+/* O recado que vale mais que o jogo: a conexao que engasgou (mais de 2 segundos
+   sem noticia da sala) ou a partida que acabou no meio. Fica no alto do palco,
+   centralizada, e como e o ultimo filho do #palco ela e pintada por cima das
+   telas de fim de fase e de parabens. Vermelha, como a tarja do menu, e sem
    clique nenhum. */
 #recado-palco{
   position: absolute;
   left: 50%;
   top: 8px;
+  z-index: 20;
   transform: translateX(-50%);
   margin: 0;
   max-width: 90%;
@@ -232,16 +271,17 @@ body{
 }
 
 /* ------------------------------------------------- O placar da sala ------ */
-/* A mini-lista do canto de cima à esquerda do palco, por cima do canvas. Como
-   a caixa de controles, ela é só um cartaz: não recebe clique nenhum. */
+/* A mini-lista do canto de cima a esquerda do palco, por cima do canvas. Como
+   a caixa de controles, ela e so um cartaz: nao recebe clique nenhum.
+   Deitado, ela vai para o lado direito, abaixo do canto que e da Central. */
 #placar-sala{
   position: absolute;
   left: 8px;
   top: 8px;
   min-width: 132px;
   max-width: 38%;
-  background: rgba(13, 13, 23, .78);
-  border: 3px solid var(--branco);
+  background: var(--vidro);
+  border: 3px solid var(--vidro-borda);
   padding: 4px 6px;
   line-height: 1.4;          /* o #palco zera a linha para o canvas */
   pointer-events: none;
@@ -256,8 +296,8 @@ body{
   color: var(--amarelo);
 }
 
-/* Uma linha por jogador: lugar, cor, nome e pontos. O nome encolhe (é o único
-   pedaço de tamanho imprevisível) para o número nunca sair da caixa. */
+/* Uma linha por jogador: lugar, cor, nome e pontos. O nome encolhe (e o unico
+   pedaco de tamanho imprevisivel) para o numero nunca sair da caixa. */
 .placar-lista{
   list-style: none;
   margin: 0;
@@ -309,6 +349,7 @@ body{
 .tela{
   position: absolute;
   inset: 0;
+  z-index: 10;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -372,9 +413,9 @@ body{
 
 .resumo b{ color: var(--amarelo); }
 
-/* O ranking da sala, na tela de PARABÉNS. É a mesma lista do canto do palco,
-   só que maior e com as medalhas — e de cabeça para baixo: o campeão é a
-   última linha, para a leitura terminar nele. */
+/* O ranking da sala, na tela de PARABENS. E a mesma lista do canto do palco,
+   so que maior e com as medalhas - e de cabeca para baixo: o campeao e a
+   ultima linha, para a leitura terminar nele. */
 .ranking-titulo{
   margin: 14px 0 6px;
   font-size: clamp(10px, 2vw, 14px);
@@ -399,7 +440,7 @@ body{
 
 .ranking li:last-child{
   border-bottom: none;
-  /* O campeão fecha a lista: fundo amarelo, letra preta. */
+  /* O campeao fecha a lista: fundo amarelo, letra preta. */
   background: var(--amarelo);
   color: var(--preto);
 }
@@ -427,6 +468,7 @@ body{
   box-shadow: 6px 6px 0 var(--preto);
   padding: 12px 22px;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .botao:active{
@@ -434,11 +476,11 @@ body{
   box-shadow: 3px 3px 0 var(--preto);
 }
 
-/* O segundo botão de uma tela (o "Recomeçar" da pausa): branco, para o
+/* O segundo botao de uma tela (o "Recomecar" da pausa): branco, para o
    caminho de sempre continuar sendo o amarelo. */
 .botao-claro{ background: var(--branco); }
 
-/* Dois botões lado a lado; em tela estreita eles empilham. */
+/* Dois botoes lado a lado; em tela estreita eles empilham. */
 .botoes{
   display: flex;
   gap: 14px;
@@ -458,11 +500,13 @@ body{
 
 .ajuda li{ margin: 4px 0; }
 .ajuda b{ color: var(--amarelo); }
+/* A linha do dedo so aparece em aparelho de dedo; as das teclas, so com teclado. */
+.ajuda .so-toque{ display: none; }
 
 /* ---------------------------------------------------------- Recados ------ */
 /* A tarja do menu: o motivo de uma partida em grupo ter acabado, ou o erro que
    o servidor devolveu na hora de entrar numa sala. Vermelha para ser lida sem
-   procurar, e escondida enquanto não há recado nenhum. */
+   procurar, e escondida enquanto nao ha recado nenhum. */
 .aviso{
   margin: 16px auto 0;
   max-width: 420px;
@@ -474,7 +518,7 @@ body{
   line-height: 1.4;
 }
 
-/* O código da sala no HUD: amarelo e espaçado, para a criança do lado
+/* O codigo da sala no HUD: amarelo e espacado, para a crianca do lado
    conseguir copiar olhando a tela do amigo. */
 #hud-sala strong{
   color: var(--amarelo);
@@ -491,25 +535,83 @@ body{
 }
 
 /* ----------------------------------------------------------- Tela cheia -- */
-/* O pedido de tela cheia é feito para o documento inteiro (`<html>`), que é o
+/* O pedido de tela cheia e feito para o documento inteiro (`<html>`), que e o
    que funciona tanto com o jogo aberto direto quanto dentro do iframe do
-   catálogo. Aí a moldura da página sai da frente e sobra só o jogo. */
+   catalogo. Ai a moldura da pagina sai da frente e sobra so o jogo. */
 html:fullscreen{ background: var(--preto); }
 html:fullscreen body{ padding: 0; background: var(--preto); }
 html:-webkit-full-screen{ background: var(--preto); }
 html:-webkit-full-screen body{ padding: 0; background: var(--preto); }
 
-/* Telas bem baixinhas (celular deitado): o rodape sai da frente e o resumo da
-   tela de parabens se aperta, para o botao nao ficar fora da tela. */
-@media (max-height: 420px){
+/* ==========================================================================
+   DEITADO: o HUD vira uma coluna encostada na esquerda do palco (por cima do
+   ceu, quando nao sobra faixa) e o placar da sala vai para a direita, abaixo
+   do canto que e da Central. O palco fica com a altura inteira.
+   ========================================================================== */
+@media (orientation: landscape){
+  #hud{
+    position: absolute;
+    top: 0;
+    left: max(0px, calc(50% - var(--palco-l) / 2 - 124px));
+    width: 116px;
+    max-height: 100%;
+    flex-direction: column;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    justify-content: flex-start;
+    gap: 6px;
+    padding: 6px 0 0 6px;
+  }
+
+  .hud-box{ width: 110px; min-width: 0; padding: 3px 6px; }
+  .hud-label{ font-size: 9px; letter-spacing: 1px; }
+  .hud-box strong{ font-size: 15px; }
+  .hud-botoes{ width: 110px; justify-content: center; }
+
+  #placar-sala{
+    left: auto;
+    right: 8px;
+    top: 56px;
+  }
+}
+
+/* ==========================================================================
+   APARELHO DE DEDO: os botoes de toque sao presos aos cantos de baixo da TELA
+   (nao do palco), na altura dos polegares e longe do recorte da camera; a
+   ajuda fala do dedo, nao do teclado; e o rodape sai.
+   ========================================================================== */
+@media (pointer: coarse){
   #rodape{ display: none; }
-  .hud-label{ font-size: 9px; }
+  .ajuda .teclado{ display: none; }
+  .ajuda .so-toque{ display: list-item; }
+
+  #toque{
+    position: fixed;
+    padding: 0 max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom))
+             max(10px, env(safe-area-inset-left));
+  }
+}
+
+/* ==========================================================================
+   TELA BAIXINHA (celular deitado, janela pequena): sem folga nas bordas, sem
+   rodape, paineis apertados e as telas (menu, pausa, fim) por cima da janela
+   inteira - no palco so, elas nao caberiam. A ajuda vira duas colunas.
+   ========================================================================== */
+@media (max-height: 520px){
+  body{ padding: 0; }
+  #app{ gap: 4px; }
+  #rodape{ display: none; }
+  .tela{ position: fixed; }
+  .painel{ max-width: 640px; }
+  .titulo{ margin-bottom: 6px; }
   .subtitulo{ margin-bottom: 10px; }
   .resumo li{ padding: 2px 8px; border-bottom-width: 2px; }
   .legenda{ margin-bottom: 8px; }
   .botao{ padding: 8px 18px; }
   .botoes{ gap: 10px; margin-bottom: 8px; }
-  .botao-icone{ width: 38px; height: 38px; font-size: 15px; }
+  .ajuda{ margin-top: 10px; columns: 2; column-gap: 18px; text-align: left; }
+  .ajuda li{ break-inside: avoid; }
+  .botao-icone{ width: 40px; height: 40px; font-size: 16px; }
   #controles{ padding: 2px 6px; gap: 6px; }
   #placar-sala{ padding: 2px 5px; min-width: 112px; }
   #recado-palco{ padding: 2px 6px; top: 4px; }
@@ -518,17 +620,26 @@ html:-webkit-full-screen body{ padding: 0; background: var(--preto); }
   .ranking li{ padding: 2px 8px; border-bottom-width: 2px; }
   .ranking{ margin-bottom: 6px; }
 
-  /* Celular deitado: o palco fica baixinho e os botões encolhem para não comer
-     a fase. Continuam com mais de 44px — o mínimo para o dedo. */
-  #toque{ padding: 6px; }
-  .toque-botao{ width: 58px; height: 58px; font-size: 21px; border-width: 3px; }
-  .toque-salto{ width: 68px; height: 68px; font-size: 24px; }
+  /* Celular deitado: os botoes encolhem um pouco para nao comer a fase.
+     Continuam com mais de 44px - o minimo para o dedo. */
+  .toque-botao{ width: 56px; height: 56px; font-size: 21px; }
+  .toque-salto{ width: 66px; height: 66px; font-size: 24px; }
   .toque-cruzeta{ gap: 8px; }
 }
 
-/* Celular em pé: a tela é estreita e o palco, deitado, fica baixo do mesmo
-   jeito. Os botões seguem grandes, só mais juntos das bordas. */
-@media (max-width: 560px){
-  #toque{ padding: 6px; gap: 6px; }
+/* ==========================================================================
+   EM PE E ESTREITO (celular em pe): o palco deitado fica baixinho de qualquer
+   jeito - a Central pede para girar. Ate la, HUD miudo e botoes nos cantos.
+   ========================================================================== */
+@media (orientation: portrait) and (max-width: 560px){
+  body{ padding: 4px; }
+  #app{ gap: 6px; }
+  #hud{ gap: 4px; }
+  .hud-box{ min-width: 66px; padding: 2px 6px; }
+  .hud-label{ font-size: 8px; letter-spacing: 1px; }
+  .hud-box strong{ font-size: 14px; }
+  .botao-icone{ width: 40px; height: 40px; font-size: 16px; }
+  .tela{ position: fixed; }
+  #rodape{ display: none; }
   .toque-cruzeta{ gap: 8px; }
 }

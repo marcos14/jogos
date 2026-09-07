@@ -1,6 +1,19 @@
 /* ==========================================================================
    Galinha Feliz - estilo "Peppa Pig": cores chapadas, contornos grossos,
    tudo bem arredondado e alegre.
+
+   O terreiro manda na tela: ele pega o maior tamanho que couber, e tudo o que
+   nao e terreiro (HUD, botoes, placar da sala) e translucido e fica em volta
+   dele, sem roubar espaco:
+
+     - DEITADO (o normal no computador, e o que a Central pede no celular): o
+       HUD vira uma coluna na faixa da esquerda, encostada no terreiro, e o
+       placar da sala fica na faixa da direita. O JS le `--banda` para
+       reservar essas faixas, de modo que nada fique por cima dos ovos;
+     - EM PE: o HUD e uma faixa em cima do terreiro (que vira 8 x 13).
+
+   O canto de cima a direita da tela e da Central (o Voltar dela mora ali,
+   deitado): nada importante do jogo fica nele.
    ========================================================================== */
 
 :root{
@@ -15,6 +28,10 @@
   --red:      #ef5b5b;
   --white:    #fffdf7;
   --shadow:   0 6px 0 rgba(58,43,38,.25);
+
+  /* O "vidro" dos controles: claro e translucido, com o contorno de sempre. */
+  --vidro:       rgba(255, 253, 247, .82);
+  --vidro-rosa:  rgba(255, 211, 227, .88);
 }
 
 *{ box-sizing: border-box; }
@@ -58,24 +75,35 @@ body::after { width: 160px; height: 78px; top: 62%; right: 3%; animation: drift 
 }
 
 #app{
-  width: min(100%, 1020px);
+  width: 100%;
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 8px;
   position: relative;
   z-index: 1;
+  /* A faixa reservada de cada lado do terreiro, deitado (o JS le daqui) e a
+     largura do terreiro (o JS escreve aqui), para o HUD encostar nele. */
+  --banda: 0px;
+  --palco-l: 0px;
 }
 
 /* ------------------------------------------------------------------- HUD -- */
+/* Translucido e sem roubar toque: as caixas deixam o dedo passar; so os
+   botoes recebem clique. */
 #hud{
   display: flex;
   align-items: stretch;
+  justify-content: center;
   gap: 8px;
   flex-wrap: wrap;
+  width: 100%;
+  z-index: 5;
+  pointer-events: none;
 }
 
 .hud-box{
-  background: var(--white);
+  background: var(--vidro);
   border: 3px solid var(--ink);
   border-radius: 14px;
   padding: 4px 10px;
@@ -85,7 +113,7 @@ body::after { width: 160px; height: 78px; top: 62%; right: 3%; animation: drift 
   justify-content: center;
   min-width: 74px;
 }
-.hud-box.grow{ flex: 1 1 140px; }
+.hud-box.grow{ flex: 1 1 140px; max-width: 260px; }
 
 .hud-label{
   font-size: 11px;
@@ -125,11 +153,13 @@ body::after { width: 160px; height: 78px; top: 62%; right: 3%; animation: drift 
   font-size: 18px;
   touch-action: manipulation;
   width: 46px;
+  height: 46px;
   border: 3px solid var(--ink);
   border-radius: 14px;
-  background: var(--pink-2);
+  background: var(--vidro-rosa);
   box-shadow: var(--shadow);
   cursor: pointer;
+  pointer-events: auto;
 }
 .icon-btn:active{ transform: translateY(3px); box-shadow: none; }
 
@@ -315,53 +345,16 @@ input[type=text]:focus{ background: #fff5b8; }
   opacity: .8;
 }
 
-@media (max-width: 620px){
-  body{ padding: 6px; }
-  #app{ gap: 6px; }
-  #hud{ gap: 5px; }
-  .hud-box strong{ font-size: 16px; }
-  .hud-box{ min-width: 56px; padding: 3px 8px; }
-  .hud-label{ font-size: 10px; }
-  #tip{ display: none; }
-  .panel{ padding: 12px 14px 16px; }
-  .ranking ol{ max-height: 110px; }
-  .how ul{ font-size: 13px; }
-}
-
-/* celular em pe: HUD em 2 linhas (numeros + botoes / barras) */
-@media (max-width: 470px){
-  .hud-box.name-box{ display: none; }        /* o jogador ja sabe o proprio nome */
-  .hud-box{ min-width: 0; padding: 2px 7px; }
-  .hud-box strong{ font-size: 15px; }
-  .hud-box.combo{ order: -1; }               /* combo e botoes sobem pra 1a linha */
-  .hud-buttons{ order: -1; }
-  .hud-box.grow{ flex: 1 1 45%; }            /* as duas barras dividem a 2a linha */
-  .icon-btn{ width: 40px; font-size: 16px; }
-  .big-btn{ font-size: 20px; padding: 10px 24px; }
-  .title{ text-shadow: 2px 2px 0 var(--yellow); }
-  .stats strong{ font-size: 20px; }
-}
-
-/* tela baixa (celular deitado): cada pixel de altura vira terreiro */
-@media (max-height: 500px){
-  body{ padding: 4px; }
-  #app{ gap: 4px; }
-  #tip{ display: none; }
-  #hud{ gap: 5px; }
-  .hud-box{ padding: 2px 8px; }
-  .hud-box strong{ font-size: 15px; }
-  .hud-label{ font-size: 9px; }
-  .icon-btn{ width: 38px; font-size: 15px; }
-  .bar{ height: 9px; }
-  .panel{ padding: 10px 14px 12px; }
-  .subtitle{ margin: 2px 0 8px; }
-  .ranking ol{ max-height: 84px; }
-  .how{ display: none; }
-}
-
 /* separacao dos botoes finais em relacao ao ranking */
 #screen-over .big-btn,
 #screen-over .ghost-btn{ margin-top: 16px; }
+
+/* ----------------------------------------------------------- Tela cheia -- */
+/* O pedido de tela cheia e feito para o documento inteiro (`<html>`), que e o
+   que funciona tanto com o jogo aberto direto quanto dentro do iframe do
+   catalogo. */
+html:fullscreen body{ padding: 0; }
+html:-webkit-full-screen body{ padding: 0; }
 
 /* ======================================================== Multijogador ==== */
 
@@ -374,7 +367,8 @@ input[type=text]:focus{ background: #fff5b8; }
 }
 .big-btn.friends:hover{ background: #b6e7fb; }
 
-/* placar da sala, flutuando no canto do terreiro */
+/* placar da sala, flutuando no canto do terreiro (deitado, ele vai para a
+   faixa da direita, abaixo do canto que e da Central) */
 .mp-board{
   position: absolute;
   top: 10px;
@@ -385,7 +379,7 @@ input[type=text]:focus{ background: #fff5b8; }
   padding: 8px 10px;
   border: 4px solid var(--ink);
   border-radius: 16px;
-  background: rgba(255,253,247,.9);
+  background: var(--vidro);
   box-shadow: var(--shadow);
   pointer-events: none;
   font-size: 14px;
@@ -435,7 +429,109 @@ input[type=text]:focus{ background: #fff5b8; }
   margin-right: 4px;
 }
 
-@media (max-width: 560px){
+/* ==========================================================================
+   DEITADO: o HUD vira uma coluna na faixa da esquerda, encostada no terreiro;
+   o placar da sala fica na faixa da direita. Os dois saem do fluxo e o
+   terreiro fica com a altura inteira.
+   ========================================================================== */
+@media (orientation: landscape){
+  #app{ --banda: 124px; }
+
+  /* A coluna encosta no terreiro pela DIREITA dela, e quando nao cabe na
+     altura quebra para a esquerda - nunca por cima dos ovos. E o
+     `direction: rtl` que faz a quebra ir para esse lado; os filhos voltam ao
+     normal. */
+  #hud{
+    position: absolute;
+    top: 0;
+    right: calc(50% + var(--palco-l) / 2 + 10px);
+    width: 112px;
+    max-height: 100%;
+    flex-direction: column;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    justify-content: flex-start;
+    align-items: stretch;
+    gap: 6px;
+    direction: rtl;
+  }
+  #hud > *{ direction: ltr; }
+
+  .hud-box{ width: 112px; min-width: 0; padding: 3px 8px; }
+  .hud-box.grow{ flex: none; max-width: none; }
+  .hud-box strong{ font-size: 17px; }
+  .hud-label{ font-size: 10px; }
+  .hud-buttons{ width: 112px; flex-wrap: wrap; justify-content: center; }
+  .icon-btn{ width: 44px; height: 44px; font-size: 17px; }
+
+  /* O placar da sala sai do terreiro e vai para a faixa da direita. */
+  #stage .mp-board{
+    position: fixed;
+    top: 56px;
+    right: max(8px, env(safe-area-inset-right));
+    max-width: 200px;
+  }
+}
+
+/* ==========================================================================
+   APARELHO DE DEDO: a dica de rodape sai (a galinha segue o dedo, e isso o
+   jogo mostra sozinho).
+   ========================================================================== */
+@media (pointer: coarse){
+  #tip{ display: none; }
+}
+
+/* ==========================================================================
+   TELA BAIXINHA (celular deitado, janela pequena): sem folga nas bordas, cada
+   pixel de altura vira terreiro, e os paineis se apertam.
+   ========================================================================== */
+@media (max-height: 520px){
+  body{ padding: 0; }
+  #app{ gap: 4px; }
+  #tip{ display: none; }
+  .hud-box.name-box{ display: none; }        /* o jogador ja sabe o proprio nome */
+  #hud{ gap: 4px; }
+  .hud-box{ padding: 2px 8px; }
+  .hud-box strong{ font-size: 15px; }
+  .hud-label{ font-size: 9px; }
+  .icon-btn{ width: 40px; height: 40px; font-size: 15px; }
+  .bar{ height: 9px; }
+  .panel{ padding: 10px 14px 12px; }
+  .subtitle{ margin: 2px 0 8px; }
+  .ranking ol{ max-height: 84px; }
+  .how{ display: none; }
   .mp-board{ font-size: 12px; min-width: 120px; padding: 6px 8px; }
   .mp-board h3{ font-size: 10px; }
+}
+
+/* ==========================================================================
+   EM PE E ESTREITO (celular em pe): HUD em duas linhas (numeros + botoes /
+   barras), sem folga nas bordas.
+   ========================================================================== */
+@media (orientation: portrait) and (max-width: 620px){
+  body{ padding: 6px; }
+  #app{ gap: 6px; }
+  #hud{ gap: 5px; }
+  .hud-box strong{ font-size: 16px; }
+  .hud-box{ min-width: 56px; padding: 3px 8px; }
+  .hud-label{ font-size: 10px; }
+  #tip{ display: none; }
+  .panel{ padding: 12px 14px 16px; }
+  .ranking ol{ max-height: 110px; }
+  .how ul{ font-size: 13px; }
+  .mp-board{ font-size: 12px; min-width: 120px; padding: 6px 8px; }
+  .mp-board h3{ font-size: 10px; }
+}
+
+@media (orientation: portrait) and (max-width: 470px){
+  .hud-box.name-box{ display: none; }        /* o jogador ja sabe o proprio nome */
+  .hud-box{ min-width: 0; padding: 2px 7px; }
+  .hud-box strong{ font-size: 15px; }
+  .hud-box.combo{ order: -1; }               /* combo e botoes sobem pra 1a linha */
+  .hud-buttons{ order: -1; }
+  .hud-box.grow{ flex: 1 1 45%; }            /* as duas barras dividem a 2a linha */
+  .icon-btn{ width: 40px; height: 40px; font-size: 16px; }
+  .big-btn{ font-size: 20px; padding: 10px 24px; }
+  .title{ text-shadow: 2px 2px 0 var(--yellow); }
+  .stats strong{ font-size: 20px; }
 }

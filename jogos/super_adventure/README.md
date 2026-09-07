@@ -230,6 +230,18 @@ responder (navegador antigo, ou um notebook com tela sensível que só se revela
 quando alguém encosta), o **primeiro toque** na página liga os botões assim
 mesmo.
 
+No dedo os botões são **translúcidos** e ficam presos aos **cantos de baixo da
+tela** (não do palco), na altura dos polegares e longe do recorte da câmera —
+a fase continua aparecendo por baixo deles. O HUD também é translúcido e não
+rouba o toque: só os botões dele recebem clique. Deitado, o HUD vira uma
+coluna encostada na esquerda do palco (por cima do céu, se não sobrar faixa);
+em pé, é uma faixa em cima. O palco pega o maior tamanho que couber: o
+`ajustarPalco()` lê a folga de verdade do `body` e publica a largura escolhida
+em `--palco-l`, por onde o HUD encosta nele. Aberto pela Central, o celular é
+deitado sozinho quando o navegador deixa, e quando não deixa a Central pede
+para girar. O canto de cima à direita da tela é da Central (o Voltar dela mora
+ali): o placar da sala, deitado, fica logo abaixo.
+
 O que o dedo sabe fazer:
 
 - **Dois polegares ao mesmo tempo.** Correr e pular são dois dedos, cada um no

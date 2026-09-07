@@ -114,6 +114,32 @@ modo sem rede: ele só confia em `https://` (e em `localhost`). Duas saídas:
 esse endereço vale como seguro só nesse aparelho — e o **📲 Instalar** passa a
 funcionar.
 
+### No celular: deitado, com os controles por cima do jogo
+
+Os jogos são feitos para a tela **deitada**. Num celular, a Central cuida disso
+sozinha ao abrir um jogo:
+
+- **No app instalado** (Android) e **em tela cheia**, a tela gira para deitado
+  sozinha — e volta ao normal quando você sai do jogo.
+- Quando o navegador não deixa girar (o Safari do iPhone, ou o Chrome fora da
+  tela cheia), aparece um cartão **"Gire o celular"** com dois caminhos:
+  **⛶ Girar e jogar**, que entra em tela cheia e gira de uma vez, ou **Jogar em
+  pé mesmo**. O cartão some sozinho quando o aparelho deita e não volta a
+  incomodar na mesma partida.
+- Com a tela deitada, a barra de cima vira duas pílulas translúcidas no canto
+  de cima à direita (**←** voltar e **⛶** tela cheia), e o jogo fica com a tela
+  inteira. Em pé, ela continua em cima, só mais magra.
+
+Dentro dos jogos vale o mesmo desenho: placar, vidas e botões são translúcidos
+e ficam **ao lado** do palco quando a tela está deitada (e em cima, quando em
+pé), e os controles de toque só aparecem em aparelho de dedo — a cruzeta e o
+deslize no Come-Come, os botões de correr e pular no Super Adventure, o dedo
+que a galinha segue na Galinha Feliz.
+
+Para ver como fica sem ter o celular na mão:
+`node server/scripts/fotografar.mjs` (com a Central no ar) fotografa cada jogo
+como celular em pé e deitado, tablet e computador, com o jogo rolando.
+
 ### Como o app funciona por dentro
 
 - `/manifest.webmanifest` — o nome (o `TITULO` do `.env`), as cores, os ícones
@@ -247,8 +273,9 @@ Para o HTTPS sem Docker, passe `HTTPS_CERT` e `HTTPS_CHAVE` com o caminho dos
 arquivos (e `PORTA_HTTPS`, padrão `3443`).
 
 Os testes não têm framework — cada arquivo roda sozinho e sai com código 1 se
-algo falhar (`node testes/central/pwa.test.mjs` confere o app; os dos jogos
-estão em `testes/<jogo>/`).
+algo falhar (`node testes/central/pwa.test.mjs` confere o app,
+`node testes/central/celular.test.mjs` o contrato de celular da moldura e dos
+jogos; os dos jogos estão em `testes/<jogo>/`).
 
 ## Como funciona por dentro
 
@@ -265,6 +292,9 @@ estão em `testes/<jogo>/`).
 | `server/public/pwa.js` | registra o service worker e cuida do botão **📲 Instalar** |
 | `server/public/plataforma/sdk.js` | o `window.Plataforma` que os jogos carregam |
 | `server/scripts/gerar-icones.mjs` | gera os PNG de `public/icones/` com o Chrome headless |
+| `server/scripts/fotografar.mjs` | fotografa os jogos como celular, tablet e computador, com o Chrome headless |
 
 A rota `/jogar/<pasta>` abre o jogo num `iframe` com uma barrinha de *Voltar* e
-*Tela cheia*; `/jogos/<pasta>/` serve os arquivos do jogo direto.
+*Tela cheia* — que num celular deitado vira duas pílulas por cima do jogo, e
+que tenta deitar a tela (veja [No celular](#no-celular-deitado-com-os-controles-por-cima-do-jogo));
+`/jogos/<pasta>/` serve os arquivos do jogo direto.

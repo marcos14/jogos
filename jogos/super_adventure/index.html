@@ -38,7 +38,8 @@
     </div>
 
     <!-- Os dois botões da partida. Eles moram no HUD, então só aparecem com o
-         jogo em andamento — no menu não há nada para pausar. -->
+         jogo em andamento — no menu não há nada para pausar. O de tela cheia
+         some sozinho onde o navegador não tem tela cheia (iPhone). -->
     <div class="hud-botoes">
       <button id="btn-pausa" type="button" class="botao-icone"
               title="Pausar (P ou ESC)" aria-label="Pausar">⏸</button>
@@ -121,10 +122,10 @@
         <p id="aviso" class="aviso hidden"></p>
 
         <ul class="ajuda">
-          <li><b>&larr; &rarr;</b> ou <b>A / D</b> — andar</li>
-          <li><b>ESPAÇO</b> ou <b>&uarr;</b> — pular</li>
-          <li><b>P</b> ou <b>ESC</b> — pausar &nbsp;·&nbsp; <b>F</b> — tela cheia</li>
-          <li>📱 no celular e no tablet, use os <b>botões na tela</b></li>
+          <li class="teclado"><b>&larr; &rarr;</b> ou <b>A / D</b> — andar</li>
+          <li class="teclado"><b>ESPAÇO</b> ou <b>&uarr;</b> — pular</li>
+          <li class="teclado"><b>P</b> ou <b>ESC</b> — pausar &nbsp;·&nbsp; <b>F</b> — tela cheia</li>
+          <li class="so-toque">📱 use os <b>botões na tela</b>: <b>◀ ▶</b> para andar e <b>▲</b> para pular</li>
           <li>🚩 encoste nos <b>checkpoints</b> antes de cair!</li>
         </ul>
       </div>

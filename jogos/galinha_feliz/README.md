@@ -80,6 +80,7 @@ enxotar antes que consiga.
 | Setas ou WASD | move a galinha |
 | P ou Esc | pausar |
 | M | ligar/desligar o som |
+| F ou ⛶ | tela cheia (o botão some onde o navegador não tem tela cheia, como no iPhone) |
 
 ## No celular
 
@@ -92,8 +93,18 @@ Funciona com o dedo, em pé ou deitado:
   não perde nada: ovos, pintinhos, raposa e placar são transpostos junto.
 - O palco é dimensionado por JavaScript a cada `resize`/`orientationchange`
   para ocupar o máximo de tela sem distorcer.
-- O HUD encolhe para duas linhas no celular em pé (o nome do jogador some, as
-  barras dividem uma linha) e para uma linha só quando a tela é baixa.
+- O HUD é **translúcido** e não rouba o toque (só os botões recebem clique).
+  **Deitado** ele vira uma coluna encostada na esquerda do terreiro, com a
+  faixa reservada pelo CSS (`--banda`) para nada ficar por cima dos ovos; se a
+  coluna não cabe na altura, ela quebra para a esquerda. **Em pé** ele encolhe
+  para duas linhas (o nome do jogador some, as barras dividem uma linha); em
+  tela baixinha o nome some também.
+- O `fitStage()` lê a folga de verdade do `body` e publica a largura escolhida
+  em `--palco-l`, por onde o HUD encosta no terreiro.
+- Aberto pela Central, o celular é deitado sozinho quando o navegador deixa, e
+  quando não deixa a Central pede para girar. O canto de cima à direita da tela
+  é da Central (o Voltar dela mora ali): o placar da sala, deitado, fica logo
+  abaixo.
 - Sem zoom por duplo toque, sem puxar-para-atualizar e sem seleção de texto
   atrapalhando o arrasto.
 

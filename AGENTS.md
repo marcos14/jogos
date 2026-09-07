@@ -39,6 +39,7 @@ Regras que **não** são negociáveis:
 | Sem chamada para fora da rede local (CDN, fonte, analytics) | é rede de casa, muitas vezes sem internet; e é jogo de criança |
 | O jogo continua jogável **sem** a plataforma | `if (window.Plataforma)` — nunca assuma que ela existe |
 | Funciona no dedo e no teclado, em pé e deitado | metade dos aparelhos da casa é tablet |
+| Os controles são **translúcidos e ficam em volta do palco**, nunca roubando espaço dele | no celular cada pixel de altura é jogo — veja a seção 7 |
 
 O único caminho absoluto permitido é o do SDK: `/plataforma/sdk.js`.
 
@@ -276,6 +277,9 @@ Checklist:
 - [ ] Testado com o **máximo de jogadores declarado**, não só com dois.
 - [ ] Fechar a aba do anfitrião no meio devolve os outros para a sala.
 - [ ] Funciona no dedo, e girar o aparelho não quebra a partida.
+- [ ] Segue o contrato da tela (seção 7): HUD translúcido em volta do palco,
+      controles de toque só no dedo, e `node server/scripts/fotografar.mjs`
+      mostra o jogo inteiro no celular deitado.
 - [ ] `README.md` do jogo diz como se joga, a pontuação e as decisões técnicas.
 - [ ] Nada de novo em `package.json`.
 
@@ -289,12 +293,48 @@ verificado. Esse arnês não está no repositório.
 
 ---
 
-## 7. Onde olhar quando travar
+## 7. Celular e tablet: o contrato da tela
+
+A Central abre todo jogo num `iframe` (`/jogar/<slug>`) e, num **celular**
+(aparelho de dedo com o lado menor abaixo de 600px), faz três coisas sem o
+jogo saber: tenta **deitar a tela** (`screen.orientation.lock('landscape')`,
+que o navegador só aceita em tela cheia ou com a Central instalada como app),
+**pede para girar** quando não consegue (com um botão que entra em tela cheia
+e gira de uma vez), e põe a própria barra por cima do jogo como **pílulas
+translúcidas no canto de cima à direita** sempre que a altura é o que falta
+(dedo deitado, ou qualquer janela baixinha). Em pé, a barra fica no fluxo, só
+mais magra.
+
+O que o jogo tem que fazer da parte dele — os três jogos do repositório são o
+modelo, e `jogos/come_come/style.css` é o mais comentado:
+
+| Regra | Como |
+|---|---|
+| O **palco manda na tela** | `ajustarPalco()` escolhe o maior tamanho que couber, lendo a folga de verdade do `body` (`getComputedStyle`), nunca um número chutado |
+| Tudo o que não é jogo é **translúcido** e **não rouba o toque** | HUD com `pointer-events: none` e só os botões com `auto`; fundos `rgba(...)` |
+| **Deitado**, o HUD vira coluna do lado; **em pé**, faixa em cima | `@media (orientation: landscape)` põe o HUD `position: absolute` em coluna, encostado no palco por `--palco-l` (largura que o JS publica); em pé ele fica em fluxo |
+| Se não pode cobrir o jogo, **reserve a faixa** | `--banda: <px>` no `#app` (o JS desconta dos dois lados). Zero quando cobrir a borda não atrapalha (o céu do Super Adventure) |
+| Se a coluna não cabe na altura, ela quebra **para fora**, nunca por cima do palco | `flex-wrap: wrap` com `max-height: 100%` e `direction: rtl` no contêiner (filhos `ltr`) |
+| Controles de toque **só em aparelho de dedo**, e no lugar do cartaz de teclas | `matchMedia('(pointer: coarse)')` mais a rede de segurança do primeiro `pointerdown` de `pointerType === 'touch'` |
+| Botões de dedo com **44px ou mais**, `touch-action: none`, e a captura implícita solta no `pointerdown` | assim o polegar escorrega de um botão para o outro |
+| O toque escreve no **mesmo lugar** que o teclado | a física, a pausa e a rede não podem saber de onde veio o pedido |
+| Ajuda e cartaz **sem teclado** no dedo | linhas de tecla com `class="teclado"` (somem em `pointer: coarse`), a do dedo com `class="so-toque"` |
+| O botão de **tela cheia some** onde ela não existe | `document.fullscreenEnabled` (o iPhone não tem, um iframe sem `allowfullscreen` também não) |
+| O **canto de cima à direita** da tela é da Central | deitado, o Voltar dela mora ali; placares e avisos do jogo ficam abaixo (`top: 56px`) |
+| Telas (menu, pausa, fim) por cima da **janela inteira** quando ela é baixinha | `@media (max-height: 520px){ .tela{ position: fixed } }` — dentro do palco elas não caberiam |
+
+Para conferir sem aparelho: `node server/scripts/fotografar.mjs` fotografa
+cada jogo como celular (em pé e deitado), tablet e computador, com o jogo
+rolando. Não substitui um toque de verdade (a trava de orientação e a tela
+cheia só existem no aparelho), mas mostra o layout inteiro.
+
+## 8. Onde olhar quando travar
 
 | Quero… | Vá para |
 |---|---|
 | entender a plataforma inteira | [PLATAFORMA.md](PLATAFORMA.md) |
 | ver um jogo completo e no padrão | `jogos/galinha_feliz/` (multijogador de 5, ~1700 linhas) |
+| ver os controles de toque e o layout de celular | `jogos/come_come/` (cruzeta e deslize) e `jogos/super_adventure/` (botões de correr e pular) |
 | ver o contrato do `jogo.json` | `server/src/plataforma/manifesto.js` |
 | ver salas, anfitrião e repasse | `server/src/plataforma/salas.js` |
 | ver a API que o jogo usa | `server/public/plataforma/sdk.js` |

@@ -117,7 +117,7 @@
     hud: $('hud'), name: $('hud-name'), score: $('hud-score'), level: $('hud-level'),
     eggs: $('hud-eggs'), barEggs: $('bar-eggs'), time: $('hud-time'), barTime: $('bar-time'),
     combo: $('hud-combo'), comboBox: $('hud-combo-box'),
-    btnSound: $('btn-sound'), btnPause: $('btn-pause'),
+    btnSound: $('btn-sound'), btnPause: $('btn-pause'), btnFull: $('btn-fullscreen'),
     start: $('screen-start'), form: $('form-start'), input: $('input-name'),
     overlay: $('screen-overlay'), ovTitle: $('overlay-title'), ovText: $('overlay-text'),
     btnResume: $('btn-resume'), btnQuit: $('btn-quit'),
@@ -250,18 +250,38 @@
     return aplicarLayout(window.innerHeight > window.innerWidth ? 8 : 13);
   }
 
-  // Deixa o palco o maior possivel sem distorcer nem passar da tela.
+  // Deixa o palco o maior possivel sem distorcer nem passar da tela:
+  //   - `others` e o que fica EM FLUXO em cima e embaixo (o HUD em pe, a
+  //     dica). Deitado, o HUD e absoluto e nao entra na conta;
+  //   - `--banda` e a faixa que o CSS reserva de cada lado quando o aparelho
+  //     esta deitado, para o HUD nao ficar por cima dos ovos;
+  //   - a folga vertical e o padding de verdade do body (zero no celular);
+  //   - a largura escolhida volta para o CSS em `--palco-l`: deitado, o HUD
+  //     encosta no terreiro por ela.
+  function folgaVertical() {
+    if (!window.getComputedStyle || !document.body) return 20;
+    var estilo = window.getComputedStyle(document.body);
+    return (parseFloat(estilo.paddingTop) || 0) + (parseFloat(estilo.paddingBottom) || 0);
+  }
+
+  function bandaLateral(app) {
+    if (!window.getComputedStyle) return 0;
+    return parseFloat(window.getComputedStyle(app).getPropertyValue('--banda')) || 0;
+  }
+
   function fitStage() {
     var app = document.getElementById('app');
     var stage = document.getElementById('stage');
     stage.style.width = '';
     stage.style.height = '';
-    var others = app.offsetHeight - stage.offsetHeight;   // HUD + rodape + espacos
-    var availW = app.clientWidth;
-    var availH = window.innerHeight - others - 24;
+    var others = app.offsetHeight - stage.offsetHeight;   // HUD + dica + espacos
+    var availW = app.clientWidth - 2 * bandaLateral(app);
+    var availH = window.innerHeight - others - folgaVertical();
     var s = Math.max(0.12, Math.min(availW / W, availH / H));
-    stage.style.width = Math.floor(W * s) + 'px';
+    var largura = Math.floor(W * s);
+    stage.style.width = largura + 'px';
     stage.style.height = Math.floor(H * s) + 'px';
+    if (app.style.setProperty) app.style.setProperty('--palco-l', largura + 'px');
   }
 
   function onResize() { chooseLayout(); fitStage(); }
@@ -396,6 +416,9 @@
     ArrowUp: 'u', KeyW: 'u', ArrowDown: 'd', KeyS: 'd'
   };
   window.addEventListener('keydown', function (ev) {
+    // Digitando o nome, a tecla e do campo: o "m" de "Maria" nao desliga o
+    // som, nem o "f" de "Felipe" abre a tela cheia.
+    if (ev.target === el.input) return;
     if (KEYMAP[ev.code]) {
       keys[KEYMAP[ev.code]] = true;
       pointer.has = false;             // teclado assume o controle
@@ -403,6 +426,7 @@
     }
     if (ev.code === 'KeyP' || ev.code === 'Escape') togglePause();
     if (ev.code === 'KeyM') toggleSound();
+    if (ev.code === 'KeyF') alternarTelaCheia();
   });
   window.addEventListener('keyup', function (ev) {
     if (KEYMAP[ev.code]) keys[KEYMAP[ev.code]] = false;
@@ -1729,10 +1753,61 @@
   el.btnQuit.addEventListener('click', function () { state.screen = 'playing'; gameOver(); });
   el.btnPause.addEventListener('click', togglePause);
   el.btnSound.addEventListener('click', toggleSound);
+  el.btnFull.addEventListener('click', alternarTelaCheia);
+  document.addEventListener('fullscreenchange', aoMudarTelaCheia);
+  document.addEventListener('webkitfullscreenchange', aoMudarTelaCheia);
 
   function toggleSound() {
     var on = Sfx.toggle();
     el.btnSound.textContent = on ? '🔊' : '🔇';
+  }
+
+  // ------------------------------------------------------- Tela cheia -----
+  /* Pedida para o documento inteiro (`<html>`): funciona tanto com o jogo
+     aberto direto quanto dentro do iframe da Central, que ja vem com
+     `allowfullscreen`. Quem manda no desenho do botao e o navegador, pelo
+     `fullscreenchange` - sair pelo ESC tambem o acerta. Onde nao existe tela
+     cheia de pagina (iPhone), o botao some. */
+  function chamarPrimeiro(alvo, nomes) {
+    if (!alvo) return false;
+    for (var i = 0; i < nomes.length; i++) {
+      if (typeof alvo[nomes[i]] !== 'function') continue;
+      var promessa = alvo[nomes[i]]();
+      if (promessa && typeof promessa['catch'] === 'function') {
+        promessa['catch'](function () {});
+      }
+      return true;
+    }
+    return false;
+  }
+
+  function emTelaCheia() {
+    return !!(document.fullscreenElement || document.webkitFullscreenElement);
+  }
+
+  function telaCheiaDisponivel() {
+    if (document.fullscreenEnabled !== undefined) return !!document.fullscreenEnabled;
+    if (document.webkitFullscreenEnabled !== undefined) return !!document.webkitFullscreenEnabled;
+    var raiz = document.documentElement;
+    return !!(raiz && (raiz.requestFullscreen || raiz.webkitRequestFullscreen));
+  }
+
+  function alternarTelaCheia() {
+    if (emTelaCheia()) {
+      chamarPrimeiro(document, ['exitFullscreen', 'webkitExitFullscreen']);
+      return;
+    }
+    chamarPrimeiro(document.documentElement, ['requestFullscreen', 'webkitRequestFullscreen']);
+  }
+
+  function aoMudarTelaCheia() {
+    var cheia = emTelaCheia();
+    if (telaCheiaDisponivel()) el.btnFull.classList.remove('hidden');
+    else el.btnFull.classList.add('hidden');
+    el.btnFull.textContent = cheia ? '🗗' : '⛶';
+    el.btnFull.title = cheia ? 'Sair da tela cheia (F)' : 'Tela cheia (F)';
+    el.btnFull.setAttribute('aria-label', cheia ? 'Sair da tela cheia' : 'Tela cheia');
+    onResize();          // a janela acabou de mudar de tamanho
   }
 
   document.addEventListener('visibilitychange', function () {
@@ -1746,6 +1821,7 @@
   } catch (e) {}
   chooseLayout();
   fitStage();
+  aoMudarTelaCheia();      // o botao de tela cheia comeca no estado certo
   renderRank(el.rank1, loadRank(), null);
   requestAnimationFrame(frame);
 

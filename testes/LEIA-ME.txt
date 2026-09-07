@@ -56,6 +56,11 @@ sem abrir navegador.
     node testes/come_come/fase9.test.mjs             o mundo unico do anfitriao
     node testes/come_come/fase10.test.mjs            a previsao local do convidado
     node testes/come_come/fase11.test.mjs            o labirinto disputado: pastilha, poder e cor
+    node testes/come_come/fase15.test.mjs            a geometria do deslize (o modulo Toque)
+    node testes/come_come/fase15-tela.test.mjs       a cruzeta e o deslize, num tablet de mentira
+
+    node testes/central/pwa.test.mjs                 o app instalavel: manifesto, service worker, https
+    node testes/central/celular.test.mjs             o contrato de celular da moldura e dos tres jogos
 
 O harness.mjs de cada pasta tem o carregador e o corredor de testes. O do
 super_adventure e o do come_come tambem sabem subir o servidor das salas de

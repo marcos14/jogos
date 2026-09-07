@@ -16,7 +16,10 @@
        Fullscreen API de mentira (`dom.telaCheia` conta os pedidos e as
        saidas), porque o pedido de verdade so vale dentro de um clique num
        navegador - e um atalho, `dom.comecarPartida()`, que clica no JOGAR do
-       menu, que agora e por onde toda partida comeca.
+       menu, que agora e por onde toda partida comeca. Desde a fase 15,
+       `{ toque: true }` finge um tablet (o `matchMedia('(pointer: coarse)')`
+       responde que sim) e `dom.dedoBaixo()` / `dom.deslizar()` fazem o que um
+       dedo faz na cruzeta e no labirinto.
      - `criarPiloto()` devolve o piloto automatico das fases 2, 6a e 6b: busca
        em largura ate a pastilha inteira mais perto, passando so por onde
        nenhum cacador esta por perto. E o jeito de atravessar uma corrida
@@ -106,9 +109,14 @@ function criarElemento(tag, id) {
     getAttribute(nome) { return this.atributos[nome] ?? null; },
     addEventListener(tipo, fn) { (this.ouvintes[tipo] = this.ouvintes[tipo] || []).push(fn); },
     disparar(tipo, evento = {}) {
-      (this.ouvintes[tipo] || []).forEach((fn) => fn({ preventDefault() {}, ...evento }));
+      (this.ouvintes[tipo] || []).forEach((fn) => fn({ preventDefault() {}, stopPropagation() {}, ...evento }));
     },
     appendChild(filho) { this.filhos.push(filho); return filho; },
+    // A captura implicita do ponteiro (fase 15): o navegador prende o dedo no
+    // elemento em que ele encostou ate o jogo soltar.
+    capturados: new Set(),
+    hasPointerCapture(id) { return this.capturados.has(id); },
+    releasePointerCapture(id) { this.capturados.delete(id); },
   };
 
   let texto = '';
@@ -147,6 +155,7 @@ export function carregarJogoComTela(slug = 'come_come', opcoes = {}) {
                     'hud-sala', 'hud-sala-codigo', 'hud-eu', 'hud-eu-nome',
                     'hud-placar',
                     'tela-menu', 'campo-apelido', 'btn-jogar', 'controles',
+                    'toque', 'toque-cima', 'toque-baixo', 'toque-esquerda', 'toque-direita',
                     'btn-amigos', 'aviso',
                     'tela-pausa', 'btn-continuar', 'btn-recomecar',
                     'tela-fase', 'fase-numero', 'fase-pontos',
@@ -167,6 +176,9 @@ export function carregarJogoComTela(slug = 'come_come', opcoes = {}) {
   elementos.hud.classes.add('hidden');
   elementos['tela-pausa'].classes.add('hidden');
   elementos.controles.classes.add('hidden');
+  // E, desde a fase 15, a cruzeta: ela so entra em aparelho de dedo, e no
+  // lugar do cartaz dos controles.
+  elementos.toque.classes.add('hidden');
   // E, desde a fase 8, a caixa do codigo da sala, o botao "JOGAR COM AMIGOS" e
   // a tarja de recado: os tres so aparecem com a Central no ar.
   elementos['hud-sala'].classes.add('hidden');
@@ -287,6 +299,52 @@ export function carregarJogoComTela(slug = 'come_come', opcoes = {}) {
     },
 
     clicar(id) { elementos[id].disparar('click'); },
+
+    /* ---------------------------------------------------------- Os dedos --
+       O que um dedo faz na cruzeta e no labirinto (fase 15), com os mesmos
+       eventos que o navegador manda. Cada dedo tem um `pointerId` proprio. */
+
+    /** Um dedo encosta numa seta da cruzeta (ou em qualquer elemento). */
+    dedoBaixo(id, dedo = 1, tipo = 'touch') {
+      const alvo = elementos[id];
+      alvo.capturados.add(dedo);          // a captura implicita do navegador
+      const evento = { pointerId: dedo, pointerType: tipo, buttons: 1, clientX: 0, clientY: 0 };
+      dom.eventoJanela('pointerdown', evento);     // a janela ve primeiro (captura)
+      alvo.disparar('pointerdown', evento);
+    },
+
+    /**
+     * O dedo escorrega de uma seta para outra sem sair da tela. Devolve
+     * `false` se a captura implicita ainda estiver presa na seta de origem -
+     * nesse caso a vizinha nao receberia nada.
+     */
+    dedoArrastar(de, para, dedo = 1, tipo = 'touch') {
+      if (de && elementos[de].capturados.has(dedo)) return false;
+      const evento = { pointerId: dedo, pointerType: tipo, buttons: 1 };
+      if (de) elementos[de].disparar('pointerleave', evento);
+      elementos[para].disparar('pointerenter', evento);
+      return true;
+    },
+
+    /** O dedo levanta. */
+    dedoCima(dedo = 1, tipo = 'touch') {
+      dom.eventoJanela('pointerup', { pointerId: dedo, pointerType: tipo, buttons: 0 });
+    },
+
+    /**
+     * Um deslize no labirinto: o dedo encosta em (x0, y0), passa pelos pontos
+     * do caminho e levanta no fim. Os pontos sao pixels de tela.
+     */
+    deslizar(x0, y0, caminho, dedo = 1, tipo = 'touch') {
+      const palco = elementos.palco;
+      const base = { pointerId: dedo, pointerType: tipo };
+      dom.eventoJanela('pointerdown', { ...base, buttons: 1, clientX: x0, clientY: y0 });
+      palco.disparar('pointerdown', { ...base, buttons: 1, clientX: x0, clientY: y0 });
+      for (const [x, y] of caminho) {
+        palco.disparar('pointermove', { ...base, buttons: 1, clientX: x, clientY: y });
+      }
+      dom.eventoJanela('pointerup', { ...base, buttons: 0 });
+    },
 
     /** O texto de um elemento do HUD (ou de qualquer outro). */
     texto(id) { return elementos[id].textContent; },

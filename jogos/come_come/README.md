@@ -56,6 +56,30 @@ pausa nada: só refaz a conta do tamanho da tela.
 O `ESC` só pausa, nunca despausa: em tela cheia ele é do navegador, e sair
 dela não pode largar o jogo andando sem ninguém ter mandado.
 
+### No celular e no tablet
+
+No vidro não existe seta, então a curva é pedida com o dedo, de dois jeitos:
+
+| Gesto | O que faz |
+|---|---|
+| **Deslizar** o dedo em cima do labirinto | pede a curva na direção do gesto (vale o eixo em que o dedo andou mais; um tremor de menos de 24px não conta) |
+| Encostar numa seta da **cruzeta** (▲ ◀ ▶ ▼) | pede a curva daquele lado — não precisa segurar |
+
+A cruzeta aparece **só em aparelho de dedo**, no lugar do cartaz das teclas.
+Deitado ela fica na faixa à direita do labirinto, na altura do polegar; em pé,
+logo abaixo dele. Dá para arrastar o polegar de uma seta para a outra sem
+levantar, e dá para mudar de ideia no meio de um deslize: a conta recomeça de
+onde o dedo está. Quem decide se o aparelho é de dedo é a pergunta
+`(pointer: coarse)` ao navegador — e, se ele não souber responder, o primeiro
+toque de verdade na página liga a cruzeta assim mesmo.
+
+O pedido do dedo vai para o **mesmo lugar** que o da seta (`entrada.desejada`),
+então a física, a pausa e a sala não ficam sabendo de onde veio. No menu, na
+pausa e nas telas de fim nenhum toque guarda pedido nenhum. Os controles são
+translúcidos e o HUD não rouba o toque: só os botões recebem clique. Aberto
+pela Central, o celular é deitado sozinho quando o navegador deixa, e quando
+não deixa a Central pede para girar.
+
 O pedido **fica guardado**: dá para apertar a seta um pouco antes da esquina
 que a curva sai certinha quando o corredor abrir. É assim nos fliperamas, e é
 assim aqui.
@@ -605,6 +629,27 @@ digitar *Pedro* pausaria o jogo no "p" e *Ana* viraria o come-come no "a". É a
 única coisa que fica guardada no aparelho (`localStorage`), exatamente o que o
 `jogo.json` declara em `privacidade.coleta`.
 
+**O palco manda na tela, e o resto é translúcido em volta dele.** O CSS tem
+dois desenhos: deitado, o HUD vira uma coluna encostada no labirinto pela
+esquerda (e a cruzeta fica na faixa da direita); em pé, o HUD é uma faixa em
+cima e a cruzeta uma faixa embaixo. O `ajustarPalco()` não chuta mais folga
+nenhuma: lê o padding de verdade do `body`, lê a faixa que o CSS reserva de
+cada lado (`--banda`, para nada ficar por cima das pastilhas) e devolve a
+largura escolhida em `--palco-l`, que é por onde o HUD encosta no palco. Quando
+a coluna não cabe na altura (sala cheia, celular baixinho) ela quebra para a
+**esquerda** (`direction: rtl` no contêiner), nunca por cima do labirinto. O
+canto de cima à direita da tela é da Central: o botão Voltar dela mora ali
+quando o aparelho está deitado.
+
+**O deslize é geometria pura, e a cruzeta é fiação.** O módulo `Toque` só sabe
+responder "este (dx, dy) já é um pedido de curva, e para que lado?"; quem
+conta dedos são os eventos de ponteiro (`pointer*`, que valem para dedo,
+caneta e mouse de uma vez). A cruzeta solta a captura implícita do navegador
+no `pointerdown`, que é o que deixa o polegar escorregar de uma seta para a
+outra. Nenhum dos dois toca em `entrada.desejada` diretamente: os dois passam
+por `pedirDirecao()`, o mesmo portão da seta do teclado, que recusa pedidos
+fora do labirinto rolando.
+
 ---
 
 ## Testes
@@ -633,6 +678,8 @@ node testes/come_come/fase8-tela.test.mjs   # 3 abas numa sala, pelo servidor de
 node testes/come_come/fase9.test.mjs        # o mundo único do anfitrião, com três abas
 node testes/come_come/fase10.test.mjs       # a previsão local do convidado, com latência
 node testes/come_come/fase11.test.mjs       # o labirinto disputado: pastilha, poder e cor da sala
+node testes/come_come/fase15.test.mjs       # a geometria do deslize (o módulo Toque)
+node testes/come_come/fase15-tela.test.mjs  # a cruzeta e o deslize, num tablet de mentira
 ```
 
 O `fase2-tela.test.mjs` põe um **piloto automático** no volante: a cada centro
@@ -749,3 +796,11 @@ encaixe seco quando os dois estão em corredores diferentes ou com parede no
 meio, a volta do túnel não virando um erro de labirinto inteiro, e que passar
 por cima de uma pastilha na tela do convidado **não** some com ela nem dá
 ponto.
+
+O `fase15-tela.test.mjs` liga o jogo num DOM que **finge ser um tablet** (o
+`matchMedia('(pointer: coarse)')` responde que sim) e faz o que um dedo faz:
+encosta nas setas da cruzeta, arrasta de uma para a outra, desliza em cima do
+labirinto (reto, torto e mudando de ideia no meio) e confere que tudo isso
+escreve o mesmo `entrada.desejada` da seta do teclado — e que na pausa, no menu
+e nas telas de fim nenhum toque vira nada. Também prova que num computador
+nada muda, e que o primeiro toque de verdade liga a cruzeta mesmo assim.
